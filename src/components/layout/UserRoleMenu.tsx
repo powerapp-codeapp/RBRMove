@@ -43,7 +43,7 @@ export const UserRoleMenu: React.FC = () => {
         >
           <User size={15} strokeWidth={2} />
         </div>
-        <span className="jnj-user-profile-name" style={{ fontSize: '13px', fontWeight: 600, color: '#000000' }}>
+        <span className="jnj-user-profile-name" style={{ fontSize: 'var(--type-table-row-size, 13px)', fontWeight: 600, color: '#000000' }}>
           {currentUser.name}
         </span>
         <ChevronDown size={14} color="#000000" />
@@ -65,16 +65,16 @@ export const UserRoleMenu: React.FC = () => {
           }}
         >
           <div style={{ padding: '12px 16px', backgroundColor: '#fafafc', borderBottom: '1px solid #d8d8d8' }}>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: '#212121' }}>{currentUser.name}</div>
-            <div style={{ fontSize: '11px', color: '#63666a', marginTop: '2px' }}>
+            <div style={{ fontSize: 'var(--type-table-row-title-size, 13px)', fontWeight: 800, color: '#212121' }}>{currentUser.name}</div>
+            <div style={{ fontSize: 'var(--type-caption-size, 11px)', color: '#63666a', marginTop: '2px' }}>
               Active Role: <strong style={{ color: '#000099' }}>{activeRole.label}</strong>
             </div>
-            <div style={{ fontSize: '10px', color: '#888b8d', marginTop: '1px' }}>{currentUser.department}</div>
+            <div style={{ fontSize: 'var(--type-caption-size, 10px)', color: '#888b8d', marginTop: '1px' }}>{currentUser.department}</div>
           </div>
 
           <div style={{ maxHeight: '360px', overflowY: 'auto', padding: '6px 0' }}>
             {/* IT Roles */}
-            <div style={{ padding: '6px 14px 2px', fontSize: '10px', fontWeight: 800, color: '#000099', textTransform: 'uppercase' }}>
+            <div style={{ padding: '6px 14px 2px', fontSize: 'var(--type-caption-size, 10px)', fontWeight: 800, color: '#000099', textTransform: 'uppercase' }}>
               IT Governance Roles
             </div>
             {itRoles.map(role => (
@@ -94,7 +94,7 @@ export const UserRoleMenu: React.FC = () => {
                   border: 'none',
                   backgroundColor: activeRole.id === role.id ? '#f1f4ff' : 'transparent',
                   color: activeRole.id === role.id ? '#000099' : '#212121',
-                  fontSize: '12px',
+                  fontSize: 'var(--type-caption-size, 12px)',
                   fontWeight: activeRole.id === role.id ? 700 : 500,
                   cursor: 'pointer',
                 }}
@@ -105,7 +105,7 @@ export const UserRoleMenu: React.FC = () => {
             ))}
 
             {/* FinOps Roles */}
-            <div style={{ padding: '8px 14px 2px', fontSize: '10px', fontWeight: 800, color: '#eb1700', textTransform: 'uppercase' }}>
+            <div style={{ padding: '8px 14px 2px', fontSize: 'var(--type-caption-size, 10px)', fontWeight: 800, color: '#eb1700', textTransform: 'uppercase' }}>
               FinOps Governance Roles
             </div>
             {finOpsRoles.map(role => (
@@ -125,7 +125,7 @@ export const UserRoleMenu: React.FC = () => {
                   border: 'none',
                   backgroundColor: activeRole.id === role.id ? '#f1f4ff' : 'transparent',
                   color: activeRole.id === role.id ? '#000099' : '#212121',
-                  fontSize: '12px',
+                  fontSize: 'var(--type-caption-size, 12px)',
                   fontWeight: activeRole.id === role.id ? 700 : 500,
                   cursor: 'pointer',
                 }}
@@ -136,7 +136,7 @@ export const UserRoleMenu: React.FC = () => {
             ))}
 
             {/* Case-Based Roles */}
-            <div style={{ padding: '8px 14px 2px', fontSize: '10px', fontWeight: 800, color: '#63666a', textTransform: 'uppercase' }}>
+            <div style={{ padding: '8px 14px 2px', fontSize: 'var(--type-caption-size, 10px)', fontWeight: 800, color: '#63666a', textTransform: 'uppercase' }}>
               Business Contact Roles
             </div>
             {caseRoles.map(role => (
@@ -156,7 +156,7 @@ export const UserRoleMenu: React.FC = () => {
                   border: 'none',
                   backgroundColor: activeRole.id === role.id ? '#f1f4ff' : 'transparent',
                   color: activeRole.id === role.id ? '#000099' : '#212121',
-                  fontSize: '12px',
+                  fontSize: 'var(--type-caption-size, 12px)',
                   fontWeight: activeRole.id === role.id ? 700 : 500,
                   cursor: 'pointer',
                 }}

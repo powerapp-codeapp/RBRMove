@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useEngagement } from '../../../context/EngagementContext';
 import { useUserSession } from '../../../context/UserSessionContext';
 import { dataverseService } from '../../../services/dataverseService';
@@ -13,7 +13,7 @@ import { IssueLogsDialog } from '../components/IssueLogsDialog';
 import { FieldCommentDialog } from '../components/FieldCommentDialog';
 import { WorkflowModal } from '../components/WorkflowModal';
 import { CallbackModal } from '../components/CallbackModal';
-import { BackButton, SharedSelectButton } from '../../../components/shared';
+import { PageHeader, SharedSelectButton, SharedToast } from '../../../components/shared';
 import {
   FileText,
   Download,
@@ -22,8 +22,6 @@ import {
   History,
   CheckCircle2,
 } from 'lucide-react';
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
 
 export const AuditReportStudioView: React.FC = () => {
   const { selectedEngagementId, setActiveReportingView, activeEngagement } = useEngagement();
@@ -439,7 +437,11 @@ export const AuditReportStudioView: React.FC = () => {
     const newIssues = [...issues, created];
     updateIssuesAndSync(newIssues);
     setSelectedIssueId(created.id);
-    setToastMessage({ message: `Finding #${created.id} created successfully`, severity: 'success' });
+    setToastMessage({
+      title: 'Finding Created Successfully',
+      message: `Finding #${created.id} (${created.title}) added to report.`,
+      severity: 'success',
+    });
   };
 
   const handleAddComment = async (content: string, taggedUserId?: string, taggedUserName?: string) => {
@@ -507,61 +509,17 @@ export const AuditReportStudioView: React.FC = () => {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: 'calc(100vh - 77px)',
+        height: 'calc(100vh - var(--header-total-height, 71px))',
         backgroundColor: '#ffffff',
         overflow: 'hidden',
       }}
     >
       {/* Studio Header Toolbar */}
-      <header
-        style={{
-          minHeight: '58px',
-          padding: '12px 20px',
-          borderBottom: 'none',
-          boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
-          position: 'relative',
-          zIndex: 15,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '12px',
-          backgroundColor: '#ffffff',
-          flexShrink: 0,
-          boxSizing: 'border-box',
-        }}
-      >
-        {/* Left Section: Back Button & Title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <BackButton
-            onClick={() => setActiveReportingView('queue')}
-            title="Back to Reporting Queue"
-            ariaLabel="Back to Reporting Queue"
-          />
-
-          <h1
-            style={{
-              fontSize: '15px',
-              fontWeight: 500,
-              color: '#334155',
-              lineHeight: '1.3',
-              fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-              margin: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-            }}
-          >
-            Audit Report —{' '}
-            {(activeEngagement as any)?.fileName ||
-              (activeEngagement as any)?.engagement ||
-              selectedEngagementId ||
-              'Audit Report'}
-          </h1>
-
-        </div>
-
-        {/* Right Section: Action Buttons clubbed into Report Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <PageHeader
+        onBack={() => setActiveReportingView('queue')}
+        backTitle="Back to Reporting Queue"
+        title={`Audit Report — ${(activeEngagement as any)?.fileName || (activeEngagement as any)?.engagement || selectedEngagementId || 'Audit Report'}`}
+        actions={
           <SharedSelectButton
             label="Report Actions"
             size="small"
@@ -605,8 +563,8 @@ export const AuditReportStudioView: React.FC = () => {
               },
             ]}
           />
-        </div>
-      </header>
+        }
+      />
 
       {/* Main Studio Body: 3-Pane Layout */}
       <div
@@ -880,24 +838,16 @@ export const AuditReportStudioView: React.FC = () => {
         />
       )}
 
-      {/* Toast Feedback Notification */}
-      <Snackbar
+      {/* Toast Feedback Notification (Componentised & Positioned Top-Right Underneath Global Header) */}
+      <SharedToast
         open={!!toastMessage}
-        autoHideDuration={4000}
         onClose={() => setToastMessage(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        {toastMessage ? (
-          <Alert
-            severity={toastMessage.severity}
-            onClose={() => setToastMessage(null)}
-            sx={{ width: '100%', fontWeight: 600 }}
-          >
-            {toastMessage.title && <strong>{toastMessage.title}: </strong>}
-            {toastMessage.message}
-          </Alert>
-        ) : undefined}
-      </Snackbar>
+        title={toastMessage?.title}
+        message={toastMessage?.message}
+        severity={toastMessage?.severity}
+        position="top-right"
+        duration={4000}
+      />
     </div>
   );
 };

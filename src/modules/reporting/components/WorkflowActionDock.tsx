@@ -74,7 +74,17 @@ export const WorkflowActionDock: React.FC<WorkflowActionDockProps> = ({
     >
       {/* 5-Tier Review Workflow Stepper Breadcrumb */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '11px', fontWeight: 800, color: '#63666a', textTransform: 'uppercase', marginRight: '4px' }}>
+        <span
+          className="type-caption"
+          style={{
+            fontSize: 'var(--type-caption-size, 11px)',
+            fontWeight: 800,
+            color: '#63666a',
+            textTransform: 'uppercase',
+            marginRight: '4px',
+            fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)'
+          }}
+        >
           Workflow Stage:
         </span>
 
@@ -85,13 +95,14 @@ export const WorkflowActionDock: React.FC<WorkflowActionDockProps> = ({
           return (
             <React.Fragment key={stageName}>
               <div
+                className="type-caption"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '5px',
                   padding: '4px 10px',
                   borderRadius: '20px',
-                  fontSize: '11px',
+                  fontSize: 'var(--type-caption-size, 11px)',
                   fontWeight: isCurrent ? 800 : 600,
                   backgroundColor: isCurrent ? '#f1f4ff' : isPassed ? '#ebf9ee' : '#f8fafc',
                   color: isCurrent ? '#000099' : isPassed ? '#0f8f4d' : '#94a3b8',
@@ -100,13 +111,14 @@ export const WorkflowActionDock: React.FC<WorkflowActionDockProps> = ({
                     : isPassed
                     ? '1px solid #bfe8c8'
                     : '1px solid #e2e8f0',
+                  fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)'
                 }}
               >
                 {isPassed && <CheckCircle2 size={12} color="#0f8f4d" />}
                 <span>{stageName}</span>
               </div>
               {idx < stages.length - 1 && (
-                <span style={{ color: '#cbd5e1', fontSize: '10px' }}>&rsaquo;</span>
+                <span style={{ color: '#cbd5e1', fontSize: 'var(--type-caption-size, 10px)' }}>&rsaquo;</span>
               )}
             </React.Fragment>
           );
@@ -116,6 +128,7 @@ export const WorkflowActionDock: React.FC<WorkflowActionDockProps> = ({
       {/* Critical Finding Gate Alert */}
       {hasCriticalFinding && (
         <div
+          className="type-caption"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -124,9 +137,10 @@ export const WorkflowActionDock: React.FC<WorkflowActionDockProps> = ({
             border: '1px solid #fecaca',
             borderRadius: '6px',
             padding: '6px 12px',
-            fontSize: '11px',
+            fontSize: 'var(--type-caption-size, 11px)',
             fontWeight: 700,
             color: '#eb1700',
+            fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)'
           }}
         >
           <ShieldAlert size={14} />

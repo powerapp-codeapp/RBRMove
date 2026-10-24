@@ -3,8 +3,8 @@ import InputBase from '@mui/material/InputBase';
 import type { InputBaseProps } from '@mui/material/InputBase';
 import CircularProgress from '@mui/material/CircularProgress';
 import SearchIcon from '@mui/icons-material/Search';
-import CloseIcon from '@mui/icons-material/Close';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import { X } from 'lucide-react';
 import { SharedFieldLabel } from '../common/SharedFieldLabel';
 import { SharedFieldError } from '../common/SharedFieldError';
 
@@ -80,7 +80,7 @@ export const SharedSearchInput: React.FC<SharedSearchInputProps> = ({
   const inputId = externalId || `search-${generatedId}`;
   const helperId = `${inputId}-helper`;
 
-  const heightClass = size === 'small' ? 'h-9 text-sm' : 'h-10 text-base';
+  const heightClass = size === 'small' ? 'min-h-[2.25rem] text-sm' : 'min-h-[2.5rem] text-base';
 
   const borderClass = error
     ? 'border-red-500 focus-within:border-red-600 focus-within:ring-2 focus-within:ring-red-100'
@@ -131,10 +131,14 @@ export const SharedSearchInput: React.FC<SharedSearchInputProps> = ({
       )}
 
       <div
-        className={`flex items-center px-3 rounded border transition-all duration-150 ${heightClass} ${borderClass}`}
+        className={`type-input-value flex items-center px-3 rounded border transition-all duration-150 ${heightClass} ${borderClass}`}
         style={{
           backgroundColor: disabled ? '#FAFAFA' : readOnly ? '#FAFAFA' : '#FFFFFF',
           borderColor: error ? '#ef4444' : '#CBD5E1',
+          minHeight: size === 'small' ? 'var(--control-min-height-sm, 2.25rem)' : 'var(--control-min-height-md, 2.5rem)',
+          fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+          fontSize: 'var(--type-input-text-size, 13px)',
+          color: 'var(--type-input-text-color, #212121)',
         }}
       >
         <div className="mr-2 flex items-center text-slate-400 shrink-0">
@@ -144,7 +148,8 @@ export const SharedSearchInput: React.FC<SharedSearchInputProps> = ({
         <InputBase
           id={inputId}
           name={name}
-          type="search"
+          type="text"
+          role="searchbox"
           value={value ?? ''}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
@@ -162,16 +167,26 @@ export const SharedSearchInput: React.FC<SharedSearchInputProps> = ({
           }}
           className={`w-full text-slate-800 placeholder:text-slate-400 font-normal ${inputClassName}`}
           sx={{
-            fontSize: 'inherit',
+            fontSize: 'var(--type-input-text-size, 13px)',
+            fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+            lineHeight: 'var(--type-input-text-leading, 1.45)',
             color: 'inherit',
             '& input': {
               padding: 0,
               height: 'auto',
+              fontSize: 'var(--type-input-text-size, 13px)',
+              fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+              lineHeight: 'var(--type-input-text-leading, 1.45)',
               cursor: disabled ? 'not-allowed' : undefined,
               '&::-webkit-search-decoration, &::-webkit-search-cancel-button, &::-webkit-search-results-button, &::-webkit-search-results-decoration':
                 {
                   display: 'none',
                 },
+              '&::-ms-clear, &::-ms-reveal': {
+                display: 'none',
+                width: 0,
+                height: 0,
+              },
             },
           }}
           {...slotProps?.inputBase}
@@ -185,9 +200,9 @@ export const SharedSearchInput: React.FC<SharedSearchInputProps> = ({
               type="button"
               onClick={handleClear}
               aria-label="Clear search input"
-              className="p-0.5 text-slate-400 hover:text-slate-600 rounded transition-colors"
+              className="shared-search-clear-btn"
             >
-              <CloseIcon className="!w-3.5 !h-3.5" />
+              <X size={11} strokeWidth={2.4} />
             </button>
           )}
 

@@ -73,7 +73,7 @@ export const SharedTextInput: React.FC<SharedTextInputProps> = ({
   const inputId = externalId || `input-${generatedId}`;
   const helperId = `${inputId}-helper`;
 
-  const heightClass = size === 'small' ? 'h-9 text-sm' : 'h-10 text-base';
+  const heightClass = size === 'small' ? 'min-h-[2.25rem] text-sm' : 'min-h-[2.5rem] text-base';
 
   const borderClass = error
     ? 'border-red-500 focus-within:border-red-600 focus-within:ring-2 focus-within:ring-red-100'
@@ -100,10 +100,14 @@ export const SharedTextInput: React.FC<SharedTextInputProps> = ({
       )}
 
       <div
-        className={`flex items-center px-3 rounded border transition-all duration-150 ${heightClass} ${borderClass}`}
+        className={`type-input-value flex items-center px-3 rounded border transition-all duration-150 ${heightClass} ${borderClass}`}
         style={{
           backgroundColor: disabled ? '#FAFAFA' : readOnly ? '#FAFAFA' : '#FFFFFF',
           borderColor: error ? '#ef4444' : '#CBD5E1',
+          minHeight: size === 'small' ? 'var(--control-min-height-sm, 2.25rem)' : 'var(--control-min-height-md, 2.5rem)',
+          fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+          fontSize: 'var(--type-input-text-size, 13px)',
+          color: 'var(--type-input-text-color, #212121)',
         }}
       >
         {startAdornment && (
@@ -136,7 +140,10 @@ export const SharedTextInput: React.FC<SharedTextInputProps> = ({
           }}
           className={`w-full text-slate-800 placeholder:text-slate-400 font-normal ${inputClassName}`}
           sx={{
-            fontSize: 'inherit',
+            fontSize: 'var(--type-input-text-size, 12.5px)',
+            fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+            fontWeight: 'var(--type-input-text-weight, 400)',
+            lineHeight: 'var(--type-input-text-leading, 1.45)',
             color: 'inherit',
             '&.Mui-disabled': {
               color: '#1E293B !important',
@@ -145,6 +152,10 @@ export const SharedTextInput: React.FC<SharedTextInputProps> = ({
             '& input': {
               padding: 0,
               height: 'auto',
+              fontSize: 'var(--type-input-text-size, 12.5px)',
+              fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+              fontWeight: 'var(--type-input-text-weight, 400) !important',
+              lineHeight: 'var(--type-input-text-leading, 1.45)',
               cursor: disabled ? 'default' : undefined,
               '&.Mui-disabled': {
                 color: '#1E293B !important',

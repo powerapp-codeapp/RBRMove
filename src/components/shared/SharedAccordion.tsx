@@ -202,7 +202,16 @@ export function SharedAccordion({
                 />
               )}
               {headerContent || (
-                <span className="text-[15px] font-medium text-slate-700">
+                <span
+                  className="type-section-title text-[15px] font-medium text-slate-700"
+                  style={{
+                    fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                    fontSize: 'var(--type-section-title-size, 14px)',
+                    fontWeight: 'var(--type-section-title-weight, 700)' as any,
+                    lineHeight: 'var(--type-section-title-leading, 1.3)' as any,
+                    color: 'var(--type-section-title-color, #0F172A)',
+                  }}
+                >
                   {title}
                 </span>
               )}

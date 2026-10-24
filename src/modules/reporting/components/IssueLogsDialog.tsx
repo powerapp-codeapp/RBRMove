@@ -85,15 +85,58 @@ export const IssueLogsDialog: React.FC<IssueLogsDialogProps> = ({
               <History size={20} color="#000099" />
             </div>
             <div>
-              <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#212121', margin: 0 }}>
+              <h2
+                className="type-modal-title"
+                style={{
+                  fontSize: 'var(--type-modal-title-size, 16px)',
+                  fontWeight: 800,
+                  color: '#212121',
+                  margin: 0,
+                  fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                }}
+              >
                 Audit Trail &amp; Event History Log
               </h2>
-              <span style={{ fontSize: '11px', color: '#63666a' }}>
+              <span
+                className="type-caption"
+                style={{
+                  fontSize: 'var(--type-caption-size, 11px)',
+                  color: '#63666a',
+                  fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                }}
+              >
                 Immutable regulatory ledger for Finding: {issueTitle} ({issueId})
               </span>
             </div>
           </div>
-          <button onClick={onClose} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b' }}>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close logs dialog"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              color: '#64748b',
+              padding: '4px',
+              borderRadius: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '28px',
+              height: '28px',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#000099';
+              e.currentTarget.style.backgroundColor = '#F1F5F9';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#64748b';
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+            title="Close"
+          >
             <X size={20} />
           </button>
         </div>
@@ -115,39 +158,81 @@ export const IssueLogsDialog: React.FC<IssueLogsDialogProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span
+                    className="type-badge"
                     style={{
-                      fontSize: '11px',
+                      fontSize: 'var(--type-caption-size, 11px)',
                       fontWeight: 800,
                       padding: '2px 8px',
                       borderRadius: '4px',
                       backgroundColor: log.action === 'SIGN_OFF' ? '#ebf9ee' : '#f1f4ff',
                       color: log.action === 'SIGN_OFF' ? '#0f8f4d' : '#000099',
                       border: `1px solid ${log.action === 'SIGN_OFF' ? '#bfe8c8' : '#c5dbfc'}`,
+                      fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
                     }}
                   >
                     {log.action}
                   </span>
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#212121' }}>
+                  <span
+                    className="type-table-row-title"
+                    style={{
+                      fontSize: 'var(--type-table-header-size, 12px)',
+                      fontWeight: 700,
+                      color: '#212121',
+                      fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                    }}
+                  >
                     {log.performedByUserName}
                   </span>
-                  <span style={{ fontSize: '11px', color: '#64748b' }}>
+                  <span
+                    className="type-caption"
+                    style={{
+                      fontSize: 'var(--type-caption-size, 11px)',
+                      color: '#64748b',
+                      fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                    }}
+                  >
                     ({log.userRole || 'Auditor'})
                   </span>
                 </div>
 
-                <span style={{ fontSize: '11px', color: '#888b8d' }}>
+                <span
+                  className="type-caption"
+                  style={{
+                    fontSize: 'var(--type-caption-size, 11px)',
+                    color: '#888b8d',
+                    fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                  }}
+                >
                   {new Date(log.timestamp).toLocaleString()}
                 </span>
               </div>
 
               {log.previousState && log.newState && (
-                <div style={{ fontSize: '12px', color: '#475569', marginBottom: '6px' }}>
+                <div
+                  className="type-body"
+                  style={{
+                    fontSize: 'var(--type-table-row-size, 12px)',
+                    color: '#475569',
+                    marginBottom: '6px',
+                    fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                  }}
+                >
                   Transition: <strong style={{ color: '#0f172a' }}>{log.previousState}</strong> &rarr; <strong style={{ color: '#000099' }}>{log.newState}</strong>
                 </div>
               )}
 
               {log.remarks && (
-                <p style={{ fontSize: '12px', color: '#64748b', margin: 0, fontStyle: 'italic', lineHeight: '1.5' }}>
+                <p
+                  className="type-body"
+                  style={{
+                    fontSize: 'var(--type-table-row-size, 12px)',
+                    color: '#64748b',
+                    margin: 0,
+                    fontStyle: 'italic',
+                    lineHeight: '1.5',
+                    fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                  }}
+                >
                   &ldquo;{log.remarks}&rdquo;
                 </p>
               )}

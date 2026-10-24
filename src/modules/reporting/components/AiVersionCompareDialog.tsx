@@ -4,6 +4,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import { GitCompare, Check, X } from 'lucide-react';
 import type { Issue } from '../../../types/dataverse.types';
+import { SharedButton } from '../../../components/shared/buttons/SharedButton';
 
 export interface AiCompareFieldData {
   title: string;
@@ -157,97 +158,47 @@ export const AiVersionCompareDialog: React.FC<AiVersionCompareDialogProps> = ({
           >
             <GitCompare size={17} />
           </div>
-          <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+          <h2
+            className="type-modal-title"
+            style={{
+              fontSize: 'var(--type-modal-title-size, 16px)',
+              fontWeight: 800,
+              color: '#0F172A',
+              margin: 0,
+              fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+            }}
+          >
             Compare Versions
           </h2>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            type="button"
+          <SharedButton
+            variant="outline"
+            size="small"
             onClick={handleKeepPrevious}
-            style={{
-              padding: '6px 14px',
-              borderRadius: '5px',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              border: '1px solid #CBD5E1',
-              backgroundColor: '#FFFFFF',
-              color: '#334155',
-              transition: 'all 0.15s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#F8FAFC';
-              e.currentTarget.style.borderColor = '#94A3B8';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#FFFFFF';
-              e.currentTarget.style.borderColor = '#CBD5E1';
-            }}
           >
             Keep Previous Version
-          </button>
+          </SharedButton>
 
-          <button
-            type="button"
+          <SharedButton
+            variant="success"
+            size="small"
+            startIcon={<Check size={14} />}
             onClick={handleApplyMerge}
-            style={{
-              padding: '6px 16px',
-              borderRadius: '5px',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              border: 'none',
-              backgroundColor: '#16A34A',
-              color: '#FFFFFF',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '5px',
-              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.08)',
-              transition: 'all 0.15s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#15803D';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#16A34A';
-            }}
           >
-            <Check size={14} />
-            <span>Keep Selected</span>
-          </button>
+            Keep Selected
+          </SharedButton>
 
-          <button
-            type="button"
+          <SharedButton
+            variant="outline"
+            size="small"
+            startIcon={<X size={13} />}
             onClick={onClose}
-            style={{
-              padding: '6px 12px',
-              borderRadius: '5px',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              border: '1px solid #CBD5E1',
-              backgroundColor: '#FFFFFF',
-              color: '#64748B',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              transition: 'all 0.15s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#F1F5F9';
-              e.currentTarget.style.color = '#0F172A';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#FFFFFF';
-              e.currentTarget.style.color = '#64748B';
-            }}
             title="Discard changes and keep previous version"
           >
-            <X size={13} />
-            <span>Discard</span>
-          </button>
+            Discard
+          </SharedButton>
         </div>
       </DialogTitle>
 
@@ -289,10 +240,25 @@ export const AiVersionCompareDialog: React.FC<AiVersionCompareDialogProps> = ({
                     padding: '0 2px',
                   }}
                 >
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#1E293B' }}>
+                  <span
+                    className="type-section-title"
+                    style={{
+                      fontSize: 'var(--type-table-header-size, 13px)',
+                      fontWeight: 800,
+                      color: '#1E293B',
+                      fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                    }}
+                  >
                     {label}
                   </span>
-                  <span style={{ fontSize: '11.5px', color: '#64748B' }}>
+                  <span
+                    className="type-caption"
+                    style={{
+                      fontSize: 'var(--type-caption-size, 11.5px)',
+                      color: '#64748B',
+                      fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                    }}
+                  >
                     Selected:{' '}
                     <strong style={{ color: choice === 'candidate' ? '#15803D' : '#000099' }}>
                       {choice === 'candidate' ? 'Regenerated' : 'Previous'}
@@ -323,10 +289,11 @@ export const AiVersionCompareDialog: React.FC<AiVersionCompareDialogProps> = ({
                   >
                     <span
                       style={{
-                        fontSize: '13px',
+                        fontSize: 'var(--type-table-row-size, 13px)',
                         color: '#334155',
                         whiteSpace: 'pre-wrap',
                         lineHeight: 1.5,
+                        fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
                       }}
                     >
                       {prevText || 'No previous content.'}
@@ -355,10 +322,11 @@ export const AiVersionCompareDialog: React.FC<AiVersionCompareDialogProps> = ({
                   >
                     <span
                       style={{
-                        fontSize: '13px',
+                        fontSize: 'var(--type-table-row-size, 13px)',
                         color: choice === 'candidate' ? '#14532D' : '#334155',
                         whiteSpace: 'pre-wrap',
                         lineHeight: 1.5,
+                        fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
                       }}
                     >
                       {candidateText || 'No candidate content.'}

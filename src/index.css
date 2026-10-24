@@ -8,12 +8,49 @@
   padding: 0;
 }
 
+/* ==============================================================================
+   RESPONSIVE ROOT SCALE (Desktop Monitor vs. Laptop & High-DPI Zoom)
+   ------------------------------------------------------------------------------
+   All typography and UI controls in IAR use 'rem' units based on this root size.
+   By adjusting the root font size across viewport breakpoints, the entire UI
+   (headings, inputs, table rows, cards, and modal dialogs) automatically
+   scales down proportionally on laptops without text truncation or clipping.
+   ============================================================================== */
+html {
+  font-size: 16px;
+  /* Base 100% scale for Large External Monitors (>= 1600px, 1080p/1440p/4K) */
+}
+
+/* Standard Laptops (1200px - 1599px, e.g. MacBook, ThinkPad, 1080p @ 125% Windows zoom) */
+@media screen and (max-width: 1599px) {
+  html {
+    font-size: 14.5px;
+    /* Proportional ~9.4% downscale for comfortable laptop density */
+  }
+}
+
+/* Compact Laptops & High-DPI Zoom (1024px - 1199px, e.g. 1080p @ 150% Windows zoom) */
+@media screen and (max-width: 1199px) {
+  html {
+    font-size: 13.5px;
+    /* Proportional ~15.6% downscale to prevent horizontal scrolling */
+  }
+}
+
+/* Tablets Landscape & Narrow Windows (<= 1023px) */
+@media screen and (max-width: 1023px) {
+  html {
+    font-size: 13px;
+    /* Prevents overflow in split-screen side-by-side mode */
+  }
+}
+
 html,
 body {
   height: 100%;
   font-family: "jj-circular", Arial, Helvetica, sans-serif;
-  color: var(--ara-body-text, #212121);
-  background-color: var(--ara-body-bg, #f4f4f4);
+  color: var(--jj-black, #212121);
+  background-color: var(--jj-grey-extra-light, #ffffff);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   scrollbar-width: none !important;
@@ -34,6 +71,100 @@ body::-webkit-scrollbar {
   --color-separator: #d8d8d8;
   --border-default: 1px solid #d8d8d8;
   --border-divider: 1px solid #d8d8d8;
+}
+
+/* ==============================================================================
+   PHASE 1: STANDARDIZED TYPOGRAPHY CLASSES
+   Composite utility classes bundling font-family, fluid size, weight, line-height & brand color
+   Derived strictly from developed views (Audit Queue, Create Issue, Studios)
+   ============================================================================== */
+.type-page-title {
+  font-family: var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif);
+  font-size: var(--type-page-title-size);
+  font-weight: var(--type-page-title-weight, 800);
+  line-height: var(--type-page-title-leading, 1.25);
+  color: var(--type-page-title-color, #212121);
+}
+
+.type-studio-title {
+  font-family: var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif);
+  font-size: var(--type-studio-title-size);
+  font-weight: var(--type-studio-title-weight, 500);
+  line-height: var(--type-studio-title-leading, 1.3);
+  color: var(--type-studio-title-color, #334155);
+}
+
+.type-dialog-title {
+  font-family: var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif);
+  font-size: var(--type-dialog-title-size);
+  font-weight: var(--type-dialog-title-weight, 800);
+  line-height: var(--type-dialog-title-leading, 1.25);
+  color: var(--type-dialog-title-color, #0F172A);
+}
+
+.type-section-title {
+  font-family: var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif);
+  font-size: var(--type-section-title-size);
+  font-weight: var(--type-section-title-weight, 700);
+  line-height: var(--type-section-title-leading, 1.3);
+  color: var(--type-section-title-color, #0F172A);
+}
+
+.type-field-label {
+  font-family: var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif);
+  font-size: var(--type-field-label-size);
+  font-weight: var(--type-field-label-weight, 600);
+  line-height: var(--type-field-label-leading, 1.35);
+  color: var(--type-field-label-color, #475569);
+}
+
+.type-input-value {
+  font-family: var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif);
+  font-size: var(--type-input-text-size);
+  font-weight: var(--type-input-text-weight, 400);
+  line-height: var(--type-input-text-leading, 1.45);
+  color: var(--type-input-text-color, #1E293B);
+}
+
+.type-table-header {
+  font-family: var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif);
+  font-size: var(--type-table-header-size);
+  font-weight: var(--type-table-header-weight, 700);
+  line-height: var(--type-table-header-leading, 1.25);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--type-table-header-color, #64748B);
+}
+
+.type-table-row-title {
+  font-family: var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif);
+  font-size: var(--type-table-row-title-size);
+  font-weight: var(--type-table-row-title-weight, 700);
+  line-height: var(--type-table-row-title-leading, 1.4);
+  color: var(--type-table-row-title-color, #1E293B);
+}
+
+.type-table-cell {
+  font-family: var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif);
+  font-size: var(--type-table-row-size);
+  font-weight: var(--type-table-row-weight, 500);
+  line-height: var(--type-table-row-leading, 1.4);
+  color: var(--type-table-row-color, #1E293B);
+}
+
+.type-caption {
+  font-family: var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif);
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-caption-weight, 600);
+  line-height: var(--type-caption-leading, 1.3);
+  color: var(--type-caption-color, #64748B);
+}
+
+.type-badge {
+  font-family: var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif);
+  font-size: var(--type-badge-size);
+  font-weight: var(--type-badge-weight, 700);
+  line-height: var(--type-badge-leading, 1.2);
 }
 
 hr,
@@ -62,6 +193,8 @@ hr,
   flex: 1;
   min-height: 0;
   position: relative;
+  padding: var(--space-filter-margin-bottom, 16px) var(--space-page-padding-x, 20px) var(--space-page-padding-y, 16px) var(--space-page-padding-x, 20px);
+  background-color: #ffffff;
 }
 
 .table-card-container {
@@ -75,110 +208,6 @@ hr,
   min-height: 0;
   overflow: hidden;
   position: relative;
-}
-
-.table-scroll-body {
-  overflow-y: auto !important;
-  overflow-x: auto;
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-}
-
-.full-width-queue .table-scroll-body {
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
-}
-
-.full-width-queue .table-scroll-body::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  background: transparent !important;
-}
-
-.full-width-queue .table-scroll-body::-webkit-scrollbar-track,
-.full-width-queue .table-scroll-body::-webkit-scrollbar-thumb {
-  display: none !important;
-  background: transparent !important;
-}
-
-.table-scroll-body table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-  font-size: 13px;
-}
-
-.full-width-queue .table-scroll-body > table > thead > tr > th {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: #f8fafc;
-  color: #212121;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  padding: 14px 16px;
-  border-bottom: 2px solid #eb1700;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  user-select: none;
-}
-
-.full-width-queue .table-scroll-body > table > thead > tr > th:hover {
-  background: #f1f5f9;
-  color: #000099;
-}
-
-.table-scroll-body tbody tr {
-  border-bottom: 1px solid #d8d8d8;
-  transition: all 0.15s ease;
-}
-
-.table-row-interactive {
-  cursor: pointer;
-  border-bottom: 1px solid #d8d8d8;
-  border-left: 3px solid transparent;
-}
-
-.table-row-interactive:hover {
-  background-color: #fbfbfe;
-  border-left-color: #eb1700;
-}
-
-.table-row-interactive.active-selected {
-  background-color: #f1f4ff;
-  border-left-color: #000099;
-}
-
-.search-input-wrapper {
-  flex: 1;
-  min-width: 220px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background-color: #ffffff;
-  border: 1px solid #d8d8d8;
-  border-radius: 8px;
-  padding: 0 12px;
-  height: 36px;
-  transition: all 0.2s ease;
-}
-
-.search-input-wrapper:focus-within {
-  border-color: #000099;
-  box-shadow: 0 0 0 2px rgba(0, 0, 153, 0.15);
-}
-
-.search-field-input {
-  width: 100%;
-  font-size: 12px;
-  font-family: inherit;
-  color: #212121;
-  background: transparent;
-  border: none;
-  outline: none;
 }
 
 /* ==============================================================================
@@ -336,6 +365,7 @@ hr,
     opacity: 0;
     transform: scale(0.97) translateY(-4px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -398,12 +428,14 @@ hr,
   display: grid;
   align-items: center;
   background: transparent;
-  color: #63666A;
-  font-size: 12.5px;
-  font-weight: 700;
-  text-transform: none;
-  letter-spacing: normal;
-  padding: 4px 14px 10px 14px;
+  color: var(--type-table-header-color, #64748B);
+  font-family: var(--type-font-family, "jj-circular", Arial, sans-serif);
+  font-size: var(--type-table-header-size, 11px);
+  font-weight: var(--type-table-header-weight, 700);
+  line-height: var(--type-table-header-leading, 1.25);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 6px 14px 10px 14px;
   border: none;
   border-radius: 0;
   margin-bottom: 6px;
@@ -411,10 +443,10 @@ hr,
   box-shadow: none;
 }
 
-/* Default / All Associated layout: Queue & Owner before Issues */
+/* Default / All Associated layout: Queue, Owner, In-Progress (Evenly distributed gaps across all columns) */
 .audit-queue-header-grid,
 .audit-queue-header-grid.all-associated-layout {
-  grid-template-columns: 44px minmax(200px, 1.8fr) minmax(150px, 1.2fr) minmax(130px, 1fr) minmax(170px, 1.3fr) minmax(100px, 0.8fr) minmax(90px, 0.7fr) minmax(90px, 0.7fr) minmax(260px, 2fr);
+  grid-template-columns: 44px minmax(200px, 1.7fr) minmax(140px, 1.15fr) minmax(115px, 0.95fr) minmax(125px, 0.95fr) minmax(115px, 0.95fr) minmax(240px, 1.8fr);
 }
 
 /* My Actions layout: Action Issues directly next to Status, balanced spacing, expanded action column */
@@ -450,9 +482,9 @@ hr,
 
 .audit-queue-card {
   background: #ffffff;
-  border: 1px solid #d8d8d8;
+  border: 1px solid #e2e8f0;
   border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
   margin-bottom: 12px;
   transition: all 0.2s ease;
   overflow: hidden;
@@ -464,8 +496,8 @@ hr,
 }
 
 .audit-queue-card.expanded {
-  border-color: #d8d8d8;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .audit-queue-card-summary {
@@ -478,10 +510,10 @@ hr,
   transition: background-color 0.15s ease;
 }
 
-/* Default / All Associated layout for card row */
+/* Default / All Associated layout for card row: Queue, Owner, In-Progress */
 .audit-queue-card-summary,
 .audit-queue-card-summary.all-associated-layout {
-  grid-template-columns: 44px minmax(200px, 1.8fr) minmax(150px, 1.2fr) minmax(130px, 1fr) minmax(170px, 1.3fr) minmax(100px, 0.8fr) minmax(90px, 0.7fr) minmax(90px, 0.7fr) minmax(260px, 2fr);
+  grid-template-columns: 44px minmax(200px, 1.7fr) minmax(140px, 1.15fr) minmax(115px, 0.95fr) minmax(125px, 0.95fr) minmax(115px, 0.95fr) minmax(240px, 1.8fr);
 }
 
 /* My Actions layout for card row: Action Issues directly next to Status, balanced spacing, expanded action column */
@@ -494,20 +526,90 @@ hr,
 }
 
 .audit-queue-card-summary .expand-btn {
+  position: relative;
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 4px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 50%;
   color: #eb1700;
-  transition: all 0.15s ease;
+  transition: background-color 0.18s ease, transform 0.12s ease;
+  outline: none;
 }
 
 .audit-queue-card-summary .expand-btn:hover {
   background-color: #fff1f0;
+}
+
+.audit-queue-card-summary .expand-btn:active {
+  transform: scale(0.92);
+}
+
+/* Subtle radial pulse ring that radiates outwards when + or - is clicked */
+.expand-btn-pulse-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 26px;
+  height: 26px;
+  margin-top: -13px;
+  margin-left: -13px;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: subtle-expand-pulse 0.42s cubic-bezier(0.2, 0.8, 0.25, 1) forwards;
+}
+
+@keyframes subtle-expand-pulse {
+  0% {
+    background-color: rgba(235, 23, 0, 0.16);
+    box-shadow: 0 0 0 0 rgba(235, 23, 0, 0.28);
+    transform: scale(0.9);
+    opacity: 1;
+  }
+
+  45% {
+    background-color: rgba(235, 23, 0, 0.06);
+    box-shadow: 0 0 0 3px rgba(235, 23, 0, 0.14);
+    opacity: 0.75;
+  }
+
+  100% {
+    background-color: rgba(235, 23, 0, 0);
+    box-shadow: 0 0 0 5px rgba(235, 23, 0, 0);
+    transform: scale(1.06);
+    opacity: 0;
+  }
+}
+
+.expand-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  animation: expand-icon-pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes expand-icon-pop {
+  0% {
+    transform: scale(0.72);
+    opacity: 0.7;
+  }
+
+  60% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* Primary row action buttons: visible ONLY on row hover */
@@ -534,6 +636,46 @@ hr,
   background-color: #fafbfc;
 }
 
+/* SharedTable with soft boundary shadow instead of solid border (Harmonized with Expanded Queue View) */
+.shared-table-wrapper.shared-table-shadow-border {
+  border: none !important;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 2px 6px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  background-color: var(--table-row-bg, #fafbfc);
+}
+
+.shared-table-shadow-border thead tr,
+.shared-table-shadow-border thead th {
+  background-color: var(--table-header-bg, #f8fafc) !important;
+  border-bottom: none !important;
+}
+
+.shared-table-shadow-border thead th {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+  position: relative;
+  z-index: 2;
+}
+
+.shared-table-shadow-border tbody tr {
+  background-color: var(--table-row-bg, #fafbfc);
+  transition: background-color 0.15s ease;
+}
+
+.shared-table-shadow-border tbody td {
+  background-color: var(--table-row-bg, #fafbfc) !important;
+  border-bottom: 1px solid #edf0f4 !important;
+  transition: background-color 0.15s ease;
+}
+
+.shared-table-shadow-border tbody tr:last-child td {
+  border-bottom: none !important;
+}
+
+.shared-table-shadow-border tbody tr:hover td {
+  background-color: var(--table-row-hover-bg, #f5f7fa) !important;
+}
+
 .audit-queue-row-actions-expanded {
   opacity: 1;
   visibility: visible;
@@ -557,13 +699,16 @@ hr,
   .audit-queue-btn-label-full {
     display: none !important;
   }
+
   .audit-queue-btn-label-compact {
     display: inline !important;
   }
+
   .audit-queue-row-actions,
   .audit-queue-row-actions-expanded {
     gap: 4px !important;
   }
+
   .audit-queue-action-btn {
     padding: 4px 7px !important;
     font-size: 11px !important;
@@ -581,11 +726,16 @@ hr,
   .jnj-app-header-inner {
     padding: 0 20px !important;
   }
+
   .jnj-nav-bar {
     gap: 20px !important;
   }
+
   .full-width-queue {
-    padding: 14px 16px !important;
+    padding-top: var(--space-filter-margin-bottom, 16px) !important;
+    padding-bottom: 14px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
   }
 }
 
@@ -594,16 +744,20 @@ hr,
   .jnj-app-header-inner {
     padding: 0 16px !important;
   }
+
   .jnj-nav-bar {
     gap: 14px !important;
   }
+
   .jnj-nav-item {
     font-size: 13.5px !important;
     padding: 4px 4px 8px 4px !important;
   }
+
   .table-card-container {
     border-radius: 6px !important;
   }
+
   .single-row-filter-panel {
     gap: 8px !important;
   }
@@ -620,15 +774,19 @@ hr,
     -webkit-overflow-scrolling: touch !important;
     gap: 12px !important;
   }
+
   .jnj-nav-bar::-webkit-scrollbar {
     display: none !important;
   }
+
   .jnj-logo-subtitle {
     font-size: 8.5px !important;
   }
+
   .full-width-queue {
     padding: 12px 12px !important;
   }
+
   .single-row-filter-panel {
     gap: 8px !important;
     margin-bottom: 12px !important;
@@ -644,13 +802,16 @@ hr,
     flex-wrap: wrap !important;
     row-gap: 8px !important;
   }
+
   .jnj-logo-container {
     order: 1 !important;
   }
+
   .jnj-header-tools {
     order: 2 !important;
     gap: 10px !important;
   }
+
   .jnj-nav-bar {
     order: 3 !important;
     width: 100% !important;
@@ -659,35 +820,40 @@ hr,
     border-top: 1px solid #f1f5f9 !important;
     overflow-x: auto !important;
   }
+
   .jnj-logo-img {
     height: 22px !important;
   }
+
   .jnj-logo-subtitle {
     font-size: 8px !important;
     letter-spacing: 0.4px !important;
   }
+
   .jnj-user-profile-name {
     display: none !important;
   }
+
   .full-width-queue {
     padding: 8px 8px !important;
   }
+
   .single-row-filter-panel {
     flex-direction: column !important;
     align-items: stretch !important;
     gap: 8px !important;
   }
-  .single-row-filter-panel > * {
+
+  .single-row-filter-panel>* {
     width: 100% !important;
     min-width: 100% !important;
     max-width: 100% !important;
   }
+
   .table-card-container {
     border-radius: 6px !important;
   }
-  .table-scroll-body table {
-    font-size: 12px !important;
-  }
+
   .th-content span {
     font-size: 11px !important;
   }
@@ -872,9 +1038,12 @@ textarea::-webkit-scrollbar-thumb:hover,
 /* Subtle Minute Blinking Animation for Locked Icons                          */
 /* -------------------------------------------------------------------------- */
 @keyframes lockBlink {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.28;
   }
@@ -886,6 +1055,97 @@ textarea::-webkit-scrollbar-thumb:hover,
   align-items: center;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Enterprise Search Clear Button & Browser Native Overrides                  */
+/* -------------------------------------------------------------------------- */
+.shared-search-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background-color: #f1f5f9;
+  border: none;
+  border-radius: 50%;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  outline: none;
+  flex-shrink: 0;
+}
 
+.shared-search-clear-btn:hover {
+  background-color: #fff1f0;
+  color: #eb1700;
+  transform: scale(1.08);
+}
 
+.shared-search-clear-btn:active {
+  transform: scale(0.92);
+}
 
+/* Globally disable native browser search clear button on Windows / Edge / Webkit */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+  -webkit-appearance: none !important;
+  display: none !important;
+}
+
+input::-ms-clear,
+input::-ms-reveal {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Enterprise SharedToast Keyframe Animations                                 */
+/* -------------------------------------------------------------------------- */
+@keyframes slideDownToast {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideUpToast {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toastProgress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+@keyframes toastPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  70% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}

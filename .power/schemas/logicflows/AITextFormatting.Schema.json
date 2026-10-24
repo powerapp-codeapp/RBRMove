@@ -1,0 +1,200 @@
+{
+  "name": "AITextFormatting",
+  "id": "/providers/Microsoft.PowerApps/apis/shared_logicflows",
+  "type": "Microsoft.PowerApps/apis",
+  "properties": {
+    "displayName": "AITextFormatting",
+    "isCustom": false,
+    "swagger": {
+      "swagger": "2.0",
+      "info": {
+        "title": "AIIssueGeneration",
+        "version": "2015-02-01-preview"
+      },
+      "host": "india-001.azure-apim.net",
+      "schemes": [
+        "https"
+      ],
+      "consumes": [
+        "application/json"
+      ],
+      "produces": [
+        "application/json"
+      ],
+      "paths": {
+        "/{connectionId}/triggers/manual/run": {
+          "post": {
+            "operationId": "Run",
+            "description": "Runs a logic flow trigger.",
+            "parameters": [
+              {
+                "name": "connectionId",
+                "in": "path",
+                "required": true,
+                "type": "string",
+                "x-ms-visibility": "internal"
+              },
+              {
+                "name": "input",
+                "description": "The trigger's input",
+                "in": "body",
+                "required": true,
+                "schema": {
+                  "$ref": "#/definitions/ManualTriggerInput"
+                }
+              },
+              {
+                "name": "api-version",
+                "description": "The api version",
+                "in": "query",
+                "required": true,
+                "default": "2015-02-01-preview",
+                "x-ms-visibility": "internal",
+                "type": "string"
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Ok",
+                "schema": {
+                  "$ref": "#/definitions/ResponseActionOutput"
+                }
+              },
+              "default": {
+                "description": "The Flow Response.",
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "definitions": {
+        "ManualTriggerInput": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "title": "auditable_entity",
+              "type": "string",
+              "x-ms-dynamically-added": true,
+              "description": "Please enter your input",
+              "x-ms-content-hint": "TEXT"
+            },
+            "text_1": {
+              "title": "audit_engagement_id",
+              "type": "string",
+              "x-ms-dynamically-added": true,
+              "description": "Please enter your input",
+              "x-ms-content-hint": "TEXT"
+            },
+            "text_2": {
+              "title": "audit_job_id",
+              "type": "string",
+              "x-ms-dynamically-added": true,
+              "description": "Please enter your input",
+              "x-ms-content-hint": "TEXT"
+            },
+            "text_3": {
+              "title": "issue_id",
+              "type": "string",
+              "x-ms-dynamically-added": true,
+              "description": "Please enter your input",
+              "x-ms-content-hint": "TEXT"
+            },
+            "text_5": {
+              "title": "input_field",
+              "type": "string",
+              "x-ms-dynamically-added": true,
+              "description": "Please enter your input",
+              "x-ms-content-hint": "TEXT"
+            },
+            "text_6": {
+              "title": "input_text",
+              "type": "string",
+              "x-ms-dynamically-added": true,
+              "description": "Please enter your input",
+              "x-ms-content-hint": "TEXT"
+            },
+            "text_7": {
+              "title": "instructions",
+              "type": "string",
+              "x-ms-dynamically-added": true,
+              "description": "Please enter your input",
+              "x-ms-content-hint": "TEXT"
+            },
+            "text_8": {
+              "title": "issue_header",
+              "type": "string",
+              "x-ms-dynamically-added": true,
+              "description": "Please enter your input",
+              "x-ms-content-hint": "TEXT"
+            },
+            "text_9": {
+              "title": "issue",
+              "type": "string",
+              "x-ms-dynamically-added": true,
+              "description": "Please enter your input",
+              "x-ms-content-hint": "TEXT"
+            },
+            "text_10": {
+              "title": "root_cause",
+              "type": "string",
+              "x-ms-dynamically-added": true,
+              "description": "Please enter your input",
+              "x-ms-content-hint": "TEXT"
+            },
+            "text_11": {
+              "title": "impact",
+              "type": "string",
+              "x-ms-dynamically-added": true,
+              "description": "Please enter your input",
+              "x-ms-content-hint": "TEXT"
+            },
+            "text_12": {
+              "title": "recommendations",
+              "type": "string",
+              "x-ms-dynamically-added": true,
+              "description": "Please enter your input",
+              "x-ms-content-hint": "TEXT"
+            },
+            "boolean": {
+              "title": "technology_related",
+              "type": "boolean",
+              "x-ms-dynamically-added": true,
+              "description": "Please select yes or no",
+              "x-ms-content-hint": "BOOLEAN"
+            }
+          },
+          "required": [
+            "text",
+            "text_1",
+            "text_2",
+            "text_3",
+            "text_5",
+            "text_6",
+            "text_7",
+            "text_8",
+            "text_9",
+            "text_10",
+            "text_11",
+            "text_12",
+            "boolean"
+          ]
+        },
+        "ResponseActionOutput": {
+          "type": "object",
+          "properties": {
+            "regenerateoutput": {
+              "title": "RegenerateOutput",
+              "x-ms-dynamically-added": true,
+              "type": "string"
+            }
+          },
+          "additionalProperties": {}
+        }
+      },
+      "basePath": "/apim/logicflows"
+    }
+  }
+}

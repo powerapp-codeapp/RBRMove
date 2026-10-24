@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  ArrowLeft,
   Plus,
   Minus,
   Download,
@@ -23,19 +22,18 @@ import { useEngagement } from '../../../context/EngagementContext';
 import { useUserSession } from '../../../context/UserSessionContext';
 import { generateExecutiveSummaryData, type ExecutiveSummaryData } from '../utils/execReportData';
 import {
-  BackButton,
+  PageHeader,
   SharedSelectButton,
   SharedTextInput,
   SharedTextArea,
   SharedFieldLabel,
   SharedButton,
+  SharedToast,
 } from '../../../components/shared';
 import { WorkflowModal } from '../components/WorkflowModal';
 import { IssueLogsDialog } from '../components/IssueLogsDialog';
 import { FieldCommentPopover, type CommentUser } from '../components/FieldCommentPopover';
 import type { IssueComment, AuditTrailLog } from '../../../types/dataverse.types';
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
 
 export const ExecutiveStudioView: React.FC = () => {
   const { selectedEngagementId, setActiveReportingView, activeEngagement } = useEngagement();
@@ -102,8 +100,6 @@ export const ExecutiveStudioView: React.FC = () => {
 
   const [auditLogs, setAuditLogs] = useState<AuditTrailLog[]>([]);
 
-  // Push to Teammate Hover Tooltip
-  const [showPushTooltip, setShowPushTooltip] = useState(false);
   const [toastMessage, setToastMessage] = useState<{
     title?: string;
     message: string;
@@ -154,7 +150,6 @@ export const ExecutiveStudioView: React.FC = () => {
   }, [activeEngagement, execData]);
 
   const isPushDisabled = isDirector && !isVP && hasCriticalIssues;
-  const pushTooltipText = 'Report contains critical issues, VP signoff is mandatory';
 
   // Submission Role Config
   const roleConfig = useMemo(() => {
@@ -170,24 +165,6 @@ export const ExecutiveStudioView: React.FC = () => {
     }
     return { hasReportSubmission: true, reportSubmitLabel: 'Submit to Director' };
   }, [roleLower]);
-
-  // Derive Current Pending Stage for Header Pill
-  const pendingStage = useMemo(() => {
-    const engAny = activeEngagement as any;
-    const queue = (engAny?.currentQueue || engAny?.queue || '').toLowerCase();
-    const status = (engAny?.status || '').toLowerCase();
-
-    if (queue.includes('tc') || status.includes('tc')) {
-      return { label: 'Pending with TC', bg: '#FEF3C7', color: '#92400E', border: '#FDE68A', dot: '#D97706' };
-    }
-    if (queue.includes('director') || status.includes('director')) {
-      return { label: 'Pending with Director', bg: '#F5F3FF', color: '#6D28D9', border: '#DDD6FE', dot: '#7C3AED' };
-    }
-    if (queue.includes('vp') || status.includes('vp')) {
-      return { label: 'Pending with VP', bg: '#FFF1F2', color: '#BE123C', border: '#FECDD3', dot: '#eb1700' };
-    }
-    return { label: 'Pending with Manager', bg: '#EFF6FF', color: '#000099', border: '#BFDBFE', dot: '#000099' };
-  }, [activeEngagement]);
 
   // Splitter mouse move & mouse up listeners
   useEffect(() => {
@@ -388,20 +365,6 @@ export const ExecutiveStudioView: React.FC = () => {
     }));
   };
 
-  const handleInsightsNarrativeChange = (html: string) => {
-    const oldVal = execData.auditInsights.narrativeHtml;
-    if (oldVal !== html) {
-      recordFieldChange('Audit Insights Narrative', oldVal, html);
-    }
-    setExecData((prev) => ({
-      ...prev,
-      auditInsights: {
-        ...prev.auditInsights,
-        narrativeHtml: html,
-      },
-    }));
-  };
-
   // Section 3 Handlers
   const handleIssueChange = (issueType: 'criticalIssue' | 'majorIssue', field: 'title' | 'description', val: string) => {
     const oldVal = (execData.criticalMajorSection[issueType] as any)?.[field];
@@ -495,10 +458,11 @@ export const ExecutiveStudioView: React.FC = () => {
           <button
             type="button"
             onClick={handleToggleComment}
+            aria-label={`Comments on ${fieldLabel}: ${commentsList.length} comment(s), ${unresolvedCount} open`}
             title={`Comments on ${fieldLabel}\n${commentsList.length} comment(s) (${unresolvedCount} open). Click to view thread & reply.`}
             style={{
               padding: isRowLevel ? '2px 6px' : '2px 8px',
-              fontSize: isRowLevel ? '9.5px' : '10px',
+              fontSize: isRowLevel ? 'var(--type-caption-size, 9.5px)' : 'var(--type-caption-size, 10px)',
               fontWeight: 700,
               borderRadius: '12px',
               border: isAllResolved
@@ -528,7 +492,7 @@ export const ExecutiveStudioView: React.FC = () => {
             {isAllResolved ? (
               <>
                 <CheckCircle2 style={{ width: '11px', height: '11px', color: '#16A34A' }} />
-                <span style={{ fontSize: '9.5px', fontWeight: 800 }}>
+                <span style={{ fontSize: 'var(--type-caption-size, 9.5px)', fontWeight: 800 }}>
                   ✓ {isRowLevel ? commentsList.length : `Resolved (${commentsList.length})`}
                 </span>
               </>
@@ -541,7 +505,7 @@ export const ExecutiveStudioView: React.FC = () => {
                     borderRadius: '50%',
                     backgroundColor: '#000099',
                     color: '#ffffff',
-                    fontSize: '8px',
+                    fontSize: 'var(--type-caption-size, 8px)',
                     fontWeight: 800,
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -559,7 +523,7 @@ export const ExecutiveStudioView: React.FC = () => {
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
                       maxWidth: '110px',
-                      fontSize: '9.5px',
+                      fontSize: 'var(--type-caption-size, 9.5px)',
                       color: '#1E3A8A',
                     }}
                   >
@@ -573,7 +537,7 @@ export const ExecutiveStudioView: React.FC = () => {
                     color: '#ffffff',
                     borderRadius: '8px',
                     padding: '0 4px',
-                    fontSize: '9px',
+                    fontSize: 'var(--type-caption-size, 9px)',
                     fontWeight: 800,
                     lineHeight: '12px',
                   }}
@@ -587,10 +551,11 @@ export const ExecutiveStudioView: React.FC = () => {
           <button
             type="button"
             onClick={handleToggleComment}
+            aria-label={`Add comment on ${fieldLabel}`}
             title={`Add a comment on ${fieldLabel}`}
             style={{
               padding: isRowLevel ? '2px 5px' : '1px 6px',
-              fontSize: '9.5px',
+              fontSize: 'var(--type-caption-size, 9.5px)',
               fontWeight: 600,
               borderRadius: '10px',
               border: isOpen ? '1px solid #000099' : '1px dashed #CBD5E1',
@@ -660,59 +625,17 @@ export const ExecutiveStudioView: React.FC = () => {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: 'calc(100vh - 77px)',
+        height: 'calc(100vh - var(--header-total-height, 71px))',
         backgroundColor: '#ffffff',
         overflow: 'hidden',
       }}
     >
       {/* Studio Header Toolbar */}
-      <header
-        style={{
-          minHeight: '58px',
-          padding: '12px 20px',
-          borderBottom: 'none',
-          boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
-          position: 'relative',
-          zIndex: 15,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '12px',
-          backgroundColor: '#ffffff',
-          flexShrink: 0,
-          boxSizing: 'border-box',
-        }}
-      >
-        {/* Left Section: Back Button & Title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <BackButton
-            onClick={() => setActiveReportingView('queue')}
-            title="Back to Reporting Queue"
-            ariaLabel="Back to Reporting Queue"
-          />
-
-          <h1
-            style={{
-              fontSize: '15px',
-              fontWeight: 500,
-              color: '#334155',
-              lineHeight: '1.3',
-              fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-              margin: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-            }}
-          >
-            Executive Summary —{' '}
-            {(activeEngagement as any)?.fileName ||
-              (activeEngagement as any)?.engagement ||
-              execData.fileName}
-          </h1>
-        </div>
-
-        {/* Right Section: Action Buttons clubbed into Report Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <PageHeader
+        onBack={() => setActiveReportingView('queue')}
+        backTitle="Back to Reporting Queue"
+        title={`Executive Summary — ${(activeEngagement as any)?.fileName || (activeEngagement as any)?.engagement || execData.fileName}`}
+        actions={
           <SharedSelectButton
             label="Report Actions"
             size="small"
@@ -795,8 +718,8 @@ export const ExecutiveStudioView: React.FC = () => {
               },
             ]}
           />
-        </div>
-      </header>
+        }
+      />
 
       {/* Main Studio Body: Left Form Panel | Resizable Splitter | Right Live HTML PDF Preview */}
       <div
@@ -834,6 +757,7 @@ export const ExecutiveStudioView: React.FC = () => {
           >
             <button
               onClick={() => setIsLeftCollapsed(false)}
+              aria-label="Expand Executive Form Editor"
               title="Expand Executive Form Editor"
               style={{
                 background: 'none',
@@ -844,6 +768,7 @@ export const ExecutiveStudioView: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                borderRadius: '4px',
                 transition: 'color 0.15s ease',
               }}
               onMouseEnter={(e) => (e.currentTarget.style.color = '#000099')}
@@ -855,7 +780,7 @@ export const ExecutiveStudioView: React.FC = () => {
               style={{
                 writingMode: 'vertical-rl',
                 transform: 'rotate(180deg)',
-                fontSize: '10.5px',
+                fontSize: 'var(--type-table-header-size, 11px)',
                 fontWeight: 800,
                 color: '#475569',
                 letterSpacing: '1px',
@@ -899,7 +824,10 @@ export const ExecutiveStudioView: React.FC = () => {
                 }}
               >
                 <button
+                  type="button"
                   onClick={() => setExpandedSection(expandedSection === 'scope' ? null : 'scope')}
+                  aria-expanded={expandedSection === 'scope'}
+                  aria-controls="scope-section-content"
                   style={{
                     border: 'none',
                     borderBottom: 'none',
@@ -907,7 +835,7 @@ export const ExecutiveStudioView: React.FC = () => {
                     color: '#0F172A',
                     cursor: 'pointer',
                     fontWeight: 700,
-                    fontSize: '13px',
+                    fontSize: 'var(--type-section-title-size, 13px)',
                     fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
                     display: 'flex',
                     alignItems: 'center',
@@ -928,14 +856,22 @@ export const ExecutiveStudioView: React.FC = () => {
                     e.currentTarget.style.backgroundColor = expandedSection === 'scope' ? '#EFF6FF' : '#ffffff';
                   }}
                 >
-                  <span style={{ fontFamily: '"jj-circular", Arial, Helvetica, sans-serif', fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
+                  <span
+                    className="type-section-title"
+                    style={{
+                      fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                      fontSize: 'var(--type-section-title-size, 13px)',
+                      fontWeight: 'var(--type-section-title-weight, 700)' as any,
+                      color: 'var(--type-section-title-color, #0F172A)'
+                    }}
+                  >
                     Scope Summary &amp; Process Matrix
                   </span>
                   {expandedSection === 'scope' ? <Minus size={16} color="#0F172A" /> : <Plus size={16} color="#0F172A" />}
                 </button>
 
                 {expandedSection === 'scope' && (
-                  <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div id="scope-section-content" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     {/* Assessment Period */}
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
@@ -951,7 +887,7 @@ export const ExecutiveStudioView: React.FC = () => {
                     </div>
 
                     {/* Entity Sector & Entity Location */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
                           <SharedFieldLabel label="Entity Sector" style={{ marginBottom: 0 }} />
@@ -1032,137 +968,140 @@ export const ExecutiveStudioView: React.FC = () => {
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                         <SharedFieldLabel label="Process Breakdown Matrix" style={{ marginBottom: 0 }} />
                         <SharedButton
-                          variant="outlined"
+                          variant="outline"
                           size="small"
                           startIcon={<Plus size={12} />}
                           onClick={handleAddProcessRow}
-                          style={{ height: '26px', fontSize: '11px', padding: '0 8px' }}
+                          style={{ minHeight: 'var(--control-min-height-compact, 1.625rem)', fontSize: 'var(--type-caption-size, 11px)', padding: '0 8px' }}
                         >
                           Add Row
                         </SharedButton>
                       </div>
 
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', border: '1px solid #CBD5E1', borderRadius: '6px', overflow: 'hidden' }}>
-                        <thead>
-                          <tr style={{ backgroundColor: '#F8FAFC', color: '#475569', fontFamily: '"jj-circular", Arial, Helvetica, sans-serif' }}>
-                            <th style={{ padding: '8px 8px', textAlign: 'left', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '11px' }}>Process Title</th>
-                            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 700, width: '52px', color: '#D8001D', textTransform: 'uppercase', fontSize: '11px' }}>Crit</th>
-                            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 700, width: '52px', color: '#D97706', textTransform: 'uppercase', fontSize: '11px' }}>Maj</th>
-                            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 700, width: '52px', color: '#047857', textTransform: 'uppercase', fontSize: '11px' }}>Min</th>
-                            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 700, width: '48px', textTransform: 'uppercase', fontSize: '11px' }}>ALL</th>
-                            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 700, width: '56px', color: '#475569', textTransform: 'uppercase', fontSize: '11px' }} title="Row Level Comments">💬 Note</th>
-                            <th style={{ width: '28px' }}></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {execData.scopeSummary.processMatrix.map((row, idx) => {
-                            const isGrandTotal = idx === execData.scopeSummary.processMatrix.length - 1;
-                            return (
-                              <tr
-                                key={idx}
-                                style={{
-                                  borderBottom: '1px solid #E2E8F0',
-                                  backgroundColor: isGrandTotal ? '#F8FAFC' : '#ffffff',
-                                  fontWeight: isGrandTotal ? 800 : 'normal',
-                                  fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-                                }}
-                              >
-                                <td style={{ padding: '4px 6px' }}>
-                                  {isGrandTotal ? (
-                                    <span style={{ fontWeight: 800, color: '#0F172A', fontSize: '12px', fontFamily: '"jj-circular", Arial, Helvetica, sans-serif' }}>
-                                      {row.processTitle}
-                                    </span>
-                                  ) : (
-                                    <SharedTextInput
-                                      value={row.processTitle}
-                                      onChange={(val) => handleProcessMatrixChange(idx, 'processTitle', val)}
-                                      placeholder="Process title..."
-                                      size="small"
-                                    />
-                                  )}
-                                </td>
-                                <td style={{ padding: '4px 2px', textAlign: 'center', width: '52px' }}>
-                                  {isGrandTotal ? (
-                                    <span style={{ fontWeight: 800, fontSize: '12px', color: '#D8001D', fontFamily: '"jj-circular", Arial, Helvetica, sans-serif' }}>
-                                      {row.critical}
-                                    </span>
-                                  ) : (
-                                    <SharedTextInput
-                                      type="number"
-                                      value={String(row.critical ?? 0)}
-                                      onChange={(val) => handleProcessMatrixChange(idx, 'critical', val)}
-                                      size="small"
-                                      inputClassName="text-center font-bold text-xs"
-                                    />
-                                  )}
-                                </td>
-                                <td style={{ padding: '4px 2px', textAlign: 'center', width: '52px' }}>
-                                  {isGrandTotal ? (
-                                    <span style={{ fontWeight: 800, fontSize: '12px', color: '#D97706', fontFamily: '"jj-circular", Arial, Helvetica, sans-serif' }}>
-                                      {row.major}
-                                    </span>
-                                  ) : (
-                                    <SharedTextInput
-                                      type="number"
-                                      value={String(row.major ?? 0)}
-                                      onChange={(val) => handleProcessMatrixChange(idx, 'major', val)}
-                                      size="small"
-                                      inputClassName="text-center font-bold text-xs"
-                                    />
-                                  )}
-                                </td>
-                                <td style={{ padding: '4px 2px', textAlign: 'center', width: '52px' }}>
-                                  {isGrandTotal ? (
-                                    <span style={{ fontWeight: 800, fontSize: '12px', color: '#047857', fontFamily: '"jj-circular", Arial, Helvetica, sans-serif' }}>
-                                      {row.minor}
-                                    </span>
-                                  ) : (
-                                    <SharedTextInput
-                                      type="number"
-                                      value={String(row.minor ?? 0)}
-                                      onChange={(val) => handleProcessMatrixChange(idx, 'minor', val)}
-                                      size="small"
-                                      inputClassName="text-center font-bold text-xs"
-                                    />
-                                  )}
-                                </td>
-                                <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 800, color: isGrandTotal ? '#0F172A' : '#475569', fontSize: '12px', width: '48px', fontFamily: '"jj-circular", Arial, Helvetica, sans-serif' }}>
-                                  {row.total}
-                                </td>
-                                {/* Row-Level Comment Trigger */}
-                                <td style={{ padding: '4px 2px', textAlign: 'center', width: '56px' }}>
-                                  {!isGrandTotal && renderFieldCommentTrigger(`processMatrix_row_${idx}`, row.processTitle || `Row ${idx + 1}`, true)}
-                                </td>
-                                <td style={{ padding: '2px', textAlign: 'center', width: '28px' }}>
-                                  {!isGrandTotal && execData.scopeSummary.processMatrix.length > 2 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveProcessRow(idx)}
-                                      style={{
-                                        border: 'none',
-                                        background: 'transparent',
-                                        color: '#94A3B8',
-                                        cursor: 'pointer',
-                                        padding: '3px',
-                                        borderRadius: '4px',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        transition: 'color 0.15s ease',
-                                      }}
-                                      title="Delete process row"
-                                      onMouseEnter={(e) => (e.currentTarget.style.color = '#eb1700')}
-                                      onMouseLeave={(e) => (e.currentTarget.style.color = '#94A3B8')}
-                                    >
-                                      <X style={{ width: '13px', height: '13px' }} />
-                                    </button>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                      <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--type-table-header-size, 11px)', border: '1px solid #CBD5E1', borderRadius: '6px', overflow: 'hidden', minWidth: '420px' }}>
+                          <thead>
+                            <tr style={{ backgroundColor: '#F8FAFC', color: 'var(--type-table-header-color, #475569)', fontFamily: 'var(--type-font-family, "jj-circular", Arial, sans-serif)' }}>
+                              <th className="type-table-header" style={{ padding: '8px 8px', textAlign: 'left', fontWeight: 'var(--type-table-header-weight, 700)' as any, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 'var(--type-table-header-size, 11px)' }}>Process Title</th>
+                              <th className="type-table-header" style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'var(--type-table-header-weight, 700)' as any, width: '52px', color: '#D8001D', textTransform: 'uppercase', fontSize: 'var(--type-table-header-size, 11px)' }}>Crit</th>
+                              <th className="type-table-header" style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'var(--type-table-header-weight, 700)' as any, width: '52px', color: '#D97706', textTransform: 'uppercase', fontSize: 'var(--type-table-header-size, 11px)' }}>Maj</th>
+                              <th className="type-table-header" style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'var(--type-table-header-weight, 700)' as any, width: '52px', color: '#047857', textTransform: 'uppercase', fontSize: 'var(--type-table-header-size, 11px)' }}>Min</th>
+                              <th className="type-table-header" style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'var(--type-table-header-weight, 700)' as any, width: '48px', textTransform: 'uppercase', fontSize: 'var(--type-table-header-size, 11px)' }}>ALL</th>
+                              <th className="type-table-header" style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'var(--type-table-header-weight, 700)' as any, width: '56px', color: '#475569', textTransform: 'uppercase', fontSize: 'var(--type-table-header-size, 11px)' }} title="Row Level Comments">💬 Note</th>
+                              <th style={{ width: '28px' }}></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {execData.scopeSummary.processMatrix.map((row, idx) => {
+                              const isGrandTotal = idx === execData.scopeSummary.processMatrix.length - 1;
+                              return (
+                                <tr
+                                  key={idx}
+                                  style={{
+                                    borderBottom: '1px solid #E2E8F0',
+                                    backgroundColor: isGrandTotal ? '#F8FAFC' : '#ffffff',
+                                    fontWeight: isGrandTotal ? 800 : 'normal',
+                                    fontFamily: 'var(--type-font-family, "jj-circular", Arial, sans-serif)',
+                                  }}
+                                >
+                                  <td style={{ padding: '4px 6px' }}>
+                                    {isGrandTotal ? (
+                                      <span style={{ fontWeight: 800, color: '#0F172A', fontSize: 'var(--type-table-row-size, 12px)', fontFamily: 'var(--type-font-family, "jj-circular", Arial, sans-serif)' }}>
+                                        {row.processTitle}
+                                      </span>
+                                    ) : (
+                                      <SharedTextInput
+                                        value={row.processTitle}
+                                        onChange={(val) => handleProcessMatrixChange(idx, 'processTitle', val)}
+                                        placeholder="Process title..."
+                                        size="small"
+                                      />
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '4px 2px', textAlign: 'center', width: '52px' }}>
+                                    {isGrandTotal ? (
+                                      <span style={{ fontWeight: 800, fontSize: 'var(--type-table-row-size, 12px)', color: '#D8001D', fontFamily: 'var(--type-font-family, "jj-circular", Arial, sans-serif)' }}>
+                                        {row.critical}
+                                      </span>
+                                    ) : (
+                                      <SharedTextInput
+                                        type="number"
+                                        value={String(row.critical ?? 0)}
+                                        onChange={(val) => handleProcessMatrixChange(idx, 'critical', val)}
+                                        size="small"
+                                        inputClassName="text-center font-bold text-xs"
+                                      />
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '4px 2px', textAlign: 'center', width: '52px' }}>
+                                    {isGrandTotal ? (
+                                      <span style={{ fontWeight: 800, fontSize: 'var(--type-table-row-size, 12px)', color: '#D97706', fontFamily: 'var(--type-font-family, "jj-circular", Arial, sans-serif)' }}>
+                                        {row.major}
+                                      </span>
+                                    ) : (
+                                      <SharedTextInput
+                                        type="number"
+                                        value={String(row.major ?? 0)}
+                                        onChange={(val) => handleProcessMatrixChange(idx, 'major', val)}
+                                        size="small"
+                                        inputClassName="text-center font-bold text-xs"
+                                      />
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '4px 2px', textAlign: 'center', width: '52px' }}>
+                                    {isGrandTotal ? (
+                                      <span style={{ fontWeight: 800, fontSize: 'var(--type-table-row-size, 12px)', color: '#047857', fontFamily: 'var(--type-font-family, "jj-circular", Arial, sans-serif)' }}>
+                                        {row.minor}
+                                      </span>
+                                    ) : (
+                                      <SharedTextInput
+                                        type="number"
+                                        value={String(row.minor ?? 0)}
+                                        onChange={(val) => handleProcessMatrixChange(idx, 'minor', val)}
+                                        size="small"
+                                        inputClassName="text-center font-bold text-xs"
+                                      />
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 800, color: isGrandTotal ? '#0F172A' : '#475569', fontSize: 'var(--type-table-row-size, 12px)', width: '48px', fontFamily: 'var(--type-font-family, "jj-circular", Arial, sans-serif)' }}>
+                                    {row.total}
+                                  </td>
+                                  {/* Row-Level Comment Trigger */}
+                                  <td style={{ padding: '4px 2px', textAlign: 'center', width: '56px' }}>
+                                    {!isGrandTotal && renderFieldCommentTrigger(`processMatrix_row_${idx}`, row.processTitle || `Row ${idx + 1}`, true)}
+                                  </td>
+                                  <td style={{ padding: '2px', textAlign: 'center', width: '28px' }}>
+                                    {!isGrandTotal && execData.scopeSummary.processMatrix.length > 2 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveProcessRow(idx)}
+                                        aria-label={`Delete process row ${row.processTitle || idx + 1}`}
+                                        style={{
+                                          border: 'none',
+                                          background: 'transparent',
+                                          color: '#94A3B8',
+                                          cursor: 'pointer',
+                                          padding: '3px',
+                                          borderRadius: '4px',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          transition: 'color 0.15s ease',
+                                        }}
+                                        title="Delete process row"
+                                        onMouseEnter={(e) => (e.currentTarget.style.color = '#eb1700')}
+                                        onMouseLeave={(e) => (e.currentTarget.style.color = '#94A3B8')}
+                                      >
+                                        <X style={{ width: '13px', height: '13px' }} />
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
 
                     {/* Background */}
@@ -1195,7 +1134,10 @@ export const ExecutiveStudioView: React.FC = () => {
                 }}
               >
                 <button
+                  type="button"
                   onClick={() => setExpandedSection(expandedSection === 'insights' ? null : 'insights')}
+                  aria-expanded={expandedSection === 'insights'}
+                  aria-controls="insights-section-content"
                   style={{
                     border: 'none',
                     borderBottom: 'none',
@@ -1203,7 +1145,7 @@ export const ExecutiveStudioView: React.FC = () => {
                     color: '#0F172A',
                     cursor: 'pointer',
                     fontWeight: 700,
-                    fontSize: '13px',
+                    fontSize: 'var(--type-section-title-size, 13px)',
                     fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
                     display: 'flex',
                     alignItems: 'center',
@@ -1224,14 +1166,22 @@ export const ExecutiveStudioView: React.FC = () => {
                     e.currentTarget.style.backgroundColor = expandedSection === 'insights' ? '#EFF6FF' : '#ffffff';
                   }}
                 >
-                  <span style={{ fontFamily: '"jj-circular", Arial, Helvetica, sans-serif', fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
+                  <span
+                    className="type-section-title"
+                    style={{
+                      fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                      fontSize: 'var(--type-section-title-size, 13px)',
+                      fontWeight: 'var(--type-section-title-weight, 700)' as any,
+                      color: 'var(--type-section-title-color, #0F172A)'
+                    }}
+                  >
                     Audit Insights
                   </span>
                   {expandedSection === 'insights' ? <Minus size={16} color="#0F172A" /> : <Plus size={16} color="#0F172A" />}
                 </button>
 
                 {expandedSection === 'insights' && (
-                  <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div id="insights-section-content" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     {/* Overall Summary Line */}
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
@@ -1295,7 +1245,10 @@ export const ExecutiveStudioView: React.FC = () => {
                 }}
               >
                 <button
+                  type="button"
                   onClick={() => setExpandedSection(expandedSection === 'issues' ? null : 'issues')}
+                  aria-expanded={expandedSection === 'issues'}
+                  aria-controls="issues-section-content"
                   style={{
                     border: 'none',
                     borderBottom: 'none',
@@ -1303,7 +1256,7 @@ export const ExecutiveStudioView: React.FC = () => {
                     color: '#0F172A',
                     cursor: 'pointer',
                     fontWeight: 700,
-                    fontSize: '13px',
+                    fontSize: 'var(--type-section-title-size, 13px)',
                     fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
                     display: 'flex',
                     alignItems: 'center',
@@ -1324,20 +1277,28 @@ export const ExecutiveStudioView: React.FC = () => {
                     e.currentTarget.style.backgroundColor = expandedSection === 'issues' ? '#EFF6FF' : '#ffffff';
                   }}
                 >
-                  <span style={{ fontFamily: '"jj-circular", Arial, Helvetica, sans-serif', fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
+                  <span
+                    className="type-section-title"
+                    style={{
+                      fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                      fontSize: 'var(--type-section-title-size, 13px)',
+                      fontWeight: 'var(--type-section-title-weight, 700)' as any,
+                      color: 'var(--type-section-title-color, #0F172A)'
+                    }}
+                  >
                     Critical Issues / Major Issues
                   </span>
                   {expandedSection === 'issues' ? <Minus size={16} color="#0F172A" /> : <Plus size={16} color="#0F172A" />}
                 </button>
 
                 {expandedSection === 'issues' && (
-                  <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div id="issues-section-content" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     {/* Critical Issue */}
                     {execData.criticalMajorSection.criticalIssue && (
                       <div style={{ backgroundColor: '#FEF2F2', padding: '14px', borderRadius: '6px', border: '1px solid #FECDD3' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
                           <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#D8001D' }} />
-                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#991B1B', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: '"jj-circular", Arial, Helvetica, sans-serif' }}>
+                          <span style={{ fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 800, color: '#991B1B', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: '"jj-circular", Arial, Helvetica, sans-serif' }}>
                             Critical Issue
                           </span>
                         </div>
@@ -1376,7 +1337,7 @@ export const ExecutiveStudioView: React.FC = () => {
                       <div style={{ backgroundColor: '#FFFBEB', padding: '14px', borderRadius: '6px', border: '1px solid #FDE68A' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
                           <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#D97706' }} />
-                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: '"jj-circular", Arial, Helvetica, sans-serif' }}>
+                          <span style={{ fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 800, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: '"jj-circular", Arial, Helvetica, sans-serif' }}>
                             Major Issue
                           </span>
                         </div>
@@ -1419,6 +1380,13 @@ export const ExecutiveStudioView: React.FC = () => {
         {/* SPLITTER HANDLE */}
         {!isLeftCollapsed && !isRightCollapsed && (
           <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-valuenow={leftWidth}
+            aria-valuemin={25}
+            aria-valuemax={80}
+            tabIndex={0}
+            aria-label="Adjust editor and preview panel widths"
             onMouseDown={(e) => {
               e.preventDefault();
               setIsDraggingSplitter(true);
@@ -1436,6 +1404,7 @@ export const ExecutiveStudioView: React.FC = () => {
               zIndex: 20,
               flexShrink: 0,
               height: '100%',
+              outline: 'none',
             }}
           >
             {/* Interactive Adjust-Width Separator (visible on hover or drag) */}
@@ -1491,6 +1460,7 @@ export const ExecutiveStudioView: React.FC = () => {
           >
             <button
               onClick={() => setIsRightCollapsed(false)}
+              aria-label="Expand Report Preview"
               title="Expand Report Preview"
               style={{
                 background: 'none',
@@ -1501,6 +1471,7 @@ export const ExecutiveStudioView: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                borderRadius: '4px',
                 transition: 'color 0.15s ease',
               }}
               onMouseEnter={(e) => (e.currentTarget.style.color = '#000099')}
@@ -1512,7 +1483,7 @@ export const ExecutiveStudioView: React.FC = () => {
               style={{
                 writingMode: 'vertical-rl',
                 transform: 'rotate(180deg)',
-                fontSize: '10.5px',
+                fontSize: 'var(--type-table-header-size, 11px)',
                 fontWeight: 800,
                 color: '#475569',
                 letterSpacing: '1px',
@@ -1585,7 +1556,7 @@ export const ExecutiveStudioView: React.FC = () => {
                     <FileText style={{ width: '16px', height: '16px', color: '#ffffff', flexShrink: 0 }} />
                     <span
                       style={{
-                        fontSize: '13px',
+                        fontSize: 'var(--type-section-title-size, 13px)',
                         fontWeight: 800,
                         letterSpacing: '0.3px',
                         whiteSpace: 'nowrap',
@@ -1611,6 +1582,7 @@ export const ExecutiveStudioView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setPreviewZoom((z) => Math.max(70, z - 10))}
+                        aria-label="Zoom Out"
                         title="Zoom Out"
                         style={{
                           background: 'none',
@@ -1621,13 +1593,14 @@ export const ExecutiveStudioView: React.FC = () => {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
+                          borderRadius: '2px',
                         }}
                       >
                         <ZoomOut style={{ width: '13px', height: '13px' }} />
                       </button>
                       <span
                         style={{
-                          fontSize: '11px',
+                          fontSize: 'var(--type-caption-size, 11px)',
                           fontWeight: 800,
                           minWidth: '34px',
                           textAlign: 'center',
@@ -1639,6 +1612,7 @@ export const ExecutiveStudioView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setPreviewZoom((z) => Math.min(130, z + 10))}
+                        aria-label="Zoom In"
                         title="Zoom In"
                         style={{
                           background: 'none',
@@ -1649,6 +1623,7 @@ export const ExecutiveStudioView: React.FC = () => {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
+                          borderRadius: '2px',
                         }}
                       >
                         <ZoomIn style={{ width: '13px', height: '13px' }} />
@@ -1664,6 +1639,7 @@ export const ExecutiveStudioView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => window.print()}
+                        aria-label="Print Report"
                         title="Print Report"
                         style={{
                           background: 'none',
@@ -1674,6 +1650,7 @@ export const ExecutiveStudioView: React.FC = () => {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
+                          borderRadius: '2px',
                         }}
                       >
                         <Printer style={{ width: '13px', height: '13px' }} />
@@ -1683,6 +1660,7 @@ export const ExecutiveStudioView: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setIsRightCollapsed(true)}
+                      aria-label="Collapse Report Preview"
                       title="Collapse Report Preview"
                       style={{
                         background: 'none',
@@ -1726,12 +1704,13 @@ export const ExecutiveStudioView: React.FC = () => {
                 {/* Document Title */}
                 <div style={{ marginBottom: '18px' }}>
                   <div
+                    className="type-page-title"
                     style={{
-                      fontSize: '16px',
+                      fontSize: 'var(--type-page-title-size, 16px)',
                       fontWeight: 800,
                       color: '#000000',
                       textAlign: 'left',
-                      lineHeight: '1.2',
+                      lineHeight: 'var(--type-page-title-leading, 1.2)',
                       letterSpacing: '-0.2px',
                     }}
                   >
@@ -1743,13 +1722,14 @@ export const ExecutiveStudioView: React.FC = () => {
                 <div style={{ marginBottom: '16px' }}>
                   {/* Scope Summary Banner Header */}
                   <div
+                    className="type-section-title"
                     style={{
                       backgroundColor: '#8F8F8F',
                       border: '1px solid #000000',
                       borderBottom: 'none',
                       color: '#ffffff',
                       fontWeight: 700,
-                      fontSize: '13px',
+                      fontSize: 'var(--type-section-title-size, 13px)',
                       textAlign: 'center',
                       padding: '5px 10px',
                       letterSpacing: '0.2px',
@@ -1763,7 +1743,7 @@ export const ExecutiveStudioView: React.FC = () => {
                     style={{
                       width: '100%',
                       borderCollapse: 'collapse',
-                      fontSize: '11px',
+                      fontSize: 'var(--type-table-row-size, 11px)',
                       border: '1px solid #000000',
                       tableLayout: 'fixed',
                     }}
@@ -1833,7 +1813,7 @@ export const ExecutiveStudioView: React.FC = () => {
                     style={{
                       width: '100%',
                       borderCollapse: 'collapse',
-                      fontSize: '11.5px',
+                      fontSize: 'var(--type-table-row-size, 11.5px)',
                       border: '1px solid #000000',
                     }}
                   >
@@ -1848,7 +1828,7 @@ export const ExecutiveStudioView: React.FC = () => {
                             textAlign: 'center',
                             padding: '6px 10px',
                             border: '1px solid #000000',
-                            fontSize: '12px',
+                            fontSize: 'var(--type-table-header-size, 12px)',
                           }}
                         >
                           Process Title
@@ -1864,7 +1844,7 @@ export const ExecutiveStudioView: React.FC = () => {
                             padding: '6px 10px',
                             border: '1px solid #000000',
                             width: '110px',
-                            fontSize: '12px',
+                            fontSize: 'var(--type-table-header-size, 12px)',
                           }}
                         >
                           Critical
@@ -1880,7 +1860,7 @@ export const ExecutiveStudioView: React.FC = () => {
                             padding: '6px 10px',
                             border: '1px solid #000000',
                             width: '110px',
-                            fontSize: '12px',
+                            fontSize: 'var(--type-table-header-size, 12px)',
                           }}
                         >
                           Major
@@ -1896,7 +1876,7 @@ export const ExecutiveStudioView: React.FC = () => {
                             padding: '6px 10px',
                             border: '1px solid #000000',
                             width: '110px',
-                            fontSize: '12px',
+                            fontSize: 'var(--type-table-header-size, 12px)',
                           }}
                         >
                           Minor
@@ -1912,7 +1892,7 @@ export const ExecutiveStudioView: React.FC = () => {
                             padding: '6px 10px',
                             border: '1px solid #000000',
                             width: '110px',
-                            fontSize: '12px',
+                            fontSize: 'var(--type-table-header-size, 12px)',
                           }}
                         >
                           ALL
@@ -1993,13 +1973,14 @@ export const ExecutiveStudioView: React.FC = () => {
                 {/* 3. BACKGROUND BOX */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginBottom: '24px' }}>
                   <div
+                    className="type-section-title"
                     style={{
                       backgroundColor: '#8F8F8F',
                       border: '1px solid #000000',
                       borderBottom: 'none',
                       color: '#ffffff',
                       fontWeight: 700,
-                      fontSize: '13px',
+                      fontSize: 'var(--type-section-title-size, 13px)',
                       textAlign: 'center',
                       padding: '5px 10px',
                       letterSpacing: '0.2px',
@@ -2015,7 +1996,7 @@ export const ExecutiveStudioView: React.FC = () => {
                       padding: '14px',
                       minHeight: '200px',
                       flex: 1,
-                      fontSize: '11px',
+                      fontSize: 'var(--type-input-text-size, 11px)',
                       lineHeight: '1.45',
                       color: '#000000',
                       boxSizing: 'border-box',
@@ -2085,22 +2066,23 @@ export const ExecutiveStudioView: React.FC = () => {
               >
                 {/* Header line on Page 2 */}
                 <div style={{ marginBottom: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748B' }}>
+                  <div style={{ fontSize: 'var(--type-table-header-size, 12px)', fontWeight: 700, color: '#64748B' }}>
                     {execData.fileName}
                   </div>
-                  <div style={{ fontSize: '10.5px', color: '#94A3B8' }}>Section 2: Insights &amp; Findings</div>
+                  <div style={{ fontSize: 'var(--type-caption-size, 10.5px)', color: '#94A3B8' }}>Section 2: Insights &amp; Findings</div>
                 </div>
 
                 {/* 1. AUDIT INSIGHTS BOX */}
                 <div style={{ marginBottom: '18px' }}>
                   <div
+                    className="type-section-title"
                     style={{
                       backgroundColor: '#8F8F8F',
                       border: '1px solid #000000',
                       borderBottom: 'none',
                       color: '#ffffff',
                       fontWeight: 700,
-                      fontSize: '13px',
+                      fontSize: 'var(--type-section-title-size, 13px)',
                       textAlign: 'center',
                       padding: '5px 10px',
                       letterSpacing: '0.2px',
@@ -2114,7 +2096,7 @@ export const ExecutiveStudioView: React.FC = () => {
                       border: '1px solid #000000',
                       backgroundColor: '#ffffff',
                       padding: '12px 14px',
-                      fontSize: '11px',
+                      fontSize: 'var(--type-input-text-size, 11px)',
                       lineHeight: '1.45',
                       color: '#000000',
                     }}
@@ -2144,13 +2126,14 @@ export const ExecutiveStudioView: React.FC = () => {
                 {/* 2. CRITICAL ISSUES / MAJOR ISSUES BOX */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginBottom: '24px' }}>
                   <div
+                    className="type-section-title"
                     style={{
                       backgroundColor: '#8F8F8F',
                       border: '1px solid #000000',
                       borderBottom: 'none',
                       color: '#ffffff',
                       fontWeight: 700,
-                      fontSize: '13px',
+                      fontSize: 'var(--type-section-title-size, 13px)',
                       textAlign: 'center',
                       padding: '5px 10px',
                       letterSpacing: '0.2px',
@@ -2164,7 +2147,7 @@ export const ExecutiveStudioView: React.FC = () => {
                       border: '1px solid #000000',
                       backgroundColor: '#ffffff',
                       padding: '12px 14px',
-                      fontSize: '11px',
+                      fontSize: 'var(--type-input-text-size, 11px)',
                       lineHeight: '1.45',
                       color: '#000000',
                       flex: 1,
@@ -2173,7 +2156,7 @@ export const ExecutiveStudioView: React.FC = () => {
                     {/* Critical Issues Subheading & Details */}
                     {execData.criticalMajorSection.criticalIssue && (
                       <div style={{ marginBottom: '14px' }}>
-                        <div style={{ fontWeight: 700, fontSize: '12px', color: '#000000', marginBottom: '4px' }}>
+                        <div style={{ fontWeight: 700, fontSize: 'var(--type-table-header-size, 12px)', color: '#000000', marginBottom: '4px' }}>
                           Critical Issues
                         </div>
                         <div style={{ fontWeight: 400, color: '#000000', marginBottom: '3px' }}>
@@ -2188,7 +2171,7 @@ export const ExecutiveStudioView: React.FC = () => {
                     {/* Major Issues Subheading & Details */}
                     {execData.criticalMajorSection.majorIssue && (
                       <div>
-                        <div style={{ fontWeight: 700, fontSize: '12px', color: '#000000', marginBottom: '4px' }}>
+                        <div style={{ fontWeight: 700, fontSize: 'var(--type-table-header-size, 12px)', color: '#000000', marginBottom: '4px' }}>
                           Major Issues
                         </div>
                         <div style={{ fontWeight: 400, color: '#000000', marginBottom: '3px' }}>
@@ -2252,20 +2235,16 @@ export const ExecutiveStudioView: React.FC = () => {
         logs={auditLogs}
       />
 
-      {/* Toast Feedback Notification */}
-      <Snackbar
+      {/* Toast Feedback Notification (Componentised & Positioned Top-Right Underneath Global Header) */}
+      <SharedToast
         open={!!toastMessage}
-        autoHideDuration={4000}
         onClose={() => setToastMessage(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        {toastMessage ? (
-          <Alert severity={toastMessage.severity} onClose={() => setToastMessage(null)} sx={{ width: '100%', fontWeight: 600 }}>
-            {toastMessage.title && <strong>{toastMessage.title}: </strong>}
-            {toastMessage.message}
-          </Alert>
-        ) : undefined}
-      </Snackbar>
+        title={toastMessage?.title}
+        message={toastMessage?.message}
+        severity={toastMessage?.severity}
+        position="top-right"
+        duration={4000}
+      />
     </div>
   );
 };

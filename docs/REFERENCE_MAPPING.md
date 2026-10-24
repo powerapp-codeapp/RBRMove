@@ -80,20 +80,37 @@ This document serves as the master architectural directory mapping between the r
 
 | Mock JSON Source in `Backup_JNJ_IAR/src/data/` | Target Microsoft Dataverse Entity | Entity Description & Key Columns |
 | :--- | :--- | :--- |
-| `assessments.json` | `cr_assessment` | Annual audit portfolios (`cr_assessmentid`, `cr_name`, `cr_year`, `cr_status`). |
-| `engagements.json` | `cr_engagement` | Audit projects (`cr_engagementid`, `cr_assessmentid_lookup`, `cr_title`, `cr_status`, `cr_substatus`, `cr_lead_auditor`, `cr_criticality`). |
-| `assignments.json`, `assignmentsData.js` | `cr_assignment` | Role-to-engagement mapping (`cr_assignmentid`, `cr_engagementid_lookup`, `cr_role`, `cr_user_lookup`). |
-| `roles.json` | Global OptionSet / `cr_role` | Predefined audit roles (`it-auditor`, `it-manager`, `it-director`, `it-vp`, `finops-auditor`, `business-contact`). |
-| `users.json` | `systemuser` / Entra ID | Enterprise users with AD profile, email, department, avatar, and persona mapping. |
-| `testProcedures.json` | `cr_testprocedure` | Approved workprograms (`cr_testprocedureid`, `cr_code`, `cr_title`, `cr_domain`, `cr_engagementid_lookup`). |
-| `issues.json` | `cr_issue` | Audit findings (`cr_issueid`, `cr_engagementid_lookup`, `cr_testprocedureid_lookup`, `cr_title`, `cr_criticality`, `cr_status`, `cr_rootcause`, `cr_impact`, `cr_recommendation`, `cr_managementresponse`, `cr_remediationdate`). |
-| `issueAiVersions.json` | `cr_issue_ai_version` | Immutable ledger of AI generations (`cr_versionid`, `cr_issueid_lookup`, `cr_versionnumber`, `cr_promptcontext`, `cr_synthesizedpayload`, `cr_adoptedfields`, `cr_status`). |
-| `comments.json` | `cr_issue_comment` | Field-level collaboration threads (`cr_commentid`, `cr_issueid_lookup`, `cr_fieldkey`, `cr_taggeduserid_lookup`, `cr_status`, `cr_content`, `cr_resolvedby_lookup`). |
-| `complianceStandards.json` | `cr_compliancestandard` | Master compliance catalog (`cr_standardid`, `cr_name`, `cr_domain`, `cr_category`, `cr_citation`). |
-| `issueViolations.json` | `cr_issue_violation` | Relational junction between findings and violated standards (`cr_violationid`, `cr_issueid_lookup`, `cr_standardid_lookup`). |
-| `taxonomies.json`, `taxonomyItems.json` | `cr_taxonomy`, `cr_taxonomy_item` | Classification trees for Process Area, Risk Level, Root Cause taxonomy (`cr_taxonomyid`, `cr_itemname`, `cr_parentitemid`). |
-| `auditReportLogs.json`, `issueLogs.json`, `executiveReportLogs.json` | `cr_audit_trail_log` | Regulatory forensic event log (`cr_logid`, `cr_entityname`, `cr_recordid`, `cr_action`, `cr_previousstate`, `cr_newstate`, `cr_performedby_lookup`, `cr_timestamp`). |
-| `execReportData.js` | `cr_executive_report` | Executive summary record per engagement (`cr_execreportid`, `cr_engagementid_lookup`, `cr_execnarrative`, `cr_scopematrix_json`, `cr_insights_json`, `cr_status`). |
+| `assessments.json` | `iar_assessments` (Loaded) | Annual audit portfolios (`iar_assessmentid`, `iar_assessmenttitle`, `iar_startdate`, `iar_enddate`). |
+| `engagements.json` | `iar_engagementses` (Loaded) | Audit projects (`iar_engagementsid`, `iar_AssessmentID@odata.bind`, `iar_engagementname`, `iar_reportstatus`). |
+| `assignments.json`, `assignmentsData.js` | `iar_securityassignmentses` (Loaded) | Role-to-engagement mapping (`iar_securityassignmentsid`, `iar_EngagementID@odata.bind`, `iar_useremailid` $\rightarrow$ `systemusers.internalemailaddress`, `iar_tmroleid` $\rightarrow$ `iar_tmroleses.iar_tmid` to derive `iar_logickey`). |
+
+| `roles.json` | `iar_tmroleses` (Loaded) | Predefined audit roles (`iar_tmrolesid`, `iar_rolename`: IT/FIN across 5 tiers). |
+| `users.json` | `systemusers` (Loaded) | Enterprise users (`systemuserid`, `domainname`, `fullname`, `internalemailaddress`). |
+| `testProcedures.json` | `iar_procedureses` (Loaded) | Approved workprograms (`iar_proceduresid`, `iar_procedurecode`, `iar_procedurename`, `iar_EngagementID@odata.bind`; selectable during issue creation, procedure state has no operational significance). |
+
+| `issues.json` | `iar_issueses` (Loaded) | Audit findings (`iar_issuesid`, `iar_issuetitle`, `iar_issuestatus` [creator-driven initial review status], `iar_function` [IT/FinOps track driving `technology_related` AI input], `iar_AccountableFunction` [taxonomy lookup], `iar_rootcause`, `iar_impact`, `iar_recommendation`, `iar_PrimaryBusinessOwner@odata.bind`, `iar_soxreportable`). |
+| N/A (Auditee Directory) | `iar_issuebusinessownerses` (Loaded) | Secondary Business Owners per finding (`iar_issuebusinessownersid`, `iar_IssueID@odata.bind`, `iar_SecondaryOwner@odata.bind`, `iar_isdelegated`, `iar_DelegatedBy@odata.bind`). |
+| `issueLogs.json` | `iar_issuelogses` (Loaded) | Historical issue workflow transitions and field edit deltas (`iar_issuelogsid`, `iar_IssueID@odata.bind`, `iar_EngagementID@odata.bind`, `iar_LoggedBy@odata.bind`, `iar_logtype`, `iar_logsubtype`, `iar_fieldreference`). |
+| `comments.json` | `iar_issuecommentses` (Loaded) | Field-level discussion threads across 31 fields and tagged user resolution locks (`iar_issuecommentsid`, `iar_IssueID@odata.bind`, `iar_field`, `iar_TaggedUser@odata.bind`, `iar_commentcompletionstatus`). |
+| `issueAiVersions.json` (AI Triggers) | `iar_aiissuegeneratedlogses` (Loaded) | AI issue generation request triggers and lifecycle status (`iar_aiissuegeneratedlogsid`, `iar_aigenerationstatus`, `iar_type`, `iar_originalissue`, `iar_versionnumber`). |
+| `issueAiVersions.json` (AI Fields) | `iar_aigeneratedfieldlogses` (Loaded) | Granular AI generated field output snapshots (`iar_aigeneratedfieldlogsid`, `iar_AIGenerationID@odata.bind`, `iar_fieldname`, `iar_aigeneratedtext`). |
+| `issueAiVersions.json` (AI Edits) | `iar_aigeneratedfieldeditlogses` (Loaded) | Auditor edits & refinements to AI generated fields (`iar_aigeneratedfieldeditlogsid`, `iar_AIGeneratedFieldLogID@odata.bind`, `iar_edittype`, `iar_fromtext`, `iar_editedtext`). |
+| N/A (AI Reformat Config) | `iar_aiformattingcontextses` (Loaded) | Input-level AI text formatting options & prompt instructions (`iar_aiformattingcontextsid`, `iar_name`, `iar_instruction`, `iar_sortorder`). |
+| N/A (AI Reformat Logs) | `iar_aiformattedlogses` (Loaded) | Execution history for input-level AI text reformatting (`iar_aiformattedlogsid`, `iar_FormattingID@odata.bind`, `iar_textinput`, `iar_airesult`, `iar_isedited`). |
+| `taxonomies.json`, `taxonomyItems.json` | `iar_taxonomieses` / `iar_taxonomiesmasters` (Loaded) | Master classification taxonomy trees (`iar_taxonomiesid`, `iar_taxonomiesmasterid`). |
+| N/A (App Governance) | `iar_administratorses` (Loaded) | Global administrators directory with lookup to `systemusers` (`iar_administratorid`, `iar_Admin@odata.bind`, `statecode`). |
+| `auditReportLogs.json` | `iar_auditreportlogs` (Upcoming) | Audit report stage progressions and approval audits (`iar_auditreportlogid`, `iar_EngagementID`, `iar_signofftier`, `iar_action`). |
+| `execReportData.js` (AI drafts) | `iar_aisummaryreportgenerations` (Upcoming) | AI executive summary generation telemetry and drafts (`iar_aisummaryreportgenerationid`, `iar_EngagementID`, `iar_synthesizedinsights`). |
+| `execReportData.js` (Report record) | `iar_executivesummaryreports` (Upcoming) | Executive report record per engagement (`iar_executivesummaryreportid`, `iar_EngagementID`, `iar_executivenarrative`, `iar_auditrating`, `iar_scopematrix`). |
+| `executiveReportLogs.json` | `iar_summaryreportlogs` (Upcoming) | Executive summary report review progression and sign-offs (`iar_summaryreportlogid`, `iar_ExecutiveSummaryReportID`, `iar_action`). |
+| `execReportComments` | `iar_summaryreportcomments` (Upcoming) | Executive report section comments and feedback (`iar_summaryreportcommentid`, `iar_ExecutiveSummaryReportID`, `iar_sectionkey`). |
+| N/A (Auditee Comments) | `iar_businesscomments` (Upcoming) | Canvas App auditee comments submitted via SharePoint list (`iar_businesscommentid`, `iar_IssueID`, `iar_comment`). |
+| `managementResponses` | `iar_issuesbusinessresponses` (Upcoming) | Formal business auditee CAP responses & action plans (`iar_issuesbusinessresponseid`, `iar_IssueID`, `iar_managementresponse`, `iar_actionplan`, `iar_targetdate`). |
+| N/A (Audit Trail) | `iar_userlogs` (Upcoming) | Enterprise user activity, navigation, and session compliance audit trail (`iar_userlogid`, `systemusers`). |
+
+
+
+
 
 ---
 
@@ -132,21 +149,29 @@ sequenceDiagram
 
 | Flow Name | Trigger Location in UI | Payload & Target Action |
 | :--- | :--- | :--- |
-| **`FLW-IAR-GenerateAiFinding`** | "Generate with AI" button in `CreateIssueDrawerNew` | Passes raw fieldwork notes; invokes LLM; stores candidate in `cr_issue_ai_version`; returns synthesized fields. |
-| **`FLW-IAR-RegenerateAiVersion`** | "Regenerate AI" button in `CreateIssueDrawerNew` / `AuditReportView` | Accepts previous candidate + refinement notes; generates new version (`v2`); returns for side-by-side compare. |
-| **`FLW-IAR-AdvanceWorkflowStage`** | "Submit to TC", "Submit to Manager", "Submit to Director", "Sign Off" buttons | Validates role permissions; advances issue or engagement status in Dataverse; writes immutable entry in `cr_audit_trail_log`. |
-| **`FLW-IAR-RouteToBusiness`** | "Send for Management Response" button in `AuditReportView` | Updates issue status to `Pending with Business`; dispatches email/Teams notification to Business Contact. |
-| **`FLW-IAR-CompileAndExportReport`** | "Export Audit Report" / "Export Executive Summary" buttons | Compiles all active issues and executive narrative; converts to branded PDF; stores in SharePoint; returns URL. |
+| **`AIIssueGeneration`** (`846f04ab-66c1-f111-b377-7c1e520e2b9b`) | "Generate With AI" / "Regenerate" in `CreateIssueDialog` | Passes `auditable_entity`, `audit_engagement_id`, `audit_job_id`, `issue_id` (`iar_aiissuegeneratedlogsid`), `technology_related` (boolean `true` for IT, `false` for FinOps derived from `Function`), `issue`, `operation_type`, `additional_info`; logs to `iar_aiissuegeneratedlogses` (`Pending` $\rightarrow$ `Success`/`Failed` $\rightarrow$ `Issue Created`/`Issue Cancelled`), populates `iar_aigeneratedfieldlogses`, returns synthesized fields for review with remarks support; on creation, sets initial status based on creator persona (Staff, TC, Manager) and Save vs Submit action. |
+| **`AITextFormatting`** (`dc7339ee-68c1-f111-b377-7c1e520e2b9b`) | Input-level formatting menu in workpaper inputs | Invokes formatting prompt based on `iar_aiformattingcontextses`; logs execution in `iar_aiformattedlogses` and edits in `iar_aigeneratedfieldeditlogses`. |
+| **`FLW-IAR-AdvanceWorkflowStage`** | "Submit to TC", "Submit to Manager", "Submit to Director", "Sign Off" buttons | Validates role permissions; advances issue status in Dataverse; writes immutable entry in `iar_issuelogs`. |
+| **`FLW-IAR-RouteToBusiness`** | "Send to Business" button (Director Only) in `AuditReportView` | Triggered by Director; advances issue status to `Pending Business`; provisions entry in SharePoint List `IAR_BusinessOwnerResponses_List`; dispatches notification to Business Owner with Canvas App deep-link. |
+| **`FLW-IAR-SyncIssueToSharePoint`** | Issue Create/Edit trigger in Code App | Synchronizes issue details, descriptions, and statuses from Dataverse to the SharePoint List (`IAR_Issues_List`) powering the Business Canvas App. |
+| **`FLW-IAR-SyncBusinessComment`** | Submit In-Between Comment in Canvas App | Ingests in-between business comments from `IAR_Issues_List` into Dataverse table `iar_businesscomments` for real-time auditor visibility. |
+| **`FLW-IAR-IngestBusinessResponse`**| Submit Response in Business Canvas App | Ingests formal Management Response and CAP from SharePoint List `IAR_BusinessOwnerResponses_List` into Dataverse table `iar_issuesbusinessresponses`; automatically transitions issue status back to `Pending Manager`. |
+| **`FLW-IAR-CompileAndExportReport`** | "Complete and Sign-Off" / "Export Report" buttons | Compiles all active issues and executive narrative; converts to branded **PDF Format**; stores in SharePoint `FinalReports/`; returns download URL. |
+
 
 ---
 
-### 4.2 Power Automate: Scheduled Background Flows
+### 4.2 Power Automate: Deployment & Scheduled Background Flows
 
-| Flow Name | Frequency | Target Objective |
+| Flow Name | Frequency / Lifecycle | Target Objective & Entity Ingestion |
 | :--- | :--- | :--- |
+| **`FLW-IAR-SeedTeamRoles`** | **One-Time Post-Deployment Only** | **Team Roles Seeding from TeamMate**: Queries the TeamMate role catalog, extracts the 10 required audit roles, populates Role IDs (`TM-2` to `TM-12`), TM IDs (`1` to `10`), Role Names, and custom **`LogicKey`** values (`ITS`, `FIS`, `ITT`, `FIT`, `ITM`, `FIM`, `ITD`, `FID`, `ITV`, `FVP`). Upserts the 10 rows into `iar_tmroleses`. Executed only once across the application lifecycle. |
+| **`FLW-IAR-HourlyMasterDataSync`** | **Hourly (Every 1 Hour)** | **TeamMate Master Data Sync & Upsert**: Polls TeamMate upstream audit management repository for new or modified records. Upserts into Dataverse tables: `iar_assessments`, `iar_engagementses`, `iar_procedureses`, `iar_securityassignmentses`, `iar_taxonomiesmasters`, and `iar_taxonomieses`. Maintains read-only reference data for the Code App. |
 | **`FLW-IAR-DailyStatusAggregation`** | Nightly (00:00 UTC) | Recalculates engagement sub-statuses, critical issue tallies, and executive rollup metrics across Dataverse. |
 | **`FLW-IAR-SlaReviewAlerts`** | Daily (08:00 AM) | Scans issues in `Pending TC`, `Pending Manager`, and `Pending Director`; sends reminder notifications for aging items. |
 | **`FLW-IAR-RemediationDateTracker`** | Weekly (Mondays) | Monitors target remediation dates committed by business contacts; alerts Lead Auditor for approaching deadlines. |
+
+
 
 ---
 

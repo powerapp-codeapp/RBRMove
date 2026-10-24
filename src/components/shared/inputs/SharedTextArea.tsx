@@ -107,10 +107,13 @@ export const SharedTextArea: React.FC<SharedTextAreaProps> = ({
       )}
 
       <div
-        className={`shared-textarea-wrapper rounded border transition-all duration-150 ${borderClass}`}
+        className={`type-input-value shared-textarea-wrapper rounded border transition-all duration-150 ${borderClass}`}
         style={{
           backgroundColor: disabled ? '#FAFAFA' : readOnly ? '#FAFAFA' : '#FFFFFF',
           borderColor: error ? '#ef4444' : '#CBD5E1',
+          fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+          fontSize: 'var(--type-input-text-size, 12.5px)',
+          color: 'var(--type-input-text-color, #1E293B)',
         }}
       >
         <InputBase
@@ -138,11 +141,11 @@ export const SharedTextArea: React.FC<SharedTextAreaProps> = ({
           }}
           className="w-full font-normal"
           sx={{
-            fontSize: '14px',
-            fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-            fontWeight: 400,
-            color: '#1E293B',
-            lineHeight: 1.5,
+            fontSize: 'var(--type-input-text-size, 12.5px)',
+            fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+            fontWeight: 'var(--type-input-text-weight, 400)',
+            color: 'var(--type-input-text-color, #1E293B)',
+            lineHeight: 'var(--type-input-text-leading, 1.45)',
             width: '100%',
             '&:hover textarea, &:focus-within textarea': {
               scrollbarColor: '#CBD5E1 transparent !important',
@@ -157,11 +160,11 @@ export const SharedTextArea: React.FC<SharedTextAreaProps> = ({
             '& textarea': {
               padding: '8px 12px',
               cursor: disabled ? 'default' : undefined,
-              fontSize: '14px',
-              fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-              fontWeight: 400,
-              color: '#1E293B !important',
-              lineHeight: 1.5,
+              fontSize: 'var(--type-input-text-size, 12.5px)',
+              fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+              fontWeight: 'var(--type-input-text-weight, 400)',
+              color: 'var(--type-input-text-color, #1E293B) !important',
+              lineHeight: 'var(--type-input-text-leading, 1.45)',
               resize: 'none',
               scrollbarWidth: 'thin',
               scrollbarColor: 'transparent transparent',

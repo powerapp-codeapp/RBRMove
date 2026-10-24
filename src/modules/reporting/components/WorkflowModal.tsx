@@ -198,25 +198,59 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
             <GitBranch size={20} color="#000099" />
           </div>
           <div>
-            <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#212121', margin: 0 }}>
+            <h2
+              className="type-modal-title"
+              style={{
+                fontSize: 'var(--type-modal-title-size, 16px)',
+                fontWeight: 800,
+                color: '#212121',
+                margin: 0,
+                fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+              }}
+            >
               {displayTitle}
             </h2>
-            <div style={{ fontSize: '11.5px', color: '#63666a', marginTop: '2px' }}>
+            <div
+              className="type-caption"
+              style={{
+                fontSize: 'var(--type-caption-size, 11.5px)',
+                color: '#63666a',
+                marginTop: '2px',
+                fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+              }}
+            >
               Engagement: <strong>{currentJob.fileName || currentJob.engagement || jobId}</strong>
             </div>
           </div>
         </div>
 
         <button
+          type="button"
           onClick={onClose}
+          aria-label="Close workflow modal"
           style={{
             border: 'none',
             backgroundColor: 'transparent',
             cursor: 'pointer',
-            padding: '6px',
+            padding: '4px',
             color: '#63666a',
-            borderRadius: '6px'
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '28px',
+            height: '28px',
+            transition: 'all 0.15s ease',
           }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = '#000099';
+            e.currentTarget.style.backgroundColor = '#F1F5F9';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = '#63666a';
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+          title="Close"
         >
           <X size={20} />
         </button>
@@ -420,23 +454,33 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
         {/* TAB 2: FINDINGS STATUS MATRIX */}
         {activeTab === 'findings' && (
           <div
+            className="slim-light-scrollbar"
             style={{
               backgroundColor: '#ffffff',
               border: '1px solid #d8d8d8',
               borderRadius: '8px',
-              overflow: 'hidden'
+              overflowX: 'auto',
+              maxWidth: '100%'
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+            <table
+              style={{
+                width: '100%',
+                minWidth: '680px',
+                borderCollapse: 'collapse',
+                fontSize: 'var(--type-table-row-size, 12px)',
+                fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)'
+              }}
+            >
               <thead>
                 <tr style={{ backgroundColor: '#f4f4f4', borderBottom: '1px solid #d8d8d8', textAlign: 'left' }}>
-                  <th style={{ padding: '10px 14px', fontWeight: 700, color: '#212121' }}>Finding # &amp; Title</th>
-                  <th style={{ padding: '10px 14px', fontWeight: 700, color: '#212121' }}>Stream</th>
-                  <th style={{ padding: '10px 14px', fontWeight: 700, color: '#212121' }}>Severity</th>
-                  <th style={{ padding: '10px 14px', fontWeight: 700, color: '#212121' }}>Staff</th>
-                  <th style={{ padding: '10px 14px', fontWeight: 700, color: '#212121' }}>TC Review</th>
-                  <th style={{ padding: '10px 14px', fontWeight: 700, color: '#212121' }}>Manager</th>
-                  <th style={{ padding: '10px 14px', fontWeight: 700, color: '#212121' }}>Director / VP</th>
+                  <th style={{ padding: '10px 14px', fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 700, color: '#212121' }}>Finding # &amp; Title</th>
+                  <th style={{ padding: '10px 14px', fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 700, color: '#212121' }}>Stream</th>
+                  <th style={{ padding: '10px 14px', fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 700, color: '#212121' }}>Severity</th>
+                  <th style={{ padding: '10px 14px', fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 700, color: '#212121' }}>Staff</th>
+                  <th style={{ padding: '10px 14px', fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 700, color: '#212121' }}>TC Review</th>
+                  <th style={{ padding: '10px 14px', fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 700, color: '#212121' }}>Manager</th>
+                  <th style={{ padding: '10px 14px', fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 700, color: '#212121' }}>Director / VP</th>
                 </tr>
               </thead>
               <tbody>
@@ -453,17 +497,18 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
                       }}
                     >
                       <td style={{ padding: '10px 14px' }}>
-                        <div style={{ fontWeight: 700, color: '#212121' }}>{iss.id}</div>
-                        <div style={{ fontSize: '11.5px', color: '#63666a', maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontWeight: 700, color: '#212121', fontSize: 'var(--type-table-row-size, 12px)' }}>{iss.id}</div>
+                        <div style={{ fontSize: 'var(--type-caption-size, 11.5px)', color: '#63666a', maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {iss.title || iss.header}
                         </div>
                       </td>
                       <td style={{ padding: '10px 14px' }}>
                         <span
+                          className="type-badge"
                           style={{
                             padding: '2px 8px',
                             borderRadius: '4px',
-                            fontSize: '11px',
+                            fontSize: 'var(--type-badge-size, 10.5px)',
                             fontWeight: 700,
                             backgroundColor: isIT ? '#EFF6FF' : '#F0FDF4',
                             color: isIT ? '#000099' : '#087D0D'
@@ -475,26 +520,26 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
                       <td style={{ padding: '10px 14px' }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                           {getCritDot(iss.criticality || iss.severity)}
-                          <span style={{ fontWeight: 700 }}>{iss.criticality || iss.severity || 'Minor'}</span>
+                          <span style={{ fontWeight: 700, fontSize: 'var(--type-table-row-size, 12px)' }}>{iss.criticality || iss.severity || 'Minor'}</span>
                         </div>
                       </td>
                       <td style={{ padding: '10px 14px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: stage.staff.color, backgroundColor: stage.staff.bg, padding: '2px 6px', borderRadius: '4px' }}>
+                        <span className="type-badge" style={{ fontSize: 'var(--type-badge-size, 10.5px)', fontWeight: 700, color: stage.staff.color, backgroundColor: stage.staff.bg, padding: '2px 6px', borderRadius: '4px' }}>
                           {stage.staff.label}
                         </span>
                       </td>
                       <td style={{ padding: '10px 14px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: stage.tc.color, backgroundColor: stage.tc.bg, padding: '2px 6px', borderRadius: '4px' }}>
+                        <span className="type-badge" style={{ fontSize: 'var(--type-badge-size, 10.5px)', fontWeight: 700, color: stage.tc.color, backgroundColor: stage.tc.bg, padding: '2px 6px', borderRadius: '4px' }}>
                           {stage.tc.label}
                         </span>
                       </td>
                       <td style={{ padding: '10px 14px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: stage.manager.color, backgroundColor: stage.manager.bg, padding: '2px 6px', borderRadius: '4px' }}>
+                        <span className="type-badge" style={{ fontSize: 'var(--type-badge-size, 10.5px)', fontWeight: 700, color: stage.manager.color, backgroundColor: stage.manager.bg, padding: '2px 6px', borderRadius: '4px' }}>
                           {stage.manager.label}
                         </span>
                       </td>
                       <td style={{ padding: '10px 14px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: stage.director.color, backgroundColor: stage.director.bg, padding: '2px 6px', borderRadius: '4px' }}>
+                        <span className="type-badge" style={{ fontSize: 'var(--type-badge-size, 10.5px)', fontWeight: 700, color: stage.director.color, backgroundColor: stage.director.bg, padding: '2px 6px', borderRadius: '4px' }}>
                           {stage.director.label}
                         </span>
                       </td>
@@ -508,7 +553,7 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
 
         {/* TAB 3: REVIEW TEAM ROSTER */}
         {activeTab === 'team' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
             {[
               { role: 'Lead Team Coordinator', name: leadTC, title: 'Senior Auditor / IT TC', email: 'kzhang@its.jnj.com' },
               { role: 'Audit Manager', name: leadMgr, title: 'Global Audit Manager', email: 'apalmer@its.jnj.com' },
@@ -524,7 +569,8 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
                   padding: '16px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '14px'
+                  gap: '14px',
+                  fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)'
                 }}
               >
                 <div
@@ -544,10 +590,10 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
                   {m.name.split(' ').map((n: string) => n[0]).join('')}
                 </div>
                 <div>
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#eb1700', textTransform: 'uppercase' }}>{m.role}</div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#212121', marginTop: '2px' }}>{m.name}</div>
-                  <div style={{ fontSize: '11.5px', color: '#63666a' }}>{m.title}</div>
-                  <div style={{ fontSize: '11px', color: '#000099', marginTop: '2px' }}>{m.email}</div>
+                  <div style={{ fontSize: 'var(--type-caption-size, 11px)', fontWeight: 700, color: '#eb1700', textTransform: 'uppercase' }}>{m.role}</div>
+                  <div style={{ fontSize: 'var(--type-section-title-size, 14px)', fontWeight: 800, color: '#212121', marginTop: '2px' }}>{m.name}</div>
+                  <div style={{ fontSize: 'var(--type-caption-size, 11.5px)', color: '#63666a' }}>{m.title}</div>
+                  <div style={{ fontSize: 'var(--type-caption-size, 11px)', color: '#000099', marginTop: '2px' }}>{m.email}</div>
                 </div>
               </div>
             ))}

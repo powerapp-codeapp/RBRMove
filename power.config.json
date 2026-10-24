@@ -10,7 +10,32 @@
   "buildEntryPoint": "index.html",
   "localAppUrl": "http://localhost:3000",
   "logoPath": "Default",
-  "connectionReferences": {},
+  "connectionReferences": {
+    "326f8a1a-bfd8-4a23-b9a0-5480d3d07de6": {
+      "id": "/providers/Microsoft.PowerApps/apis/shared_logicflows",
+      "displayName": "Logic flows",
+      "dataSources": [
+        "aitextformatting"
+      ],
+      "workflowDetails": {
+        "workflowEntityId": "846f04ab-66c1-f111-b377-7c1e520e2b9b",
+        "workflowDisplayName": "AITextFormatting",
+        "workflowName": "846f04ab-66c1-f111-b377-7c1e520e2b9b"
+      }
+    },
+    "849e197e-b085-4c9c-a1e1-6d1b64e5b0dc": {
+      "id": "/providers/Microsoft.PowerApps/apis/shared_logicflows",
+      "displayName": "Logic flows",
+      "dataSources": [
+        "aiissuegeneration"
+      ],
+      "workflowDetails": {
+        "workflowEntityId": "dc7339ee-68c1-f111-b377-7c1e520e2b9b",
+        "workflowDisplayName": "AIIssueGeneration",
+        "workflowName": "dc7339ee-68c1-f111-b377-7c1e520e2b9b"
+      }
+    }
+  },
   "databaseReferences": {
     "default.cds": {
       "dataSources": {
@@ -22,6 +47,86 @@
         "assessments": {
           "entitySetName": "iar_assessments",
           "logicalName": "iar_assessment",
+          "isHidden": false
+        },
+        "users": {
+          "entitySetName": "systemusers",
+          "logicalName": "systemuser",
+          "isHidden": false
+        },
+        "engagements": {
+          "entitySetName": "iar_engagementses",
+          "logicalName": "iar_engagements",
+          "isHidden": false
+        },
+        "procedures": {
+          "entitySetName": "iar_procedureses",
+          "logicalName": "iar_procedures",
+          "isHidden": false
+        },
+        "taxonomiesmasters": {
+          "entitySetName": "iar_taxonomiesmasters",
+          "logicalName": "iar_taxonomiesmaster",
+          "isHidden": false
+        },
+        "taxonomies": {
+          "entitySetName": "iar_taxonomieses",
+          "logicalName": "iar_taxonomies",
+          "isHidden": false
+        },
+        "securityassignments": {
+          "entitySetName": "iar_securityassignmentses",
+          "logicalName": "iar_securityassignments",
+          "isHidden": false
+        },
+        "issues": {
+          "entitySetName": "iar_issueses",
+          "logicalName": "iar_issues",
+          "isHidden": false
+        },
+        "aiformattingcontexts": {
+          "entitySetName": "iar_aiformattingcontextses",
+          "logicalName": "iar_aiformattingcontexts",
+          "isHidden": false
+        },
+        "administrators": {
+          "entitySetName": "iar_administratorses",
+          "logicalName": "iar_administrators",
+          "isHidden": false
+        },
+        "aiissuegeneratedlogs": {
+          "entitySetName": "iar_aiissuegeneratedlogses",
+          "logicalName": "iar_aiissuegeneratedlogs",
+          "isHidden": false
+        },
+        "aigeneratedfieldlogs": {
+          "entitySetName": "iar_aigeneratedfieldlogses",
+          "logicalName": "iar_aigeneratedfieldlogs",
+          "isHidden": false
+        },
+        "aigeneratedfieldeditlogs": {
+          "entitySetName": "iar_aigeneratedfieldeditlogses",
+          "logicalName": "iar_aigeneratedfieldeditlogs",
+          "isHidden": false
+        },
+        "aiformattedlogs": {
+          "entitySetName": "iar_aiformattedlogses",
+          "logicalName": "iar_aiformattedlogs",
+          "isHidden": false
+        },
+        "issuelogs": {
+          "entitySetName": "iar_issuelogses",
+          "logicalName": "iar_issuelogs",
+          "isHidden": false
+        },
+        "issuecomments": {
+          "entitySetName": "iar_issuecommentses",
+          "logicalName": "iar_issuecomments",
+          "isHidden": false
+        },
+        "issuebusinessowners": {
+          "entitySetName": "iar_issuebusinessownerses",
+          "logicalName": "iar_issuebusinessowners",
           "isHidden": false
         }
       },

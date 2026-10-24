@@ -141,13 +141,13 @@ export const SharedSelectButton: React.FC<SharedSelectButtonProps> = ({
         elevation={0}
         slotProps={{
           paper: {
-            className: 'mt-1 rounded-md border border-slate-200 shadow-lg overflow-hidden py-1 max-h-60',
+            className: 'mt-1 rounded-md shadow-lg overflow-hidden py-1 max-h-60',
             sx: {
               mt: '4px',
               minWidth: menuWidth,
               borderRadius: '6px',
-              border: '1px solid #E2E8F0',
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
+              border: 'none',
+              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08)',
               backgroundColor: '#FFFFFF',
               py: '4px',
               px: 0,

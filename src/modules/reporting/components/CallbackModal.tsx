@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { RotateCcw, X, AlertOctagon } from 'lucide-react';
+import { RotateCcw, X } from 'lucide-react';
 import type { Issue } from '../../../types/dataverse.types';
+import { SharedButton } from '../../../components/shared/buttons/SharedButton';
+import { SharedTextArea } from '../../../components/shared/inputs/SharedTextArea';
 
 interface CallbackModalProps {
   isOpen: boolean;
@@ -56,20 +58,21 @@ export const CallbackModal: React.FC<CallbackModalProps> = ({
       <div
         style={{
           backgroundColor: '#FFFFFF',
-          borderRadius: '16px',
+          borderRadius: '8px',
           maxWidth: '520px',
           width: '100%',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.06)',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
+          border: '1px solid #D8D8D8',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
         <div
           style={{
-            padding: '18px 22px',
+            padding: '16px 20px',
             borderBottom: '1px solid #E2E8F0',
             display: 'flex',
             alignItems: 'flex-start',
@@ -80,15 +83,15 @@ export const CallbackModal: React.FC<CallbackModalProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
               style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '10px',
-                backgroundColor: '#EDE9FE',
-                border: '1px solid #DDD6FE',
+                width: '36px',
+                height: '36px',
+                borderRadius: '6px',
+                backgroundColor: '#EFF6FF',
+                border: '1px solid #BFDBFE',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#7C3AED',
+                color: '#000099',
                 flexShrink: 0,
               }}
             >
@@ -96,9 +99,10 @@ export const CallbackModal: React.FC<CallbackModalProps> = ({
             </div>
             <div>
               <h3
+                className="type-modal-title"
                 style={{
                   margin: 0,
-                  fontSize: '15px',
+                  fontSize: 'var(--type-modal-title-size, 15px)',
                   fontWeight: 800,
                   color: '#0F172A',
                   display: 'flex',
@@ -108,19 +112,21 @@ export const CallbackModal: React.FC<CallbackModalProps> = ({
               >
                 Call Back Issue
                 <span
+                  className="type-badge"
                   style={{
-                    fontSize: '11px',
+                    fontSize: 'var(--type-badge-size, 11px)',
                     fontWeight: 700,
                     padding: '2px 8px',
-                    borderRadius: '12px',
-                    backgroundColor: '#EDE9FE',
-                    color: '#6D28D9',
+                    borderRadius: '4px',
+                    backgroundColor: '#EFF6FF',
+                    color: '#000099',
+                    border: '1px solid #BFDBFE',
                   }}
                 >
                   {issue.testProcedureCode || issue.id}
                 </span>
               </h3>
-              <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748B' }}>
+              <p className="type-caption" style={{ margin: '2px 0 0', fontSize: 'var(--type-caption-size, 11.5px)', color: '#64748B' }}>
                 {issue.title || 'Specify the reason for calling back this audit issue.'}
               </p>
             </div>
@@ -128,16 +134,28 @@ export const CallbackModal: React.FC<CallbackModalProps> = ({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close Call Back dialog"
             style={{
               background: 'none',
               border: 'none',
               color: '#94A3B8',
               cursor: 'pointer',
               padding: '4px',
-              borderRadius: '6px',
+              borderRadius: '4px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              width: '28px',
+              height: '28px',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#000099';
+              e.currentTarget.style.backgroundColor = '#E2E8F0';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#94A3B8';
+              e.currentTarget.style.backgroundColor = 'transparent';
             }}
             title="Close"
           >
@@ -146,77 +164,30 @@ export const CallbackModal: React.FC<CallbackModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div style={{ padding: '20px 22px' }}>
-          <label
-            htmlFor="callback-reason-input"
-            style={{
-              display: 'block',
-              fontSize: '12.5px',
-              fontWeight: 800,
-              color: '#1E293B',
-              marginBottom: '6px',
-            }}
-          >
-            Reason for Call Back <span style={{ color: '#EF4444' }}>*</span>
-          </label>
-          <p style={{ margin: '0 0 10px', fontSize: '12px', color: '#64748B', lineHeight: '1.4' }}>
+        <div style={{ padding: '20px' }}>
+          <p className="type-caption" style={{ margin: '0 0 12px', fontSize: 'var(--type-caption-size, 12px)', color: '#64748B', lineHeight: '1.4' }}>
             Please provide details explaining why this issue is being recalled or returned to the previous review stage.
           </p>
-          <textarea
-            id="callback-reason-input"
-            autoFocus
-            rows={4}
+
+          <SharedTextArea
+            label="Reason for Call Back"
+            required
             value={reason}
-            onChange={(e) => {
-              setReason(e.target.value);
+            onChange={(val) => {
+              setReason(val);
               if (error) setError('');
             }}
-            placeholder="Enter reason for callback..."
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              padding: '10px 12px',
-              fontSize: '13px',
-              color: '#0F172A',
-              backgroundColor: '#FFFFFF',
-              border: error ? '1.5px solid #EF4444' : '1px solid #CBD5E1',
-              borderRadius: '8px',
-              fontFamily: 'inherit',
-              resize: 'vertical',
-              minHeight: '90px',
-              outline: 'none',
-              boxShadow: error ? '0 0 0 3px rgba(239, 68, 68, 0.15)' : 'none',
-              transition: 'border-color 0.15s ease',
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                handleConfirm();
-              }
-            }}
+            placeholder="Enter justification for recall / return to previous stage..."
+            rows={4}
+            error={Boolean(error)}
+            errorMessage={error || undefined}
           />
-          {error && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                marginTop: '6px',
-                color: '#DC2626',
-                fontSize: '12px',
-                fontWeight: 600,
-              }}
-            >
-              <AlertOctagon style={{ width: '13px', height: '13px' }} />
-              <span>{error}</span>
-            </div>
-          )}
         </div>
 
         {/* Modal Footer */}
         <div
           style={{
-            padding: '14px 22px',
+            padding: '12px 20px',
             backgroundColor: '#F8FAFC',
             borderTop: '1px solid #E2E8F0',
             display: 'flex',
@@ -225,45 +196,21 @@ export const CallbackModal: React.FC<CallbackModalProps> = ({
             gap: '10px',
           }}
         >
-          <button
-            type="button"
+          <SharedButton
+            variant="outline"
+            size="small"
             onClick={onClose}
-            style={{
-              padding: '8px 18px',
-              fontSize: '12.5px',
-              fontWeight: 700,
-              color: '#475569',
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #CBD5E1',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              transition: 'background-color 0.15s ease',
-            }}
           >
             Cancel
-          </button>
-          <button
-            type="button"
+          </SharedButton>
+          <SharedButton
+            variant="primary"
+            size="small"
+            startIcon={<RotateCcw size={13} />}
             onClick={handleConfirm}
-            style={{
-              padding: '8px 20px',
-              fontSize: '12.5px',
-              fontWeight: 800,
-              color: '#FFFFFF',
-              backgroundColor: '#7C3AED',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 2px 4px rgba(124, 58, 237, 0.25)',
-              transition: 'background-color 0.15s ease',
-            }}
           >
-            <RotateCcw style={{ width: '13px', height: '13px' }} />
-            <span>Confirm Call Back</span>
-          </button>
+            Confirm Call Back
+          </SharedButton>
         </div>
       </div>
     </div>

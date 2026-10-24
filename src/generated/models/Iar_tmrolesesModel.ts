@@ -27,6 +27,7 @@ export const Iar_tmrolesesstatuscode = {
 export type Iar_tmrolesesstatuscode = keyof typeof Iar_tmrolesesstatuscode;
 
 export interface Iar_tmrolesesBase {
+  iar_logickey: string;
   iar_name: string;
   iar_rolename: Iar_tmrolesesiar_rolename;
   iar_tmid: string;

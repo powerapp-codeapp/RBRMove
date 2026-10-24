@@ -67,8 +67,8 @@ export const NotificationDrawer: React.FC = () => {
           }}
         >
           <div style={{ padding: '12px 16px', borderBottom: '1px solid #d8d8d8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#212121' }}>Notifications</span>
-            <span style={{ fontSize: '11px', color: '#000099', cursor: 'pointer', fontWeight: 600 }}>Mark all as read</span>
+            <span style={{ fontSize: 'var(--type-section-title-size, 13px)', fontWeight: 800, color: '#212121' }}>Notifications</span>
+            <span style={{ fontSize: 'var(--type-caption-size, 11px)', color: '#000099', cursor: 'pointer', fontWeight: 600 }}>Mark all as read</span>
           </div>
 
           <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
@@ -91,9 +91,9 @@ export const NotificationDrawer: React.FC = () => {
                   <Clock size={16} color="#000099" style={{ marginTop: '2px', flexShrink: 0 }} />
                 )}
                 <div>
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#212121' }}>{n.title}</div>
-                  <div style={{ fontSize: '11px', color: '#63666a', marginTop: '2px' }}>{n.description}</div>
-                  <div style={{ fontSize: '10px', color: '#888b8d', marginTop: '4px' }}>{n.time}</div>
+                  <div style={{ fontSize: 'var(--type-table-header-size, 12px)', fontWeight: 700, color: '#212121' }}>{n.title}</div>
+                  <div style={{ fontSize: 'var(--type-caption-size, 11px)', color: '#63666a', marginTop: '2px' }}>{n.description}</div>
+                  <div style={{ fontSize: 'var(--type-caption-size, 10px)', color: '#888b8d', marginTop: '4px' }}>{n.time}</div>
                 </div>
               </div>
             ))}

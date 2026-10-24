@@ -10,6 +10,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import type { IssueComment } from '../../../types/dataverse.types';
+import { SharedButton, SharedTextArea } from '../../../components/shared';
 
 export interface CommentUser {
   userId: string;
@@ -112,14 +113,14 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <MessageSquare style={{ width: '14px', height: '14px', color: '#60A5FA' }} />
-          <span style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.2px' }}>
+          <span style={{ fontSize: 'var(--type-table-header-size, 12px)', fontWeight: 800, letterSpacing: '0.2px' }}>
             {fieldLabel}
           </span>
           <span
             style={{
               backgroundColor: unresolvedCount > 0 ? '#DC2626' : '#166534',
               color: '#ffffff',
-              fontSize: '9.5px',
+              fontSize: 'var(--type-caption-size, 10px)',
               fontWeight: 800,
               padding: '1px 6px',
               borderRadius: '10px',
@@ -132,6 +133,7 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
         <button
           type="button"
           onClick={onClose}
+          aria-label="Close Popover"
           style={{
             border: 'none',
             background: 'none',
@@ -141,7 +143,11 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            borderRadius: '4px',
+            transition: 'color 0.15s ease',
           }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = '#94A3B8')}
           title="Close Popover"
         >
           <X style={{ width: '15px', height: '15px' }} />
@@ -161,7 +167,7 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
         }}
       >
         {comments.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '24px 8px', color: '#94A3B8', fontSize: '11.5px' }}>
+          <div style={{ textAlign: 'center', padding: '24px 8px', color: '#94A3B8', fontSize: 'var(--type-caption-size, 11px)' }}>
             No comments yet on this field.
             <br />
             Tag a team member or leave a review note below!
@@ -196,7 +202,7 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
                         borderRadius: '50%',
                         backgroundColor: '#000099',
                         color: '#ffffff',
-                        fontSize: '9.5px',
+                        fontSize: 'var(--type-caption-size, 9.5px)',
                         fontWeight: 800,
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -206,16 +212,16 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
                       {c.authorName ? c.authorName.charAt(0).toUpperCase() : 'U'}
                     </span>
                     <div>
-                      <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#0F172A', lineHeight: 1.2 }}>
+                      <div style={{ fontSize: 'var(--type-table-row-size, 12px)', fontWeight: 800, color: '#0F172A', lineHeight: 1.2 }}>
                         {c.authorName || 'Reviewer'}
                       </div>
-                      <div style={{ fontSize: '9.5px', color: '#64748B' }}>
+                      <div style={{ fontSize: 'var(--type-caption-size, 10px)', color: '#64748B' }}>
                         Audit Contributor
                       </div>
                     </div>
                   </div>
 
-                  <span style={{ fontSize: '9.5px', color: '#94A3B8' }}>
+                  <span style={{ fontSize: 'var(--type-caption-size, 10px)', color: '#94A3B8' }}>
                     {c.createdAt ? new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'}
                   </span>
                 </div>
@@ -225,7 +231,7 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <span
                       style={{
-                        fontSize: '10px',
+                        fontSize: 'var(--type-caption-size, 10.5px)',
                         fontWeight: 800,
                         color: '#4338CA',
                         backgroundColor: '#EEF2FF',
@@ -246,7 +252,7 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
                 {/* Comment Text */}
                 <p
                   style={{
-                    fontSize: '11.5px',
+                    fontSize: 'var(--type-input-text-size, 12px)',
                     color: '#1E293B',
                     margin: '2px 0 0 0',
                     lineHeight: 1.45,
@@ -269,46 +275,39 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
                   }}
                 >
                   {c.isResolved ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#166534', fontSize: '10.5px', fontWeight: 700 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#166534', fontSize: 'var(--type-caption-size, 10.5px)', fontWeight: 700 }}>
                       <CheckCircle2 style={{ width: '13px', height: '13px', color: '#166534' }} />
                       <span>Resolved by {c.resolvedByName || 'Reviewer'}</span>
                     </div>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                       {c.taggedUserName && !canResolve ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#B45309', fontSize: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#B45309', fontSize: 'var(--type-caption-size, 10px)' }}>
                           <Lock style={{ width: '11px', height: '11px' }} />
                           <span>Requires @{c.taggedUserName} to resolve</span>
                         </div>
                       ) : (
-                        <div style={{ fontSize: '10px', color: '#64748B' }}>
+                        <div style={{ fontSize: 'var(--type-caption-size, 10px)', color: '#64748B' }}>
                           {c.taggedUserName ? 'You are assigned' : 'Generic thread (anyone can resolve)'}
                         </div>
                       )}
 
-                      <button
-                        type="button"
+                      <SharedButton
+                        variant={canResolve ? 'success' : 'secondary'}
+                        size="small"
                         disabled={!canResolve}
                         onClick={() => onResolveComment(c.commentId)}
+                        startIcon={<Check style={{ width: '11px', height: '11px' }} />}
                         title={canResolve ? 'Click to mark this comment as done' : `Only @${c.taggedUserName} can resolve`}
                         style={{
-                          padding: '3px 8px',
-                          fontSize: '10.5px',
+                          padding: '2px 8px',
+                          minHeight: '26px',
+                          fontSize: 'var(--type-caption-size, 10.5px)',
                           fontWeight: 700,
-                          color: canResolve ? '#166534' : '#94A3B8',
-                          backgroundColor: canResolve ? '#DCFCE7' : '#F1F5F9',
-                          border: canResolve ? '1px solid #86EFAC' : '1px solid #CBD5E1',
-                          borderRadius: '5px',
-                          cursor: canResolve ? 'pointer' : 'not-allowed',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          transition: 'all 0.15s ease',
                         }}
                       >
-                        <Check style={{ width: '11px', height: '11px' }} />
-                        <span>Mark Done</span>
-                      </button>
+                        Mark Done
+                      </SharedButton>
                     </div>
                   )}
                 </div>
@@ -341,7 +340,7 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
                 border: '1px solid #C7D2FE',
                 borderRadius: '6px',
                 padding: '2px 8px',
-                fontSize: '11px',
+                fontSize: 'var(--type-caption-size, 11px)',
                 color: '#3730A3',
                 fontWeight: 700,
               }}
@@ -351,33 +350,28 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
               <button
                 type="button"
                 onClick={() => setSelectedTaggedUser(null)}
+                aria-label="Remove tagged user"
                 style={{ border: 'none', background: 'none', color: '#6366F1', cursor: 'pointer', padding: '0 2px' }}
               >
                 ×
               </button>
             </div>
           ) : (
-            <button
-              type="button"
+            <SharedButton
+              variant="secondary"
+              size="small"
               onClick={() => setIsTagDropdownOpen(!isTagDropdownOpen)}
+              startIcon={<Tag style={{ width: '11px', height: '11px', color: '#64748B' }} />}
+              endIcon={<ChevronDown style={{ width: '11px', height: '11px' }} />}
               style={{
-                fontSize: '11px',
-                color: '#475569',
-                backgroundColor: '#F1F5F9',
-                border: '1px solid #CBD5E1',
-                borderRadius: '6px',
+                fontSize: 'var(--type-caption-size, 11px)',
                 padding: '3px 8px',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
+                minHeight: '26px',
                 fontWeight: 600,
               }}
             >
-              <Tag style={{ width: '11px', height: '11px', color: '#64748B' }} />
-              <span>@Tag a Person (Strict Resolution)</span>
-              <ChevronDown style={{ width: '11px', height: '11px' }} />
-            </button>
+              @Tag a Person (Strict Resolution)
+            </SharedButton>
           )}
 
           {/* Tag Dropdown Menu */}
@@ -398,7 +392,7 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
                 padding: '4px 0',
               }}
             >
-              <div style={{ padding: '4px 10px', fontSize: '10px', fontWeight: 800, color: '#94A3B8', borderBottom: '1px solid #F1F5F9' }}>
+              <div style={{ padding: '4px 10px', fontSize: 'var(--type-caption-size, 10px)', fontWeight: 800, color: '#94A3B8', borderBottom: '1px solid #F1F5F9' }}>
                 ASSIGN REVIEW ACTION TO:
               </div>
               {availableUsers.map((u) => (
@@ -419,7 +413,7 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    fontSize: '11px',
+                    fontSize: 'var(--type-caption-size, 11px)',
                   }}
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#EEF2FF')}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
@@ -442,7 +436,7 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
                   </span>
                   <div>
                     <div style={{ fontWeight: 700, color: '#0F172A' }}>{u.name}</div>
-                    <div style={{ fontSize: '9.5px', color: '#64748B' }}>{u.role || 'Audit Member'}</div>
+                    <div style={{ fontSize: 'var(--type-caption-size, 9.5px)', color: '#64748B' }}>{u.role || 'Audit Member'}</div>
                   </div>
                 </button>
               ))}
@@ -451,53 +445,47 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
         </div>
 
         {/* Text Input with Send Button */}
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <textarea
-            rows={2}
-            value={commentText}
-            onChange={(e) => setCommentText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault();
-                handlePost();
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+          <div style={{ flex: 1 }}>
+            <SharedTextArea
+              rows={2}
+              value={commentText}
+              onChange={(val) => setCommentText(val)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  handlePost();
+                }
+              }}
+              placeholder={
+                selectedTaggedUser
+                  ? `Write note for @${selectedTaggedUser.name}... (Ctrl+Enter to post)`
+                  : 'Add a comment or observation... (Ctrl+Enter to post)'
               }
-            }}
-            placeholder={
-              selectedTaggedUser
-                ? `Write note for @${selectedTaggedUser.name}... (Ctrl+Enter to post)`
-                : 'Add a comment or observation... (Ctrl+Enter to post)'
-            }
-            style={{
-              flex: 1,
-              padding: '6px 8px',
-              fontSize: '11.5px',
-              borderRadius: '6px',
-              border: '1px solid #CBD5E1',
-              fontFamily: 'inherit',
-              boxSizing: 'border-box',
-              resize: 'none',
-            }}
-          />
-          <button
-            type="button"
+              resize="none"
+              fullWidth
+              className="w-full"
+            />
+          </div>
+          <SharedButton
+            variant="primary"
+            size="small"
             onClick={handlePost}
             disabled={!commentText.trim()}
+            title="Post comment (Ctrl+Enter)"
+            aria-label="Post comment"
             style={{
+              height: '56px',
               padding: '0 12px',
-              backgroundColor: commentText.trim() ? '#000099' : '#CBD5E1',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: commentText.trim() ? 'pointer' : 'not-allowed',
+              minWidth: '38px',
+              alignSelf: 'stretch',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'background 0.15s ease',
             }}
-            title="Post comment (Ctrl+Enter)"
           >
             <Send style={{ width: '13px', height: '13px' }} />
-          </button>
+          </SharedButton>
         </div>
       </div>
     </div>

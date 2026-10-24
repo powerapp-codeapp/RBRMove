@@ -64,9 +64,9 @@ export function SharedSelect<T extends string | number>({
   const selectId = externalId || `select-${generatedId}`;
   const helperId = `${selectId}-helper`;
 
-  const height = size === 'small' ? '36px' : '40px';
-  const fontSize = size === 'small' ? '14px' : '15px';
-  const heightClass = size === 'small' ? 'h-9 text-sm' : 'h-10 text-base';
+  const height = size === 'small' ? 'var(--control-min-height-sm, 2.25rem)' : 'var(--control-min-height-md, 2.5rem)';
+  const fontSize = 'var(--type-input-text-size, 13px)';
+  const heightClass = size === 'small' ? 'min-h-[2.25rem] text-sm' : 'min-h-[2.5rem] text-base';
 
   const borderClass = error
     ? 'border-red-500 focus-within:border-red-600 focus-within:ring-2 focus-within:ring-red-100'
@@ -93,12 +93,13 @@ export function SharedSelect<T extends string | number>({
       )}
 
       <div
-        className={`relative flex items-center rounded border transition-all duration-150 ${heightClass} ${borderClass}`}
+        className={`type-input-value relative flex items-center rounded border transition-all duration-150 ${heightClass} ${borderClass}`}
         style={{
-          height,
           minHeight: height,
           backgroundColor: disabled ? '#FAFAFA' : readOnly ? '#FAFAFA' : '#FFFFFF',
           borderColor: error ? '#ef4444' : '#CBD5E1',
+          fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+          fontSize: 'var(--type-input-text-size, 13px)',
         }}
       >
         <Select<T>

@@ -186,8 +186,10 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
         }}
       >
         <button
+          type="button"
           onClick={() => onToggleCollapse?.(false)}
           title="Expand Issues List"
+          aria-label="Expand Issues List"
           style={{
             background: 'none',
             border: 'none',
@@ -197,18 +199,28 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            transition: 'color 0.15s ease',
+            borderRadius: '4px',
+            width: '28px',
+            height: '28px',
+            transition: 'all 0.15s ease',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = '#000099')}
-          onMouseLeave={(e) => (e.currentTarget.style.color = '#64748B')}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = '#000099';
+            e.currentTarget.style.backgroundColor = '#E2E8F0';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = '#64748B';
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
         >
           <PanelLeftOpen style={{ width: '16px', height: '16px' }} />
         </button>
         <div
+          className="type-caption"
           style={{
             writingMode: 'vertical-rl',
             transform: 'rotate(180deg)',
-            fontSize: '10.5px',
+            fontSize: 'var(--type-caption-size, 11px)',
             fontWeight: 800,
             color: '#475569',
             letterSpacing: '1px',
@@ -250,8 +262,10 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flexWrap: 'wrap' }}>
           {onToggleCollapse && (
             <button
+              type="button"
               onClick={() => onToggleCollapse(true)}
               title="Collapse Issues List"
+              aria-label="Collapse Issues List"
               style={{
                 background: 'none',
                 border: 'none',
@@ -262,10 +276,19 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
-                transition: 'color 0.15s ease',
+                borderRadius: '4px',
+                width: '28px',
+                height: '28px',
+                transition: 'all 0.15s ease',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = '#000099')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = '#64748B')}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#000099';
+                e.currentTarget.style.backgroundColor = '#E2E8F0';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#64748B';
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
             >
               <PanelLeftClose style={{ width: '16px', height: '16px' }} />
             </button>
@@ -288,8 +311,8 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
             startIcon={<Plus size={12} color="#000099" />}
             onClick={onOpenCreateDialog}
             style={{
-              height: '26px',
-              fontSize: '11px',
+              minHeight: 'var(--control-min-height-compact, 1.625rem)',
+              fontSize: 'var(--type-caption-size, 11px)',
               padding: '0 10px',
               backgroundColor: '#ffffff',
               border: '1px solid #000099',
@@ -316,10 +339,10 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
       >
         {filteredIssues.length === 0 ? (
           <div style={{ padding: '36px 16px', textAlign: 'center', color: '#64748B' }}>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: '#1E293B' }}>
+            <div className="type-section-title" style={{ fontSize: 'var(--type-section-title-size, 13px)', fontWeight: 800, color: '#1E293B' }}>
               No {filterDomain !== 'all' ? filterDomain : ''} Findings
             </div>
-            <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '4px' }}>
+            <div className="type-caption" style={{ fontSize: 'var(--type-caption-size, 11.5px)', color: '#64748B', marginTop: '4px' }}>
               No findings recorded matching the active filter.
             </div>
           </div>

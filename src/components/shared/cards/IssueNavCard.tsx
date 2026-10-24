@@ -56,7 +56,7 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
   onSelect,
   onMoveUp,
   onMoveDown,
-  onInclude,
+  onInclude: _onInclude,
   onDragStart,
   onDragOver,
   onDragLeave,
@@ -121,16 +121,17 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
 
     return (
       <span
+        className="type-badge"
         style={{
-          fontSize: '11px',
-          fontWeight: 500,
-          fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+          fontSize: 'var(--type-badge-size, 11px)',
+          fontWeight: 600,
+          fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
           color: '#ffffff',
           backgroundColor: bg,
           padding: '2px 7px',
           borderRadius: '4px',
           whiteSpace: 'nowrap',
-          lineHeight: 1.2,
+          lineHeight: 'var(--type-badge-leading, 1.2)',
           flexShrink: 0,
           WebkitFontSmoothing: 'antialiased',
           MozOsxFontSmoothing: 'grayscale',
@@ -145,17 +146,18 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
   const renderStatusBadge = (status: string) => {
     return (
       <span
+        className="type-badge"
         style={{
-          fontSize: '11px',
+          fontSize: 'var(--type-badge-size, 11px)',
           fontWeight: 600,
-          fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+          fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
           padding: '2px 8px',
           borderRadius: '4px',
           backgroundColor: '#EFF6FF',
           color: '#000099',
           border: '1px solid #BFDBFE',
           whiteSpace: 'nowrap',
-          lineHeight: 1.2,
+          lineHeight: 'var(--type-badge-leading, 1.2)',
           boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
         }}
       >
@@ -273,6 +275,7 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
             <button
               type="button"
               title="Move issue up"
+              aria-label="Move issue up"
               disabled={isFirst}
               onClick={(e) => {
                 e.stopPropagation();
@@ -288,9 +291,22 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderRadius: '3px',
-                width: '18px',
-                height: '18px',
-                transition: 'all 0.1s ease',
+                width: '20px',
+                height: '20px',
+                minHeight: '20px',
+                transition: 'all 0.12s ease',
+              }}
+              onMouseEnter={(e) => {
+                if (!isFirst) {
+                  e.currentTarget.style.borderColor = '#000099';
+                  e.currentTarget.style.color = '#000099';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isFirst) {
+                  e.currentTarget.style.borderColor = '#E2E8F0';
+                  e.currentTarget.style.color = '#475569';
+                }
               }}
             >
               <ArrowUp size={11} />
@@ -298,6 +314,7 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
             <button
               type="button"
               title="Move issue down"
+              aria-label="Move issue down"
               disabled={isLast}
               onClick={(e) => {
                 e.stopPropagation();
@@ -313,9 +330,22 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderRadius: '3px',
-                width: '18px',
-                height: '18px',
-                transition: 'all 0.1s ease',
+                width: '20px',
+                height: '20px',
+                minHeight: '20px',
+                transition: 'all 0.12s ease',
+              }}
+              onMouseEnter={(e) => {
+                if (!isLast) {
+                  e.currentTarget.style.borderColor = '#000099';
+                  e.currentTarget.style.color = '#000099';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isLast) {
+                  e.currentTarget.style.borderColor = '#E2E8F0';
+                  e.currentTarget.style.color = '#475569';
+                }
               }}
             >
               <ArrowDown size={11} />
@@ -326,17 +356,18 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
         {/* Right Side: Ref #, Function, Excluded/Read Only/Locked, Criticality */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <span
+            className="type-badge"
             style={{
-              fontSize: '11px',
+              fontSize: 'var(--type-badge-size, 11px)',
               fontWeight: 600,
-              fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+              fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
               color: '#334155',
               backgroundColor: '#ffffff',
               border: '1px solid #E2E8F0',
               padding: '2px 7px',
               borderRadius: '4px',
               whiteSpace: 'nowrap',
-              lineHeight: 1.2,
+              lineHeight: 'var(--type-badge-leading, 1.2)',
               flexShrink: 0,
             }}
           >
@@ -344,17 +375,18 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
           </span>
 
           <span
+            className="type-badge"
             style={{
-              fontSize: '11px',
+              fontSize: 'var(--type-badge-size, 11px)',
               fontWeight: 600,
-              fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+              fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
               padding: '2px 7px',
               borderRadius: '4px',
               backgroundColor: '#ffffff',
               color: '#334155',
               border: '1px solid #E2E8F0',
               whiteSpace: 'nowrap',
-              lineHeight: 1.2,
+              lineHeight: 'var(--type-badge-leading, 1.2)',
               flexShrink: 0,
             }}
           >
@@ -363,10 +395,11 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
 
           {isLocked && !isExcluded && (
             <span
+              className="type-badge"
               style={{
-                fontSize: '11px',
+                fontSize: 'var(--type-badge-size, 11px)',
                 fontWeight: 600,
-                fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+                fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
                 padding: '2px 7px',
                 borderRadius: '4px',
                 backgroundColor: '#FEF3C7',
@@ -376,7 +409,7 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
                 alignItems: 'center',
                 gap: '3.5px',
                 whiteSpace: 'nowrap',
-                lineHeight: 1.2,
+                lineHeight: 'var(--type-badge-leading, 1.2)',
                 flexShrink: 0,
               }}
             >
@@ -389,10 +422,11 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
 
           {!isLocked && effectiveReadOnly && !isExcluded && (
             <span
+              className="type-badge"
               style={{
-                fontSize: '11px',
+                fontSize: 'var(--type-badge-size, 11px)',
                 fontWeight: 600,
-                fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+                fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
                 padding: '2px 7px',
                 borderRadius: '4px',
                 backgroundColor: '#FEF3C7',
@@ -402,7 +436,7 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
                 alignItems: 'center',
                 gap: '3.5px',
                 whiteSpace: 'nowrap',
-                lineHeight: 1.2,
+                lineHeight: 'var(--type-badge-leading, 1.2)',
                 flexShrink: 0,
               }}
               title={readOnlyReason || 'Read Only: Functional Domain Restriction'}
@@ -414,10 +448,11 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
 
           {isExcluded && (
             <span
+              className="type-badge"
               style={{
-                fontSize: '11px',
+                fontSize: 'var(--type-badge-size, 11px)',
                 fontWeight: 600,
-                fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+                fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
                 padding: '2px 7px',
                 borderRadius: '4px',
                 backgroundColor: '#ffffff',
@@ -427,7 +462,7 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
                 alignItems: 'center',
                 gap: '3.5px',
                 whiteSpace: 'nowrap',
-                lineHeight: 1.2,
+                lineHeight: 'var(--type-badge-leading, 1.2)',
                 flexShrink: 0,
               }}
             >
@@ -445,13 +480,14 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
       {/* ========================================================================= */}
       <div>
         <h4
+          className="type-table-row-title"
           style={{
-            fontSize: '14px',
-            fontWeight: 400,
+            fontSize: 'var(--type-table-row-size, 13px)',
+            fontWeight: 500,
             color: isExcluded ? '#64748B' : '#334155',
             textDecoration: isExcluded ? 'line-through' : 'none',
-            lineHeight: '1.3',
-            fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+            lineHeight: '1.35',
+            fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
             margin: 0,
             wordBreak: 'break-word',
             textTransform: 'none',
@@ -475,14 +511,15 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
       >
         {/* Left Side: Assigned User Name */}
         <span
+          className="type-caption"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: '5px',
-            fontSize: '11px',
+            fontSize: 'var(--type-caption-size, 11px)',
             color: '#334155',
             fontWeight: 600,
-            fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+            fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
             maxWidth: '180px',
             overflow: 'hidden',
             textOverflow: 'ellipsis',

@@ -1,32 +1,25 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Issue, CriticalityLevel, IssueStatus } from '../../../types/dataverse.types';
 import {
-  SharedAccordion,
-  AccordionGroup,
   SharedButton,
   SharedSelectButton,
   SharedTextInput,
   SharedTextArea,
   SharedSelect,
-  SharedFieldLabel,
   SharedListBoxFilter,
   AIInput,
 } from '../../../components/shared';
 import type { ListBoxFilterOption } from '../../../components/shared';
 import {
-  Sparkles,
-  GitBranch,
   History,
   MessageSquare,
   Lock,
   Unlock,
   RotateCcw,
   Ban,
-  MoreVertical,
   CheckCircle2,
   AlertOctagon,
   AlertTriangle,
-  Clock,
   PanelLeftClose,
   PanelLeftOpen,
   Send,
@@ -119,12 +112,12 @@ const SECTION_TAB_OPTIONS: ListBoxFilterOption<SectionTab>[] = [
 export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
   issue,
   onUpdateIssue,
-  onOpenAiCompare,
+  onOpenAiCompare: _onOpenAiCompare,
   onOpenLogs,
   onOpenComments,
   commentCounts,
-  isAiSynthesizing,
-  onTriggerAiSynthesis,
+  isAiSynthesizing: _isAiSynthesizing,
+  onTriggerAiSynthesis: _onTriggerAiSynthesis,
   canEdit,
   editRestrictionReason,
   onExcludeIssue,
@@ -139,7 +132,6 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
   userRole = 'Manager',
   hasCriticalFinding = false,
 }) => {
-  const [, setSelectedViolation] = useState<string | null>(null);
   const [activeSectionTab, setActiveSectionTab] = useState<SectionTab>('all');
   const roleStr = (userRole || '').toLowerCase();
   const isAuditor = roleStr.includes('auditor');
@@ -333,24 +325,6 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
     });
   };
 
-  const handleInlineAiRefine = (field: 'rootCause' | 'impact' | 'recommendation') => {
-    if (isFieldDisabled) return;
-    let refinedText = '';
-    if (field === 'rootCause') {
-      refinedText = `[AI Synthesized v2]: Systematic process breakdown in automated feed synchronization between HR identity management and Active Directory security groups.`;
-    } else if (field === 'impact') {
-      refinedText = `[AI Synthesized v2]: Unauthorized access exposure across privileged database instances, increasing risk of non-compliance under SOX Section 404 and GxP data integrity standards.`;
-    } else if (field === 'recommendation') {
-      refinedText = `[AI Synthesized v2]: 1. Enforce automated daily de-provisioning cron jobs for accounts dormant >60 days.\n2. Implement quarterly supervisory re-certification with digital signatures.`;
-    }
-
-    onUpdateIssue({
-      ...issue,
-      [field]: refinedText,
-      activeAiVersionNumber: (issue.activeAiVersionNumber || 1) + 1,
-    });
-  };
-
   const getCommentBadge = (fieldKey: string) => {
     const count = commentCounts[fieldKey] || 0;
     return count > 0 ? (
@@ -450,10 +424,10 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
           boxShadow: '0 3px 8px rgba(0, 0, 0, 0.08)',
           position: 'relative',
           zIndex: 2,
-          padding: '18px 20px 18px 20px',
+          padding: 'clamp(10px, 1.2vh, 18px) var(--space-page-padding-x, 20px)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '12px',
+          gap: 'clamp(8px, 1vh, 12px)',
           flexShrink: 0,
         }}
       >
@@ -464,6 +438,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               type="button"
               onClick={() => onToggleCollapse(true)}
               title="Collapse Form Editor Pane"
+              aria-label="Collapse Form Editor Pane"
               style={{
                 background: 'none',
                 border: 'none',
@@ -475,6 +450,8 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 justifyContent: 'center',
                 flexShrink: 0,
                 borderRadius: '4px',
+                width: '28px',
+                height: '28px',
                 transition: 'color 0.15s ease, background-color 0.15s ease',
               }}
               onMouseEnter={(e) => {
@@ -504,12 +481,13 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
           />
 
           <span
+            className="type-studio-title"
             style={{
-              fontSize: '15px',
-              fontWeight: 500,
-              fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-              color: '#334155',
-              lineHeight: '1.3',
+              fontSize: 'var(--type-studio-title-size, 15px)',
+              fontWeight: 'var(--type-studio-title-weight, 500)' as any,
+              fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+              color: 'var(--type-studio-title-color, #334155)',
+              lineHeight: 'var(--type-studio-title-leading, 1.3)' as any,
             }}
           >
             {issue.title}
@@ -527,7 +505,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              fontSize: '12px',
+              fontSize: 'var(--type-table-header-size, 12px)',
               color: '#92400E',
               lineHeight: '1.4',
             }}
@@ -556,7 +534,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              fontSize: '12px',
+              fontSize: 'var(--type-table-header-size, 12px)',
               color: '#92400E',
               lineHeight: '1.4',
             }}
@@ -583,7 +561,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               alignItems: 'center',
               justifyContent: 'space-between',
               gap: '10px',
-              fontSize: '12px',
+              fontSize: 'var(--type-table-header-size, 12px)',
               color: '#92400E',
               lineHeight: '1.4',
             }}
@@ -598,34 +576,19 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               </span>
             </div>
 
-            <button
-              type="button"
+            <SharedButton
+              variant="success"
+              size="small"
+              startIcon={<RotateCcw size={11} />}
               onClick={() => onIncludeIssue?.(issue.id)}
               style={{
-                padding: '3px 10px',
-                fontSize: '11px',
-                fontWeight: 700,
-                fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-                color: '#ffffff',
-                backgroundColor: '#059669',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                height: '24px',
-                boxSizing: 'border-box',
-                transition: 'background-color 0.15s ease',
+                minHeight: 'var(--control-min-height-compact, 1.5rem)',
+                fontSize: 'var(--type-caption-size, 11px)',
+                padding: '0 10px',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#047857')}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
             >
-              <RotateCcw style={{ width: '11px', height: '11px' }} />
               Include Issue
-            </button>
+            </SharedButton>
           </div>
         )}
 
@@ -671,7 +634,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                       size="small"
                       startIcon={<Send size={12} />}
                       onClick={() => onAdvanceWorkflow('Pending TC')}
-                      style={{ height: '28px', fontSize: '11px', padding: '0 10px' }}
+                      style={{ minHeight: 'var(--control-min-height-compact, 1.75rem)', fontSize: 'var(--type-caption-size, 11px)', padding: '0 10px' }}
                     >
                       Submit to TC
                     </SharedButton>
@@ -683,7 +646,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                       size="small"
                       startIcon={<Send size={12} />}
                       onClick={() => onAdvanceWorkflow('Pending Manager')}
-                      style={{ height: '28px', fontSize: '11px', padding: '0 10px' }}
+                      style={{ minHeight: 'var(--control-min-height-compact, 1.75rem)', fontSize: 'var(--type-caption-size, 11px)', padding: '0 10px' }}
                     >
                       Submit to Manager
                     </SharedButton>
@@ -695,7 +658,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                       size="small"
                       startIcon={<Send size={12} />}
                       onClick={() => onAdvanceWorkflow('Pending Director')}
-                      style={{ height: '28px', fontSize: '11px', padding: '0 10px' }}
+                      style={{ minHeight: 'var(--control-min-height-compact, 1.75rem)', fontSize: 'var(--type-caption-size, 11px)', padding: '0 10px' }}
                     >
                       Submit to Director
                     </SharedButton>
@@ -707,7 +670,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                       size="small"
                       startIcon={<Send size={12} />}
                       onClick={() => onAdvanceWorkflow('Pending Director')}
-                      style={{ height: '28px', fontSize: '11px', padding: '0 10px' }}
+                      style={{ minHeight: 'var(--control-min-height-compact, 1.75rem)', fontSize: 'var(--type-caption-size, 11px)', padding: '0 10px' }}
                     >
                       Submit Response to Director
                     </SharedButton>
@@ -720,7 +683,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                         size="small"
                         startIcon={<Send size={12} />}
                         onClick={() => onAdvanceWorkflow('Pending VP')}
-                        style={{ height: '28px', fontSize: '11px', padding: '0 10px' }}
+                        style={{ minHeight: 'var(--control-min-height-compact, 1.75rem)', fontSize: 'var(--type-caption-size, 11px)', padding: '0 10px' }}
                         title="Mandatory VP Sign-Off Rule (contains Critical issue)"
                       >
                         Submit to VP
@@ -731,7 +694,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                         size="small"
                         startIcon={<CheckCircle2 size={12} />}
                         onClick={() => onAdvanceWorkflow('Signed Off')}
-                        style={{ height: '28px', fontSize: '11px', padding: '0 10px' }}
+                        style={{ minHeight: 'var(--control-min-height-compact, 1.75rem)', fontSize: 'var(--type-caption-size, 11px)', padding: '0 10px' }}
                       >
                         Executive Sign-Off
                       </SharedButton>
@@ -744,7 +707,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                       size="small"
                       startIcon={<CheckCircle2 size={12} />}
                       onClick={() => onAdvanceWorkflow('Signed Off')}
-                      style={{ height: '28px', fontSize: '11px', padding: '0 10px' }}
+                      style={{ minHeight: 'var(--control-min-height-compact, 1.75rem)', fontSize: 'var(--type-caption-size, 11px)', padding: '0 10px' }}
                     >
                       Executive Sign-Off &amp; Seal
                     </SharedButton>
@@ -848,10 +811,10 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
           minHeight: 0,
           overflowY: 'auto',
           overflowX: 'hidden',
-          padding: '20px 24px',
+          padding: 'clamp(12px, 1.4vh, 20px) clamp(12px, 1.4vw, 24px)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '24px',
+          gap: 'clamp(12px, 1.4vh, 20px)',
           backgroundColor: '#ffffff',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
@@ -895,7 +858,6 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('originalIssue', val)}
                 placeholder="Detail initial audit observations, test sample exceptions, and discovered control gaps..."
                 rows={4}
-                minHeight="95px"
                 required
                 disabled={isFieldDisabled}
               />
@@ -953,29 +915,25 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                     <AlertTriangle size={15} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '12.5px', color: '#1E3A8A', lineHeight: 1.45, fontWeight: 500 }}>
+                    <div style={{ fontSize: 'var(--type-table-header-size, 12.5px)', color: '#1E3A8A', lineHeight: 1.45, fontWeight: 500 }}>
                       Changed the issue or function, so generated AI might not be valid, please click on Regenerate AI if needed.
                     </div>
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                  <button
-                    type="button"
+                  <SharedButton
+                    variant="outline"
+                    size="small"
                     onClick={() => setIsBannerDismissed(true)}
                     style={{
-                      padding: '6px 12px',
-                      borderRadius: '5px',
-                      fontSize: '11.5px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      border: '1px solid #CBD5E1',
-                      backgroundColor: '#FFFFFF',
-                      color: '#475569',
+                      minHeight: 'var(--control-min-height-compact, 1.625rem)',
+                      fontSize: 'var(--type-caption-size, 11.5px)',
+                      padding: '0 12px',
                     }}
                   >
                     Cancel
-                  </button>
+                  </SharedButton>
 
                   <SharedButton
                     variant="primary"
@@ -1025,6 +983,8 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenComments('issueNarrative', 'Condition Narrative')}
+                    aria-label="Open comments for Condition Narrative"
+                    className="type-caption"
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -1033,12 +993,16 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                       border: 'none',
                       cursor: 'pointer',
                       color: '#64748B',
-                      fontSize: '11px',
+                      fontSize: 'var(--type-caption-size, 11px)',
                       fontWeight: 700,
                       padding: '0 4px',
-                      height: '16px',
-                      lineHeight: '16px',
+                      height: '18px',
+                      lineHeight: '18px',
+                      borderRadius: '3px',
+                      transition: 'color 0.15s ease',
                     }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = '#000099')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = '#64748B')}
                   >
                     <MessageSquare size={12} />
                     <span>Comments</span>
@@ -1064,6 +1028,8 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenComments('rootCause', 'Root Cause')}
+                    aria-label="Open comments for Root Cause"
+                    className="type-caption"
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -1072,12 +1038,16 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                       border: 'none',
                       cursor: 'pointer',
                       color: '#64748B',
-                      fontSize: '11px',
+                      fontSize: 'var(--type-caption-size, 11px)',
                       fontWeight: 700,
                       padding: '0 4px',
-                      height: '16px',
-                      lineHeight: '16px',
+                      height: '18px',
+                      lineHeight: '18px',
+                      borderRadius: '3px',
+                      transition: 'color 0.15s ease',
                     }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = '#000099')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = '#64748B')}
                   >
                     <MessageSquare size={12} />
                     <span>Comments</span>
@@ -1103,6 +1073,8 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenComments('impact', 'Impact')}
+                    aria-label="Open comments for Impact"
+                    className="type-caption"
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -1111,12 +1083,16 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                       border: 'none',
                       cursor: 'pointer',
                       color: '#64748B',
-                      fontSize: '11px',
+                      fontSize: 'var(--type-caption-size, 11px)',
                       fontWeight: 700,
                       padding: '0 4px',
-                      height: '16px',
-                      lineHeight: '16px',
+                      height: '18px',
+                      lineHeight: '18px',
+                      borderRadius: '3px',
+                      transition: 'color 0.15s ease',
                     }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = '#000099')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = '#64748B')}
                   >
                     <MessageSquare size={12} />
                     <span>Comments</span>
@@ -1142,6 +1118,8 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenComments('recommendation', 'Recommendation')}
+                    aria-label="Open comments for Recommendation"
+                    className="type-caption"
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -1150,12 +1128,16 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                       border: 'none',
                       cursor: 'pointer',
                       color: '#64748B',
-                      fontSize: '11px',
+                      fontSize: 'var(--type-caption-size, 11px)',
                       fontWeight: 700,
                       padding: '0 4px',
-                      height: '16px',
-                      lineHeight: '16px',
+                      height: '18px',
+                      lineHeight: '18px',
+                      borderRadius: '3px',
+                      transition: 'color 0.15s ease',
                     }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = '#000099')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = '#64748B')}
                   >
                     <MessageSquare size={12} />
                     <span>Comments</span>
@@ -1261,7 +1243,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               value={issue.managementResponse || issue.managementActionPlan || ''}
               onChange={(val) => handleFieldChange('managementResponse', val)}
               placeholder="Enter management concurrence, mitigation plan, and operational commitments."
-              minHeight="90px"
+              rows={4}
               disabled={isFieldDisabled}
             />
 

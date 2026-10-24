@@ -15,7 +15,6 @@ import {
   Cpu,
   Layers,
   AlertTriangle,
-  ArrowLeft,
   Save,
   Send
 } from 'lucide-react';
@@ -28,7 +27,7 @@ import {
   AIInput,
   SharedConfirmDialog,
   SharedTooltip,
-  BackButton
+  PageHeader
 } from '../../../components/shared';
 import testProceduresData from '../data/testProcedures.json';
 import engagementsData from '../data/engagements.json';
@@ -545,11 +544,11 @@ export const CreateIssueDialog: React.FC<CreateIssueDialogProps> = ({
         fullWidth
         sx={{
           '& .MuiDialog-paper': {
-            width: '760px',
-            maxWidth: '92vw',
-            height: '70vh',
-            minHeight: '480px',
-            maxHeight: '70vh',
+            width: 'clamp(540px, 72vw, 760px)',
+            maxWidth: '94vw',
+            height: 'clamp(420px, 72vh, 640px)',
+            minHeight: '400px',
+            maxHeight: '85vh',
             borderRadius: '8px',
             backgroundColor: '#FFFFFF',
             overflow: 'hidden',
@@ -644,6 +643,7 @@ export const CreateIssueDialog: React.FC<CreateIssueDialogProps> = ({
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => {
                   if (originalIssue.trim()) {
                     setIsConfirmDialogOpen(true);
@@ -651,13 +651,28 @@ export const CreateIssueDialog: React.FC<CreateIssueDialogProps> = ({
                     handleClose();
                   }
                 }}
+                aria-label="Close dialog"
                 style={{
                   border: 'none',
                   background: 'transparent',
                   cursor: 'pointer',
                   color: '#64748B',
                   padding: '4px',
-                  borderRadius: '4px'
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '28px',
+                  height: '28px',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#000099';
+                  e.currentTarget.style.backgroundColor = '#F1F5F9';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '#64748B';
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }}
                 title="Close"
               >
@@ -716,53 +731,43 @@ export const CreateIssueDialog: React.FC<CreateIssueDialogProps> = ({
                 <div>
                   <SharedFieldLabel label="Function" required />
                   <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                    <button
+                    <SharedButton
                       type="button"
+                      variant={selectedFunction === 'IT' ? 'primary' : 'outline'}
+                      size="small"
+                      startIcon={<Cpu size={14} />}
                       onClick={() => setSelectedFunction('IT')}
                       style={{
                         flex: 1,
                         height: '36px',
-                        borderRadius: '4px',
-                        fontSize: '12px',
+                        fontSize: 'var(--type-table-row-size, 12px)',
                         fontWeight: 700,
-                        cursor: 'pointer',
-                        border: selectedFunction === 'IT' ? '1.5px solid #000099' : '1px solid #CBD5E1',
                         backgroundColor: selectedFunction === 'IT' ? '#EFF6FF' : '#FFFFFF',
                         color: selectedFunction === 'IT' ? '#000099' : '#475569',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        transition: 'all 0.15s ease'
+                        borderColor: selectedFunction === 'IT' ? '#000099' : '#CBD5E1',
                       }}
                     >
-                      <Cpu size={14} />
-                      <span>IT</span>
-                    </button>
+                      IT
+                    </SharedButton>
 
-                    <button
+                    <SharedButton
                       type="button"
+                      variant={selectedFunction === 'FinOps' ? 'primary' : 'outline'}
+                      size="small"
+                      startIcon={<Layers size={14} />}
                       onClick={() => setSelectedFunction('FinOps')}
                       style={{
                         flex: 1,
                         height: '36px',
-                        borderRadius: '4px',
-                        fontSize: '12px',
+                        fontSize: 'var(--type-table-row-size, 12px)',
                         fontWeight: 700,
-                        cursor: 'pointer',
-                        border: selectedFunction === 'FinOps' ? '1.5px solid #000099' : '1px solid #CBD5E1',
                         backgroundColor: selectedFunction === 'FinOps' ? '#EFF6FF' : '#FFFFFF',
                         color: selectedFunction === 'FinOps' ? '#000099' : '#475569',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        transition: 'all 0.15s ease'
+                        borderColor: selectedFunction === 'FinOps' ? '#000099' : '#CBD5E1',
                       }}
                     >
-                      <Layers size={14} />
-                      <span>FinOps</span>
-                    </button>
+                      FinOps
+                    </SharedButton>
                   </div>
                 </div>
               </div>
@@ -930,12 +935,12 @@ export const CreateIssueDialog: React.FC<CreateIssueDialogProps> = ({
       className="create-issue-studio-root"
       style={{
         position: 'fixed',
-        top: '77px',
+        top: 'var(--header-total-height, 71px)',
         left: 0,
         right: 0,
         bottom: 0,
         width: '100vw',
-        height: 'calc(100vh - 77px)',
+        height: 'calc(100vh - var(--header-total-height, 71px))',
         zIndex: 990,
         backgroundColor: '#FFFFFF',
         display: 'flex',
@@ -943,7 +948,14 @@ export const CreateIssueDialog: React.FC<CreateIssueDialogProps> = ({
         overflow: 'hidden'
       }}
     >
-      {/* Studio Body: Two Column Split Layout starting directly beneath global header */}
+      {/* Standardized Studio Header Toolbar */}
+      <PageHeader
+        onBack={() => setIsConfirmDialogOpen(true)}
+        backTitle="Back"
+        title={resolvedEngagementName || 'Engagement'}
+      />
+
+      {/* Studio Body: Two Column Split Layout starting directly beneath studio toolbar */}
       <div
         style={{
           display: 'grid',
@@ -969,29 +981,6 @@ export const CreateIssueDialog: React.FC<CreateIssueDialogProps> = ({
             scrollbarColor: '#E2E8F0 transparent'
           }}
         >
-          {/* Header with Icon-Only Back Button & Finding Title */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <BackButton
-              onClick={() => setIsConfirmDialogOpen(true)}
-              title="Back"
-              ariaLabel="Back"
-            />
-            <h1
-              style={{
-                fontSize: '15px',
-                fontWeight: 500,
-                color: '#334155',
-                lineHeight: '1.3',
-                fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-                margin: 0,
-                display: 'inline-flex',
-                alignItems: 'center',
-              }}
-            >
-              {resolvedEngagementName || 'Engagement'}
-            </h1>
-          </div>
-
           {/* Row 1: Test Procedure (col 1) & Function (col 2) as a two-column input */}
           <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: '16px', alignItems: 'flex-start' }}>
             <div>
@@ -1237,29 +1226,25 @@ export const CreateIssueDialog: React.FC<CreateIssueDialogProps> = ({
                           <AlertTriangle size={15} />
                         </div>
                         <div>
-                          <div style={{ fontSize: '12.5px', color: '#1E3A8A', lineHeight: 1.45, fontWeight: 500 }}>
+                          <div style={{ fontSize: 'var(--type-table-header-size, 12.5px)', color: '#1E3A8A', lineHeight: 1.45, fontWeight: 500 }}>
                             Changed the issue or function, so generated AI might not be valid, please click on Regenerate AI if needed.
                           </div>
                         </div>
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                        <button
-                          type="button"
+                        <SharedButton
+                          variant="outline"
+                          size="small"
                           onClick={() => setIsBannerDismissed(true)}
                           style={{
-                            padding: '6px 12px',
-                            borderRadius: '5px',
-                            fontSize: '11.5px',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            border: '1px solid #CBD5E1',
-                            backgroundColor: '#FFFFFF',
-                            color: '#475569'
+                            minHeight: 'var(--control-min-height-compact, 1.625rem)',
+                            fontSize: 'var(--type-caption-size, 11.5px)',
+                            padding: '0 12px',
                           }}
                         >
                           Cancel
-                        </button>
+                        </SharedButton>
 
                         <SharedButton
                           variant="primary"
@@ -1447,97 +1432,50 @@ export const CreateIssueDialog: React.FC<CreateIssueDialogProps> = ({
                 >
                   <GitCompare size={17} />
                 </div>
-                <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                <h2
+                  className="type-modal-title"
+                  style={{
+                    fontSize: 'var(--type-modal-title-size, 16px)',
+                    fontWeight: 800,
+                    color: '#0F172A',
+                    margin: 0,
+                    fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)'
+                  }}
+                >
                   Compare Versions
                 </h2>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <button
+                <SharedButton
                   type="button"
+                  variant="outline"
+                  size="small"
                   onClick={handleKeepPreviousVersion}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: '5px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    border: '1px solid #CBD5E1',
-                    backgroundColor: '#FFFFFF',
-                    color: '#334155',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#F8FAFC';
-                    e.currentTarget.style.borderColor = '#94A3B8';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#FFFFFF';
-                    e.currentTarget.style.borderColor = '#CBD5E1';
-                  }}
                 >
                   Keep Previous Version
-                </button>
+                </SharedButton>
 
-                <button
+                <SharedButton
                   type="button"
+                  variant="success"
+                  size="small"
+                  startIcon={<Check size={14} />}
                   onClick={handleApplyComparisonMerge}
-                  style={{
-                    padding: '6px 16px',
-                    borderRadius: '5px',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    border: 'none',
-                    backgroundColor: '#16A34A',
-                    color: '#FFFFFF',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.08)',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#15803D';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#16A34A';
-                  }}
                 >
-                  <Check size={14} />
-                  <span>Keep Selected</span>
-                </button>
+                  Keep Selected
+                </SharedButton>
 
-                <button
+                <SharedButton
                   type="button"
+                  variant="outline"
+                  size="small"
+                  startIcon={<X size={13} />}
                   onClick={handleDiscardComparison}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '5px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    border: '1px solid #CBD5E1',
-                    backgroundColor: '#FFFFFF',
-                    color: '#64748B',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#F1F5F9';
-                    e.currentTarget.style.color = '#0F172A';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#FFFFFF';
-                    e.currentTarget.style.color = '#64748B';
-                  }}
                   title="Discard changes and keep previous version"
                 >
-                  <X size={13} />
-                  <span>Discard</span>
-                </button>
+                  Discard
+                </SharedButton>
               </div>
             </DialogTitle>
 

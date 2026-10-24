@@ -106,8 +106,7 @@ export function SharedAutocomplete<T>({
       <div
         className={`relative flex items-center rounded border transition-all duration-150 ${heightClass} ${borderClass}`}
         style={{
-          height,
-          minHeight: height,
+          minHeight: size === 'small' ? 'var(--control-min-height-sm, 2.25rem)' : 'var(--control-min-height-md, 2.5rem)',
           backgroundColor: disabled ? '#FAFAFA' : readOnly ? '#FAFAFA' : '#FFFFFF',
           borderColor: error ? '#ef4444' : '#CBD5E1',
         }}

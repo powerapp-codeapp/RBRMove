@@ -30,6 +30,8 @@ export interface SharedFilterSelectProps<T = string> {
   disabled?: boolean;
   className?: string;
   accentArrow?: boolean;
+  /** Whether to prefix label when multiple options are selected (e.g. 'Status: 2 Selected' vs '2 Selected'). Default: false */
+  showLabelInMultiple?: boolean;
   /** Custom render function for trigger button text */
   renderTriggerText?: (selected: T[], options: FilterOption<T>[]) => string;
 }
@@ -56,6 +58,7 @@ export const SharedFilterSelect = <T extends string = string>({
   disabled = false,
   className = '',
   accentArrow = false,
+  showLabelInMultiple = false,
   renderTriggerText
 }: SharedFilterSelectProps<T>): React.ReactElement => {
   const generatedId = useId();
@@ -102,7 +105,7 @@ export const SharedFilterSelect = <T extends string = string>({
       const match = options.find((opt) => opt.value === value[0]);
       return match ? match.label : String(value[0]);
     }
-    return `${label}: ${value.length} Selected`;
+    return showLabelInMultiple ? `${label}: ${value.length} Selected` : `${value.length} Selected`;
   };
 
   const height = size === 'small' ? '36px' : '40px';

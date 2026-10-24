@@ -1,7 +1,8 @@
 import React from 'react';
-import { Ban, FileText, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { Ban, FileText, PanelRightClose, PanelRightOpen, RotateCcw } from 'lucide-react';
 import type { Issue } from '../../../types/dataverse.types';
 import { parseDescriptionWithViolations } from '../utils/violationParser';
+import { SharedButton } from '../../../components/shared/buttons/SharedButton';
 
 interface AuditReportPreviewPaneProps {
   issues: Issue[];
@@ -43,8 +44,10 @@ export const AuditReportPreviewPane: React.FC<AuditReportPreviewPaneProps> = ({
         }}
       >
         <button
+          type="button"
           onClick={() => onToggleCollapse(false)}
           title="Expand Report Preview"
+          aria-label="Expand Report Preview"
           style={{
             background: 'none',
             border: 'none',
@@ -54,18 +57,28 @@ export const AuditReportPreviewPane: React.FC<AuditReportPreviewPaneProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            transition: 'color 0.15s ease',
+            borderRadius: '4px',
+            width: '28px',
+            height: '28px',
+            transition: 'all 0.15s ease',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = '#000099')}
-          onMouseLeave={(e) => (e.currentTarget.style.color = '#64748B')}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = '#000099';
+            e.currentTarget.style.backgroundColor = '#CBD5E1';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = '#64748B';
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
         >
           <PanelRightOpen style={{ width: '16px', height: '16px' }} />
         </button>
         <div
+          className="type-caption"
           style={{
             writingMode: 'vertical-rl',
             transform: 'rotate(180deg)',
-            fontSize: '10.5px',
+            fontSize: 'var(--type-caption-size, 11px)',
             fontWeight: 800,
             color: '#475569',
             letterSpacing: '1px',
@@ -98,7 +111,8 @@ export const AuditReportPreviewPane: React.FC<AuditReportPreviewPaneProps> = ({
           style={{
             width: '100%',
             borderCollapse: 'collapse',
-            fontSize: '11px',
+            fontSize: 'var(--type-table-row-size, 11px)',
+            lineHeight: 1.45,
             border: '1px solid #000000',
             color: '#000000',
             fontFamily: 'Arial, Helvetica, sans-serif',
@@ -441,7 +455,7 @@ export const AuditReportPreviewPane: React.FC<AuditReportPreviewPaneProps> = ({
             <FileText style={{ width: '16px', height: '16px', color: '#ffffff', flexShrink: 0 }} />
             <span
               style={{
-                fontSize: '13px',
+                fontSize: 'var(--type-table-header-size, 13px)',
                 fontWeight: 800,
                 letterSpacing: '0.3px',
                 whiteSpace: 'nowrap',
@@ -458,6 +472,7 @@ export const AuditReportPreviewPane: React.FC<AuditReportPreviewPaneProps> = ({
               type="button"
               onClick={() => onToggleCollapse(true)}
               title="Collapse Report Preview"
+              aria-label="Collapse Report Preview"
               style={{
                 background: 'none',
                 border: 'none',
@@ -468,6 +483,8 @@ export const AuditReportPreviewPane: React.FC<AuditReportPreviewPaneProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderRadius: '4px',
+                width: '28px',
+                height: '28px',
                 transition: 'background-color 0.15s ease',
                 flexShrink: 0,
               }}
@@ -517,7 +534,7 @@ export const AuditReportPreviewPane: React.FC<AuditReportPreviewPaneProps> = ({
             <div style={{ textAlign: 'center' }}>
               <div
                 style={{
-                  fontSize: '13px',
+                  fontSize: 'var(--type-table-header-size, 13px)',
                   fontWeight: 800,
                   color: '#737373',
                   letterSpacing: '0.4px',
@@ -529,7 +546,7 @@ export const AuditReportPreviewPane: React.FC<AuditReportPreviewPaneProps> = ({
             </div>
 
             <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#737373' }}>
+              <span style={{ fontSize: 'var(--type-caption-size, 12px)', fontWeight: 700, color: '#737373' }}>
                 Global Audit and Assurance
               </span>
             </div>
@@ -538,7 +555,7 @@ export const AuditReportPreviewPane: React.FC<AuditReportPreviewPaneProps> = ({
           {/* Auditable Entity Subheader */}
           <div
             style={{
-              fontSize: '12px',
+              fontSize: 'var(--type-table-header-size, 12px)',
               fontWeight: 800,
               color: '#000000',
               marginBottom: '16px',
@@ -580,7 +597,7 @@ export const AuditReportPreviewPane: React.FC<AuditReportPreviewPaneProps> = ({
                       backgroundColor: '#F8FAFC',
                       border: '1.5px dashed #94A3B8',
                       color: '#475569',
-                      fontSize: '11.5px',
+                      fontSize: 'var(--type-caption-size, 11.5px)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
@@ -594,21 +611,19 @@ export const AuditReportPreviewPane: React.FC<AuditReportPreviewPaneProps> = ({
                         omitted from the final generated report findings.
                       </span>
                     </div>
-                    <button
+                    <SharedButton
+                      variant="success"
+                      size="small"
+                      startIcon={<RotateCcw size={11} />}
                       onClick={() => onIncludeIssue(selectedIssue.id)}
                       style={{
-                        padding: '4px 10px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        color: '#ffffff',
-                        backgroundColor: '#059669',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
+                        minHeight: 'var(--control-min-height-compact, 1.5rem)',
+                        fontSize: 'var(--type-caption-size, 11px)',
+                        padding: '0 10px',
                       }}
                     >
                       Include in Report
-                    </button>
+                    </SharedButton>
                   </div>
                   <div style={{ opacity: 0.55 }}>
                     {renderPdfIssueCard(

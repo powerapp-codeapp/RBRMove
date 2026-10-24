@@ -65,15 +65,58 @@ export const FieldCommentDialog: React.FC<FieldCommentDialogProps> = ({
               <MessageSquare size={18} color="#000099" />
             </div>
             <div>
-              <h2 style={{ fontSize: '15px', fontWeight: 800, color: '#212121', margin: 0 }}>
+              <h2
+                className="type-modal-title"
+                style={{
+                  fontSize: 'var(--type-modal-title-size, 15px)',
+                  fontWeight: 800,
+                  color: '#212121',
+                  margin: 0,
+                  fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                }}
+              >
                 Comments: {fieldLabel}
               </h2>
-              <span style={{ fontSize: '11px', color: '#63666a' }}>
+              <span
+                className="type-caption"
+                style={{
+                  fontSize: 'var(--type-caption-size, 11px)',
+                  color: '#63666a',
+                  fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                }}
+              >
                 Field-level collaboration and review notes
               </span>
             </div>
           </div>
-          <button onClick={onClose} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b' }}>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close comments dialog"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              color: '#64748b',
+              padding: '4px',
+              borderRadius: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '28px',
+              height: '28px',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#000099';
+              e.currentTarget.style.backgroundColor = '#F1F5F9';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#64748b';
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+            title="Close"
+          >
             <X size={20} />
           </button>
         </div>
@@ -84,7 +127,16 @@ export const FieldCommentDialog: React.FC<FieldCommentDialogProps> = ({
           {/* Thread of Comments */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '320px', overflowY: 'auto' }}>
             {fieldComments.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '24px 0', color: '#888b8d', fontSize: '12px' }}>
+              <div
+                className="type-caption"
+                style={{
+                  textAlign: 'center',
+                  padding: '24px 0',
+                  color: '#888b8d',
+                  fontSize: 'var(--type-table-header-size, 12px)',
+                  fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                }}
+              >
                 No review comments yet on this field. Type below to start discussion or @mention a reviewer.
               </div>
             ) : (
@@ -104,18 +156,28 @@ export const FieldCommentDialog: React.FC<FieldCommentDialogProps> = ({
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>
+                        <span
+                          className="type-table-row-title"
+                          style={{
+                            fontSize: 'var(--type-table-header-size, 12px)',
+                            fontWeight: 700,
+                            color: '#0f172a',
+                            fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                          }}
+                        >
                           {c.authorName}
                         </span>
                         {c.taggedUserName && (
                           <span
+                            className="type-badge"
                             style={{
-                              fontSize: '10px',
+                              fontSize: 'var(--type-caption-size, 10px)',
                               fontWeight: 700,
                               color: '#000099',
                               backgroundColor: '#f1f4ff',
                               padding: '1px 6px',
                               borderRadius: '4px',
+                              fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
                             }}
                           >
                             @{c.taggedUserName}
@@ -123,34 +185,71 @@ export const FieldCommentDialog: React.FC<FieldCommentDialogProps> = ({
                         )}
                       </div>
 
-                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                      <span
+                        className="type-caption"
+                        style={{
+                          fontSize: 'var(--type-caption-size, 10px)',
+                          color: '#94a3b8',
+                          fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                        }}
+                      >
                         {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
 
-                    <p style={{ fontSize: '12px', color: '#334155', margin: '0 0 8px 0', lineHeight: '1.5' }}>
+                    <p
+                      className="type-body"
+                      style={{
+                        fontSize: 'var(--type-table-row-size, 12px)',
+                        color: '#334155',
+                        margin: '0 0 8px 0',
+                        lineHeight: '1.5',
+                        fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                      }}
+                    >
                       {c.content}
                     </p>
 
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
                       {c.isResolved ? (
-                        <span style={{ fontSize: '11px', color: '#0f8f4d', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span
+                          className="type-caption"
+                          style={{
+                            fontSize: 'var(--type-caption-size, 11px)',
+                            color: '#0f8f4d',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                          }}
+                        >
                           <CheckCircle size={14} /> Resolved by {c.resolvedByName || 'Reviewer'}
                         </span>
                       ) : (
                         <button
+                          type="button"
                           disabled={!canResolve}
                           onClick={() => onResolveComment(c.commentId)}
                           style={{
                             border: 'none',
                             backgroundColor: 'transparent',
                             color: canResolve ? '#000099' : '#94a3b8',
-                            fontSize: '11px',
+                            fontSize: 'var(--type-caption-size, 11px)',
                             fontWeight: 700,
                             cursor: canResolve ? 'pointer' : 'not-allowed',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '4px',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                            transition: 'background-color 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (canResolve) e.currentTarget.style.backgroundColor = '#EFF6FF';
+                          }}
+                          onMouseLeave={(e) => {
+                            if (canResolve) e.currentTarget.style.backgroundColor = 'transparent';
                           }}
                           title={!canResolve ? 'Only tagged user or comment author can resolve this thread' : undefined}
                         >

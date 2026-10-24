@@ -1,193 +1,213 @@
-/* =========================================================
-   J&J GLOBAL THEME
-   Converted from the Next.js global.scss
-   ========================================================= */
+/* ==============================================================================
+   JOHNSON & JOHNSON — GLOBAL DESIGN SYSTEM & TOKENS (tokens.css)
+   ==============================================================================
+   This is the master design dictionary for the IAR (Intelligent Audit Reporting) app.
+   
+   WHAT IS THIS FILE?
+   This file assigns official names (called "Design Tokens" or "CSS Variables") to all
+   colors, fonts, sizes, and spacing used across the application.
+   
+   HOW TO READ THIS FILE:
+   1. Brand Colors: Official J&J corporate colors (Primary Blue, Signature Red, etc.)
+   2. Audit Status Colors: Colors used for finding severities (Critical, Major, Minor, etc.)
+   3. Neutral & Surface Colors: Backgrounds, borders, and reading text
+   4. Typography System: Font family ("jj-circular") and fluid sizes using clamp()
+   5. Control Heights: Standard button, input, and header heights for 125%/150% scaling
+   ============================================================================== */
 
 :root {
-  /* ---------- J&J Brand Colors ---------- */
+  /* ============================================================================
+     1. J&J CORPORATE BRAND PALETTE
+     ============================================================================ */
+  /* Official J&J Signature Red: Used for active tab underline, callout badges & critical alerts */
   --jj-red: #eb1700;
-  --jj-blue: #000099;
-  --jj-magenta: #c800a1;
-  --jj-black: #212121;
-  --jj-grey-dark: #63666a;
-  --jj-grey: #888b8d;
-  --jj-grey-light: #d8d8d8;
-  --jj-grey-extra-light: #f4f4f4;
-
   --jj-red-dark: #801206;
 
-  /* ---------- Common Colors ---------- */
-  --black: #000000;
-  --grey-900: #101010;
-  --grey-dark: #343638;
-  --grey: #878787;
-  --grey-alt: #888b8d;
-  --grey-300: #c7c9cf;
-  --grey-light: #c0c0c0;
-  --grey-extra-light: #f4f4f6;
+  /* Official J&J Primary Blue: Used for primary buttons, active tabs, logos & primary icons */
+  --jj-blue: #000099;
+  --jj-blue-dark: #000066;
+  --jj-blue-light: #f1f4ff;
+
+  /* Accent Magenta */
+  --jj-magenta: #c800a1;
+
+  /* Soft Black / Charcoal: Used for page headings and primary readable text (softer than #000) */
+  --jj-black: #212121;
+
+  /* Muted Slate Grey: Used for secondary labels, subtitles, timestamps ("Started On", "Last Updated") */
+  --jj-grey-dark: #63666a;
+
+  /* Mid Grey: Used for inactive states and disabled indicators */
+  --jj-grey: #888b8d;
+
+  /* Border Light Grey: Used for table row borders, card outlines, and dividers */
+  --jj-grey-light: #d8d8d8;
+
+  /* Canvas Background: Pure White */
+  --jj-grey-extra-light: #ffffff;
+
+  /* ============================================================================
+     2. AUDIT STATUS & SEVERITY COLORS (Traffic-Light Indicators)
+     ============================================================================ */
+  /* Critical Severity: High-risk finding (requires mandatory VP sign-off gate) */
+  --color-status-critical: #d8001d;
+
+  /* Major Severity: Important audit exception (amber/orange) */
+  --color-status-major: #ea580c;
+
+  /* Moderate Severity: Medium-risk process variance (gold/amber) */
+  --color-status-moderate: #d97706;
+
+  /* Minor Severity: Low-risk observational finding (green) */
+  --color-status-minor: #16a34a;
+
+  /* Approved / Signed Off / Completed state */
+  --color-status-success: #087d0d;
+
+  /* Pending / Business Review state */
+  --color-status-info: #0284c7;
+
+  /* ============================================================================
+     3. BASE NEUTRALS & SURFACES
+     ============================================================================ */
   --white: #ffffff;
+  --black: #000000;
+  --color-border: #d8d8d8;
+  --color-divider: #e2e8f0;
 
-  --blue-light: #f1f4ff;
-  --blue-extra-light: #f6f8ff;
-  --blue-bright: #0e65e8;
+  /* ============================================================================
+     4. TYPOGRAPHY SYSTEM: FONT FAMILY & WEIGHTS
+     ============================================================================ */
+  /* Official corporate typography with universal fallbacks */
+  --type-font-family: "jj-circular", Arial, Helvetica, sans-serif;
 
-  --cornflower: #8bb7f8;
-  --columbia: #c5dbfc;
+  /* Standard font weights */
+  --type-weight-regular: 400;
+  /* Standard body text & input values */
+  --type-weight-medium: 500;
+  /* Table rows, interactive cards */
+  --type-weight-semibold: 600;
+  /* Secondary captions, subtitles */
+  --type-weight-bold: 700;
+  /* Section headings, field labels, button text */
+  --type-weight-extrabold: 800;
+  /* Main page titles, modal titles, key metrics */
 
-  --red-light: #ff5959;
+  /* ============================================================================
+     5. FLUID TYPOGRAPHY SIZES (clamp() for 125% and 150% Windows Scaling)
+     ----------------------------------------------------------------------------
+     clamp(minimum, preferred, maximum) ensures that text never gets too small on
+     compact screens, and never overflows or clips when zoomed to 125% or 150% DPI.
+     ============================================================================ */
+  /* Document / Report Sheet Title (18px - 20px) */
+  --type-page-title-size: clamp(1.125rem, 1.05rem + 0.4vw, 1.25rem);
+  --type-page-title-weight: var(--type-weight-extrabold);
+  --type-page-title-leading: 1.25;
+  --type-page-title-color: #212121;
 
-  --indigo: #005f86;
-  --pink-bright: #c800a1;
-  --magenta: #961a68;
+  /* Studio Top Header Bar Title ("Audit Report — ...") (13.5px on laptop -> 15.5px on monitor -> 16px on wide monitor) */
+  --type-studio-title-size: clamp(0.84375rem, 0.55rem + 0.35vw, 1rem);
+  --type-studio-title-weight: var(--type-weight-medium);
+  --type-studio-title-leading: 1.3;
+  --type-studio-title-color: #334155;
 
-  --green-dark: #3a4b3e;
-  --grey-700: #63666a;
-  --green-300: #087d0d;
-  --green-light: #74cb52;
+  /* Dialog Main Header Title ("Add Audit Finding") (14.5px - 15.5px) */
+  --type-dialog-title-size: clamp(0.875rem, 0.85rem + 0.2vw, 0.9375rem);
+  --type-dialog-title-weight: var(--type-weight-extrabold);
+  --type-dialog-title-leading: 1.25;
+  --type-dialog-title-color: #0F172A;
 
-  --orange: #ff8200;
-  --red-poppy: #e35050;
-  --red: #e95050;
-  --purple: #ae2573;
+  /* Modal Title ("Compare Versions", "Audit Trail History", "Call Back") (15px - 17px) */
+  --type-modal-title-size: clamp(0.9375rem, 0.9rem + 0.25vw, 1.0625rem);
+  --type-modal-title-weight: var(--type-weight-extrabold);
 
-  --grey-50: #ececec;
+  /* Section & Card Headers ("Scope Summary", "Issues & Findings") (13px - 14px) */
+  --type-section-title-size: clamp(0.8125rem, 0.78rem + 0.2vw, 0.875rem);
+  --type-section-title-weight: var(--type-weight-bold);
+  --type-section-title-leading: 1.3;
+  --type-section-title-color: #0F172A;
 
-  /* ---------- Violet ---------- */
-  --violet-5: #541980;
-  --violet-3: #8c3bbb;
-  --violet-2: #996bcb;
-  --violet-1: #b19beb;
+  /* Form Field Label ("Function", "Process Area", "Test Procedure") (11px - 12px) */
+  --type-field-label-size: clamp(0.6875rem, 0.66rem + 0.1vw, 0.75rem);
+  --type-field-label-weight: var(--type-weight-semibold);
+  --type-field-label-leading: 1.35;
+  --type-field-label-color: #475569;
 
-  /* ---------- Risk ---------- */
-  --risk-low: var(--green-300);
-  --risk-medium: var(--orange);
-  --risk-high: var(--red-poppy);
-  --risk-unknown: var(--jj-grey-dark);
+  /* Form Inputs, Selects & Textarea Content (12.5px - 13px) */
+  --type-input-text-size: clamp(0.75rem, 0.72rem + 0.1vw, 0.8125rem);
+  --type-input-text-weight: var(--type-weight-regular);
+  --type-input-text-leading: 1.45;
+  --type-input-text-color: #1E293B;
 
-  /* ---------- Coverage ---------- */
-  --coverage-low: var(--red-poppy);
-  --coverage-medium: var(--orange);
-  --coverage-high: var(--green-300);
-  --coverage-unknown: var(--jj-grey-dark);
+  /* Table Column Header (SharedTable, Scope Matrix) (11px - 12px uppercase) */
+  --type-table-header-size: clamp(0.6875rem, 0.66rem + 0.12vw, 0.75rem);
+  --type-table-header-weight: var(--type-weight-bold);
+  --type-table-header-leading: 1.25;
+  --type-table-header-color: #64748B;
 
-  /* ---------- Theme ---------- */
-  --ara-theme-light-fill: var(--jj-grey);
-  --ara-theme-dark-fill: var(--jj-blue);
+  /* Table Row Primary Title (Finding Title in grids) (13px - 13.5px) */
+  --type-table-row-title-size: clamp(0.8125rem, 0.78rem + 0.18vw, 0.875rem);
+  --type-table-row-title-weight: var(--type-weight-bold);
+  --type-table-row-title-leading: 1.4;
+  --type-table-row-title-color: #1E293B;
 
-  /* ---------- MUI ---------- */
-  --ara-mui-primary-dark: var(--jj-black);
-  --ara-mui-primary-main: var(--jj-blue);
-  --ara-mui-secondary-main: var(--jj-red);
-  --ara-mui-info-main: var(--blue-bright);
+  /* Table Row Data / Body Cell (Status, owner, dates) (12px - 12.5px) */
+  --type-table-row-size: clamp(0.75rem, 0.72rem + 0.15vw, 0.8125rem);
+  --type-table-row-weight: var(--type-weight-medium);
+  --type-table-row-leading: 1.4;
+  --type-table-row-color: #1E293B;
 
-  /* ---------- Common ---------- */
-  --ara-common-border-color: var(--jj-grey-light);
-  --ara-common-href: var(--blue-bright);
+  /* Matrix Cell Numbers (Count pills, metrics) (12px - 12.5px bold) */
+  --type-table-row-number-weight: var(--type-weight-extrabold);
 
-  /* ---------- Body ---------- */
-  --ara-body-text: var(--jj-black);
-  --ara-body-bg: var(--white);
+  /* Subtitles, Metadata & Secondary Captions (11px - 11.5px) */
+  --type-caption-size: clamp(0.6875rem, 0.66rem + 0.12vw, 0.75rem);
+  --type-caption-weight: var(--type-weight-semibold);
+  --type-caption-leading: 1.3;
+  --type-caption-color: #64748B;
 
-  --ara-on-accent-body-text: var(--white);
-  --ara-on-accent-body-bg: #11115f;
-  --ara-on-accent-text-dim: #b5b1f1;
-  --ara-on-accent-border-color: #3f3faf;
+  /* Micro Badges & Small Tags (9.5px - 10.5px) */
+  --type-badge-size: clamp(0.59375rem, 0.58rem + 0.08vw, 0.65625rem);
+  --type-badge-weight: var(--type-weight-bold);
+  --type-badge-leading: 1.2;
 
-  /* ---------- Notification ---------- */
-  --ara-notification-bubble: var(--jj-red);
-  --ara-notification-date-text: var(--grey-dark);
-  --ara-notification-read-text: var(--jj-grey);
+  /* ============================================================================
+     6. STANDARDIZED CONTROL HEIGHTS (Touch-friendly & High-DPI resilient)
+     ============================================================================ */
+  --control-min-height-compact: 1.625rem;
+  /* 26px: Table row action buttons, small pills */
+  --control-min-height-sm: 2.25rem;
+  /* 36px: Standard buttons, filter inputs, selects */
+  --control-min-height-md: 2.5rem;
+  /* 40px: Primary studio buttons, large search bar */
+  --control-min-height-header: 3.625rem;
+  /* 58px: Top corporate application header bar */
 
-  /* ---------- General ---------- */
-  --ara-general-accent-bg: var(--blue-light);
-  --ara-general-accent-border-color: var(--jj-blue);
-  --ara-general-alternate-bg: var(--jj-grey-extra-light);
-  --ara-general-alternate2-bg: var(--jj-grey-light);
-  --ara-general-divider: #d8d8d8;
-  --ara-divider-color: #d8d8d8;
-  --ara-separator-color: #d8d8d8;
-  --ara-border-color: #d8d8d8;
-  --ara-border-default: 1px solid #d8d8d8;
+  /* ============================================================================
+     7. FLUID RESPONSIVE LAYOUT & SPACING TOKENS (Monitor vs. Laptop & High-DPI)
+     ----------------------------------------------------------------------------
+     clamp() dynamically recalculates heights, gaps, and padding based on screen
+     size and DPI zoom, ensuring optimal density on laptops and generous breathing
+     room on desktop monitors.
+     ============================================================================ */
+  /* Top Corporate Header: 46px on laptop -> 57px on 1080p monitor -> 58px on 1440p */
+  --header-height: clamp(2.875rem, 1.15rem + 2vw, 3.625rem);
+  --ribbon-height: clamp(10px, 0.8vw, 13px);
+  --header-total-height: calc(var(--header-height) + var(--ribbon-height));
 
-  /* ---------- Scrollbar ---------- */
-  --ara-scrollbar-bg: var(--jj-grey-light);
-  --ara-scrollbar-thumb: var(--jj-grey);
+  /* Studio Toolbar: 44px on laptop -> 51-52px on 1080p monitor -> 56px on 1440p */
+  --studio-toolbar-height: clamp(2.75rem, 1.5rem + 1.4vw, 3.5rem);
 
-  /* ---------- Text ---------- */
-  --ara-text-dim: var(--jj-grey-dark);
-  --ara-text-h1: var(--jj-black);
-  --ara-text-h2: var(--jj-black);
-  --ara-text-h3: var(--jj-grey-dark);
-  --ara-text-h4: var(--jj-grey);
+  /* Page Layout Padding: 9px-12px top/bottom gap, 16px-26px left/right margins */
+  --space-page-padding-y: clamp(0.5rem, 0.2rem + 0.8vh, 1.125rem);
+  --space-page-padding-x: clamp(0.75rem, 0.4rem + 1vw, 1.75rem);
 
-  /* ---------- Header ---------- */
-  --ara-header-bg: var(--white);
-  --ara-header-text: var(--black);
-  --ara-header-app-title-text: var(--jj-grey-dark);
-  --ara-header-nav-text: var(--black);
-  --ara-header-nav-active-border-color: var(--jj-red);
+  /* Filter Toolbar Gap below Tabs: 11px on laptop -> 15px on desktop */
+  --space-filter-margin-bottom: clamp(0.625rem, 0.3rem + 0.9vh, 1.25rem);
 
-  /* ---------- Filter ---------- */
-  --ara-filter-accordion-title: var(--jj-grey-dark);
-  --ara-filter-bg: var(--blue-extra-light);
-  --ara-filter-border-color: var(--jj-blue);
-  --ara-filter-chip-text: var(--jj-black);
-  --ara-filter-chip-bg: var(--white);
-  --ara-filter-chip-border-color: var(--jj-grey);
-  --ara-filter-toggle-icon: var(--jj-red);
-
-  /* ---------- Risk / Coverage ---------- */
-  --ara-risk-low: var(--green-300);
-  --ara-risk-medium: var(--orange);
-  --ara-risk-high: var(--red-poppy);
-  --ara-risk-unknown: var(--jj-grey-dark);
-
-  --ara-coverage-low: var(--red-poppy);
-  --ara-coverage-medium: var(--orange);
-  --ara-coverage-high: var(--green-300);
-  --ara-coverage-unknown: var(--jj-grey-dark);
-
-  /* ---------- Tables ---------- */
-  --ara-table-selected-row-accent: var(--jj-blue);
-  --ara-table-selected-row-bg: var(--blue-light);
-  --ara-table-header-text: var(--jj-grey);
-
-  /* ---------- Popover ---------- */
-  --ara-popover-header-text: var(--jj-blue);
-  --ara-popover-border-color: var(--jj-blue);
-  --ara-popover-text: var(--jj-grey-dark);
-  --ara-popover-bg: var(--white);
-
-  /* ---------- Tabs ---------- */
-  --ara-tabs-inactive-border-color: #d8d8d8;
-  --ara-tabs-active-border-color: var(--jj-blue);
-
-  /* ---------- Tab List ---------- */
-  --ara-tab-list-bg: var(--jj-grey-extra-light);
-  --ara-tab-list-text: var(--jj-grey-dark);
-  --ara-tab-list-border-color: var(--jj-grey-light);
-
-  --ara-tab-list-active-bg: var(--jj-blue);
-  --ara-tab-list-active-text: var(--white);
-  --ara-tab-list-active-border-color: var(--jj-blue);
-
-  --ara-tab-list-disabled-bg: var(--grey);
-  --ara-tab-list-disabled-text: var(--jj-grey-dark);
-  --ara-tab-list-disabled-border: var(--jj-grey-dark);
-  --ara-tab-list-disabled-active-text: var(--grey-dark);
-
-  /* ---------- Checkbox ---------- */
-  --ara-checkbox-unchecked-fill: var(--jj-grey-light);
-  --ara-checkbox-checked-fill: var(--jj-red);
-
-  /* ---------- Yes / No ---------- */
-  --ara-yesno-yes-fill: var(--indigo);
-  --ara-yesno-no-fill: var(--pink-bright);
-
-  /* ---------- Banner ---------- */
-  --ara-banner-title-bg: var(--jj-red);
-  --ara-banner-title-bg-alt: var(--jj-red-dark);
-  --ara-banner-title-text: var(--white);
+  /* Card & Section Padding */
+  --space-card-padding: clamp(0.75rem, 0.4rem + 0.8vw, 1.25rem);
+  --space-section-gap: clamp(0.625rem, 0.3rem + 0.8vh, 1.25rem);
 }
 
 /* =========================================================
@@ -245,12 +265,12 @@ body,
 
 body {
   max-width: 100%;
-  color: var(--ara-body-text);
-  background-color: var(--ara-body-bg);
+  color: var(--jj-black, #212121);
+  background-color: var(--jj-grey-extra-light, #ffffff);
 }
 
 a {
-  color: var(--ara-common-href);
+  color: var(--jj-blue, #000099);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -278,11 +298,11 @@ select {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: var(--ara-scrollbar-thumb);
+  background-color: var(--jj-grey, #888b8d);
 }
 
 ::-webkit-scrollbar-track {
-  background-color: var(--ara-scrollbar-bg);
+  background-color: var(--jj-grey-light, #d8d8d8);
   margin: 0.25rem;
 }
 
@@ -293,21 +313,15 @@ select {
 
 main {
   overflow-x: auto;
-  color: var(--ara-body-text);
-  background-color: var(--ara-body-bg);
+  color: var(--jj-black, #212121);
+  background-color: var(--jj-grey-extra-light, #ffffff);
 }
 
 header {
   position: relative;
   z-index: 1;
-  background-color: var(--ara-header-bg);
-  color: var(--ara-header-text);
-}
-
-header .menu {
-  padding-left: 1rem;
-  padding-right: 1rem;
-  height: 5rem;
+  background-color: #ffffff;
+  color: var(--jj-black, #212121);
 }
 
 main,
@@ -315,277 +329,6 @@ header {
   min-width: 100%;
   max-width: 100%;
   margin: 0 auto;
-}
-
-
-/* =========================================================
-   HEADINGS
-   ========================================================= */
-
-h1,
-h2,
-h3,
-h4 {
-  font-size: 1.125rem;
-  text-transform: uppercase;
-  color: var(--ara-text-h1);
-}
-
-h2 {
-  text-transform: none;
-  color: var(--ara-text-h2);
-}
-
-h3 {
-  font-size: 0.875rem;
-  color: var(--ara-text-h3);
-}
-
-h4 {
-  font-size: 0.875rem;
-  color: var(--ara-text-h4);
-}
-
-.form-label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--ara-text-dim);
-}
-
-.dim {
-  color: var(--ara-text-dim);
-}
-
-.dim.very-dim {
-  opacity: 0.35;
-}
-
-
-/* =========================================================
-   NAVIGATION
-   ========================================================= */
-
-.nav a {
-  font-weight: 500;
-  color: var(--ara-header-nav-text);
-  border-bottom: 6px transparent solid;
-  padding: 0 0.25rem 0.2rem;
-  text-decoration: none;
-}
-
-.nav a.active {
-  border-bottom-color: var(--ara-header-nav-active-border-color);
-}
-
-
-/* =========================================================
-   TEXTAREA
-   ========================================================= */
-
-textarea {
-  padding: 0.25rem 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  width: 100%;
-  font-size: 1rem;
-  min-height: 4rem;
-  max-height: 6rem;
-}
-
-textarea:focus-visible {
-  outline-width: 1px;
-  border-color: var(--jj-blue);
-  outline-color: var(--jj-blue);
-}
-
-
-/* =========================================================
-   COMMON BLOCK
-   ========================================================= */
-
-.ara-block {
-  margin-bottom: 3rem;
-  border: 1px solid var(--ara-common-border-color);
-  border-radius: 4px;
-  overflow: auto;
-  max-width: 100%;
-}
-
-.ara-block.with-bg {
-  background-color: var(--ara-body-bg);
-}
-
-.ara-block.with-shadow,
-.ara-block.inner,
-.ara-block .block {
-  box-shadow: 0 4px 30px rgba(158, 158, 158, 0.25);
-}
-
-.ara-block.border-none,
-.ara-block .block {
-  border: none;
-}
-
-
-/* =========================================================
-   TABLE
-   ========================================================= */
-
-.MuiTableRow-root.selected-row td:first-child {
-  box-shadow: 4px 0 inset var(--jj-blue);
-}
-
-.MuiTable-root.new-table-design th {
-  font-size: 12px;
-  background-color: #f8f8f8;
-  font-weight: 500;
-}
-
-.MuiTable-root.new-table-design th:first-child,
-.MuiTable-root.new-table-design td:first-child {
-  padding-left: 10px;
-}
-
-.MuiTable-root.new-table-design th:last-child,
-.MuiTable-root.new-table-design td:last-child {
-  padding-right: 10px;
-}
-
-
-/* =========================================================
-   RISK
-   ========================================================= */
-
-.color-risk-high {
-  color: var(--risk-high);
-}
-
-.color-risk-medium {
-  color: var(--risk-medium);
-}
-
-.color-risk-low {
-  color: var(--risk-low);
-}
-
-.risk-score-high,
-.risk-score-medium,
-.risk-score-low {
-  font-weight: bold;
-  width: 6rem;
-  border-radius: 0.375rem;
-  display: flex;
-  justify-content: center;
-}
-
-.risk-score-high {
-  color: var(--risk-high);
-}
-
-.risk-score-medium {
-  color: var(--risk-medium);
-}
-
-.risk-score-low {
-  color: var(--risk-low);
-}
-
-.non-risk-score-high,
-.non-risk-score-medium,
-.non-risk-score-low {
-  color: white;
-  font-weight: bold;
-  width: 100%;
-  display: flex;
-}
-
-.non-risk-score-high {
-  background-color: var(--risk-high);
-}
-
-.non-risk-score-medium {
-  background-color: var(--risk-medium);
-}
-
-.non-risk-score-low {
-  background-color: var(--risk-low);
-}
-
-
-/* =========================================================
-   TAB LIST
-   ========================================================= */
-
-.tab-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.tab-list li {
-  display: inline-block;
-  min-width: 5rem;
-  padding: 0.25rem 1.5rem;
-  cursor: pointer;
-  white-space: nowrap;
-  margin-right: -1px;
-  margin-bottom: 0.5rem;
-  color: var(--ara-tab-list-text);
-  background-color: var(--ara-tab-list-bg);
-  border: 1px solid var(--ara-tab-list-border-color);
-}
-
-.tab-list li.active {
-  color: var(--ara-tab-list-active-text);
-  background-color: var(--ara-tab-list-active-bg);
-  border-color: var(--ara-tab-list-active-border-color);
-}
-
-.tab-list.disabled {
-  pointer-events: none;
-}
-
-.tab-list.disabled li {
-  cursor: not-allowed;
-  color: var(--ara-tab-list-disabled-text);
-  background-color: var(--ara-tab-list-disabled-bg);
-  border-color: var(--ara-tab-list-disabled-border);
-}
-
-
-/* =========================================================
-   BANNER TITLE
-   ========================================================= */
-
-.banner-title {
-  position: relative;
-  display: inline-block;
-  height: 2rem;
-  line-height: 2rem;
-  padding-right: 1rem;
-  background-color: var(--ara-banner-title-bg);
-  color: var(--ara-banner-title-text);
-  text-transform: none;
-}
-
-.banner-title::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: -2.5rem;
-  width: 2.5rem;
-  height: 2rem;
-  background-color: var(--ara-banner-title-bg);
-}
-
-.banner-title::after {
-  content: "";
-  position: absolute;
-  top: 2rem;
-  left: -2.5rem;
-  width: 1rem;
-  border-top: 0.75rem solid var(--ara-banner-title-bg-alt);
-  border-left: 1rem solid transparent;
 }
 
 /* =========================================================
@@ -602,11 +345,13 @@ textarea:focus-visible {
 
 .jnj-app-header-inner {
   max-width: 100%;
-  padding: 0 32px;
-  height: 64px;
+  padding: 0 var(--space-page-padding-x, clamp(1rem, 2vw, 2rem));
+  min-height: var(--header-height, 3.625rem);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: clamp(8px, 1vw, 16px);
 }
 
 .jnj-logo-container {
@@ -624,7 +369,7 @@ textarea:focus-visible {
 }
 
 .jnj-logo-subtitle {
-  font-size: 10px;
+  font-size: var(--type-caption-size, 10px);
   font-weight: 700;
   color: #63666a;
   letter-spacing: 0.8px;
@@ -635,9 +380,10 @@ textarea:focus-visible {
 .jnj-nav-bar {
   display: flex;
   align-items: center;
-  height: 64px;
-  gap: 32px;
+  min-height: var(--header-height, 3.625rem);
+  gap: clamp(0.75rem, 1.5vw, 2rem);
   position: relative;
+  flex-wrap: wrap;
 }
 
 .jnj-nav-item {
@@ -649,12 +395,12 @@ textarea:focus-visible {
   background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 15px;
+  font-size: var(--type-studio-title-size, 15px);
   font-weight: 500;
   font-style: normal;
   color: #334155;
   font-family: inherit;
-  line-height: 1.3;
+  line-height: 1.35;
   transition: color 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
   white-space: nowrap;
   user-select: none;
@@ -717,9 +463,10 @@ textarea:focus-visible {
   padding: 6px 8px;
   border-radius: 6px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--type-table-row-size, 13px);
   font-weight: 600;
   color: #000000;
+  min-height: var(--control-min-height-compact, 2rem);
   transition: background-color 0.15s ease;
 }
 
@@ -729,11 +476,11 @@ textarea:focus-visible {
 
 .jnj-blue-ribbon {
   width: 100%;
-  height: 13px;
+  height: var(--ribbon-height, 13px);
   background-image: url('/header-bg.png');
   background-repeat: repeat-x;
   background-position: left top;
-  background-size: auto 13px;
+  background-size: auto var(--ribbon-height, 13px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
@@ -763,19 +510,19 @@ textarea:focus-visible {
 .custom-audit-table .strengthNone::before,
 .strengthLow::before,
 .strengthNone::before {
-  background-color: var(--ara-risk-low, #087d0d);
+  background-color: #087d0d;
 }
 
 .custom-audit-table .strengthModerate::before,
 .strengthModerate::before {
-  background-color: var(--ara-risk-medium, #ff8200);
+  background-color: #ff8200;
 }
 
 .custom-audit-table .strengthHigh::before,
 .custom-audit-table .strengthVeryHigh::before,
 .strengthHigh::before,
 .strengthVeryHigh::before {
-  background-color: var(--ara-risk-high, #e35050);
+  background-color: #e35050;
 }
 
 /* =========================================================

@@ -90,9 +90,11 @@ export interface Issue {
   
   // Workpaper Narrative Content
   description?: string;
+  originalIssue?: string;
   issueNarrative?: string;
   issue?: string;
   rootCause?: string;
+  rootCauseType?: string;
   impact?: string;
   recommendation?: string;
   mitigatingControls?: string;

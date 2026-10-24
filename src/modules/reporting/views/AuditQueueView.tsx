@@ -3,7 +3,6 @@ import {
   RotateCcw,
   Filter,
   ArrowUpDown,
-  CheckCircle2,
   Calendar
 } from 'lucide-react';
 import { useEngagement } from '../../../context/EngagementContext';
@@ -24,7 +23,11 @@ import {
   SharedFilterSelect,
   type FilterOption,
   SharedSearchInput,
-  SharedTooltip
+  SharedTooltip,
+  SharedButton,
+  PageHeader,
+  SharedToast,
+  type ToastSeverity
 } from '../../../components/shared';
 
 const STATUS_OPTIONS = [
@@ -91,7 +94,11 @@ export const AuditQueueView: React.FC = () => {
   const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
   const [selectedJobForIssue, setSelectedJobForIssue] = useState<any | null>(null);
   const [sendToDropdownIssueId, setSendToDropdownIssueId] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<{ title: string; description: string } | null>(null);
+  const [toastMessage, setToastMessage] = useState<{
+    title: string;
+    description: string;
+    severity?: ToastSeverity;
+  } | null>(null);
 
   // Close custom issue action dropdown on click outside
   useEffect(() => {
@@ -101,14 +108,6 @@ export const AuditQueueView: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  // Toast Auto-Dismiss
-  useEffect(() => {
-    if (toastMessage) {
-      const timer = setTimeout(() => setToastMessage(null), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [toastMessage]);
 
   const userRoleDetails = useMemo(() => getRoleDetails(userRole), [userRole]);
   const isBusinessRole = userRoleDetails.baseRole === 'primary-business-contact';
@@ -156,9 +155,13 @@ export const AuditQueueView: React.FC = () => {
         })
       );
 
+      const isSubmitted = newIssue.status === 'Pending TC';
       setToastMessage({
-        title: 'Issue Created Successfully',
-        description: `New issue "${newIssue.title}" added to ${selectedJobForIssue.id}.`
+        title: isSubmitted ? 'Issue Submitted to TC' : 'Issue Saved as Draft',
+        description: isSubmitted
+          ? `Issue "${newIssue.title}" submitted to TC Review for ${selectedJobForIssue.id}.`
+          : `New draft issue "${newIssue.title}" saved in ${selectedJobForIssue.id}.`,
+        severity: 'success'
       });
     }
     setIsCreateDrawerOpen(false);
@@ -348,47 +351,62 @@ export const AuditQueueView: React.FC = () => {
   }, [jobs, selectedReportingJobId]);
 
   return (
-    <div className="full-width-queue" style={{ position: 'relative', width: '100%', padding: '16px 20px' }}>
-      {/* Toast Feedback Notification */}
-      {toastMessage && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            zIndex: 9999,
-            backgroundColor: '#000099',
-            color: '#ffffff',
-            padding: '12px 18px',
-            borderRadius: '8px',
-            boxShadow: '0 8px 24px rgba(0, 0, 153, 0.3)',
-            animation: 'fadeInScale 0.2s ease-out',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            maxWidth: '380px'
-          }}
-        >
-          <CheckCircle2 size={20} color="#6EE7B7" />
-          <div>
-            <div style={{ fontWeight: 800, fontSize: '13px' }}>{toastMessage.title}</div>
-            <div style={{ fontSize: '11.5px', opacity: 0.9 }}>{toastMessage.description}</div>
-          </div>
-        </div>
-      )}
-
-      {/* Primary Category Tab Filter Navigation: 'My Action Audits' vs 'All Associated' (MUI SharedTabs) */}
-      <SharedTabs<'my-actions' | 'all-associated'>
-        items={primaryTabItems}
-        value={auditTab}
-        onChange={(newTab) => setAuditTab(newTab)}
-        ariaLabel="Audit Queue primary tabs"
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        minHeight: '100%',
+        flex: 1,
+        backgroundColor: '#ffffff',
+      }}
+    >
+      {/* Toast Feedback Notification (Componentised & Positioned Top-Right Underneath Global Header) */}
+      <SharedToast
+        open={!!toastMessage}
+        onClose={() => setToastMessage(null)}
+        title={toastMessage?.title}
+        description={toastMessage?.description}
+        severity={toastMessage?.severity || 'success'}
+        position="top-right"
+        duration={4500}
       />
+
+      {/* Standardized PageHeader Action Toolbar with Primary Tab Selector */}
+      <PageHeader
+        tabs={
+          <SharedTabs<'my-actions' | 'all-associated'>
+            items={primaryTabItems}
+            value={auditTab}
+            onChange={(newTab) => setAuditTab(newTab)}
+            ariaLabel="Audit Queue primary tabs"
+            hasBottomBorder={false}
+            marginBottom={0}
+          />
+        }
+      />
+
+      <div
+        className="full-width-queue"
+        style={{
+          position: 'relative',
+          width: '100%',
+          paddingTop: 'var(--space-filter-margin-bottom, 16px)',
+        }}
+      >
 
       {/* Single-Row Filter Toolbar (Using Shared Components - Spanning Full Width) */}
       <div
         className="single-row-filter-panel"
-        style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', marginBottom: '24px' }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          width: '100%',
+          marginBottom: 'var(--space-filter-margin-bottom, 16px)',
+          minHeight: 'var(--control-min-height-sm, 2.25rem)',
+          flexWrap: 'wrap',
+        }}
       >
           {/* 1. Search Engagements Input (Expands to occupy remaining width) */}
           <div style={{ flex: '1 1 auto', minWidth: '280px' }}>
@@ -417,59 +435,44 @@ export const AuditQueueView: React.FC = () => {
             menuWidth={290}
           />
 
-          {/* 3. Assessment Multi-Select Filter (Loads only years: 2024, 2025, 2026, 2027) */}
+          {/* 3. Assessment Year Multi-Select Filter (Loads only years: 2024, 2025, 2026, 2027) */}
           <SharedFilterSelect
-            label="Assessment"
-            placeholder="All Assessments"
-            allOptionLabel="All Assessments"
+            label="Assessment Year"
+            placeholder="All Assessment Years"
+            allOptionLabel="All Assessment Years"
             startIcon={<Calendar size={13} />}
             options={assessmentOptions}
             value={selectedAssessments}
             onChange={(newVal) => setSelectedAssessments(newVal)}
             totalCount={jobs.length}
-            minWidth={170}
+            minWidth={210}
             menuWidth={240}
           />
 
           {/* Always-present Clear Filters Icon Button with Componentized Tooltip */}
           <SharedTooltip
-            title={isFilterActive ? 'Clear filters' : 'Clear filters'}
+            title="Clear filters"
             placement="top"
           >
-            <button
-              type="button"
+            <SharedButton
+              variant="outline"
+              size="small"
               onClick={handleClearFilters}
               disabled={!isFilterActive}
               aria-label="Clear filters"
               style={{
-                width: '36px',
-                height: '36px',
-                minWidth: '36px',
-                minHeight: '36px',
-                display: 'flex',
+                width: 'var(--control-min-height-sm, 2.25rem)',
+                height: 'var(--control-min-height-sm, 2.25rem)',
+                minWidth: 'var(--control-min-height-sm, 2.25rem)',
+                minHeight: 'var(--control-min-height-sm, 2.25rem)',
+                display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 backgroundColor: isFilterActive ? '#EFF6FF' : '#F8FAFC',
-                border: isFilterActive ? '1px solid #BFDBFE' : '1px solid #E2E8F0',
+                borderColor: isFilterActive ? '#BFDBFE' : '#E2E8F0',
                 borderRadius: '4px',
-                cursor: isFilterActive ? 'pointer' : 'not-allowed',
-                transition: 'all 0.15s ease',
-                flexShrink: 0,
                 padding: 0,
-                outline: 'none',
-                boxSizing: 'border-box'
-              }}
-              onMouseEnter={(e) => {
-                if (isFilterActive) {
-                  e.currentTarget.style.backgroundColor = '#DBEAFE';
-                  e.currentTarget.style.borderColor = '#93C5FD';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (isFilterActive) {
-                  e.currentTarget.style.backgroundColor = '#EFF6FF';
-                  e.currentTarget.style.borderColor = '#BFDBFE';
-                }
+                flexShrink: 0,
               }}
             >
               <RotateCcw
@@ -477,7 +480,7 @@ export const AuditQueueView: React.FC = () => {
                 color={isFilterActive ? '#000099' : '#94A3B8'}
                 strokeWidth={2.2}
               />
-            </button>
+            </SharedButton>
           </SharedTooltip>
         </div>
 
@@ -532,23 +535,11 @@ export const AuditQueueView: React.FC = () => {
               <ArrowUpDown size={12} className="th-sort-icon" />
             </div>
 
-            {/* When All Associated Audits: Total Issues is placed here */}
+            {/* When All Associated Audits: Keep only In-Progress column in primary row (Center Aligned) */}
             {auditTab === 'all-associated' && (
               <div className="audit-queue-header-col center">
-                <span>Total Issues</span>
+                <span>In-Progress</span>
               </div>
-            )}
-
-            {/* Columns: In-Progress & Completed (Only for All Associated Audits per user specification) */}
-            {auditTab === 'all-associated' && (
-              <>
-                <div className="audit-queue-header-col center">
-                  <span>In-Progress</span>
-                </div>
-                <div className="audit-queue-header-col center">
-                  <span>Completed</span>
-                </div>
-              </>
             )}
 
             {/* Column: Actions */}
@@ -645,6 +636,7 @@ export const AuditQueueView: React.FC = () => {
           onSave={handleSaveNewIssue}
         />
       )}
+      </div>
     </div>
   );
 };

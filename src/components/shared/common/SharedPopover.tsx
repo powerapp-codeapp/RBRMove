@@ -47,13 +47,13 @@ export const SharedPopover: React.FC<SharedPopoverProps> = ({
             mt: '4px',
             width: menuWidth,
             borderRadius: '6px',
-            border: '1px solid #E2E8F0',
+            border: 'none',
             boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 4px 6px -2px rgba(15, 23, 42, 0.05)',
             overflow: 'hidden',
             fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
             padding: '4px',
             backgroundColor: '#FFFFFF',
-            ...slotProps?.paper?.sx
+            ...((slotProps?.paper as any)?.sx || {})
           }
         },
         ...slotProps

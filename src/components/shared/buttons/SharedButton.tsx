@@ -96,9 +96,9 @@ const VARIANT_DISABLED: Record<SharedButtonVariant, string> = {
 };
 
 const SIZE_CLASSES: Record<SharedButtonSize, string> = {
-  small:  'h-7 px-3 text-xs gap-1.5',
-  medium: 'h-9 px-5 text-sm gap-2',
-  large:  'h-11 px-7 text-base gap-2.5',
+  small:  'min-h-[1.75rem] px-3 text-xs gap-1.5',
+  medium: 'min-h-[2.25rem] px-4 text-sm gap-2',
+  large:  'min-h-[2.625rem] px-6 text-base gap-2.5',
 };
 
 const ICON_SIZE: Record<SharedButtonSize, string> = {
@@ -147,10 +147,22 @@ export const SharedButton: React.FC<SharedButtonProps> = ({
   const iconClass = ICON_SIZE[size];
   const widthClass = fullWidth ? 'w-full' : 'inline-flex';
 
-  const primaryStyle: React.CSSProperties =
-    variant === 'primary' && !isDisabled
-      ? { backgroundColor: '#000099', borderColor: '#000099', color: '#ffffff', ...style }
-      : { ...style };
+  const primaryStyle: React.CSSProperties = {
+    fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+    fontSize: size === 'small' ? 'var(--type-caption-size, 11px)' : 'var(--type-input-text-size, 13px)',
+    fontWeight: 'var(--type-weight-bold, 700)' as any,
+    lineHeight: 1.2,
+    minHeight:
+      size === 'small'
+        ? 'var(--control-min-height-compact, 1.75rem)'
+        : size === 'large'
+        ? 'var(--control-min-height-md, 2.5rem)'
+        : 'var(--control-min-height-sm, 2.25rem)',
+    ...(variant === 'primary' && !isDisabled
+      ? { backgroundColor: '#000099', borderColor: '#000099', color: '#ffffff' }
+      : {}),
+    ...style,
+  };
 
   return (
     <button

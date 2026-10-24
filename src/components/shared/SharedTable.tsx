@@ -49,6 +49,14 @@ export interface SharedTableProps<T> {
   rowsPerPageOptions?: number[];
   ariaLabel?: string;
   noBorder?: boolean;
+  /** Apply clean elevation shadow instead of a solid border. Default: false */
+  shadowBorder?: boolean;
+  /** Background color for table header. Defaults to '#f4f6f8' (reduced grey) */
+  headerBgColor?: string;
+  /** Background color for table values rows. Defaults to '#fafbfc' (next level of reduced color) */
+  rowBgColor?: string;
+  /** Background color for row hover. Defaults to '#f0f3f6' */
+  hoverBgColor?: string;
 }
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -94,6 +102,10 @@ export function SharedTable<T>({
   rowsPerPageOptions = DEFAULT_ROWS_PER_PAGE_OPTIONS,
   ariaLabel = 'Data table',
   noBorder = false,
+  shadowBorder = false,
+  headerBgColor = '#f8fafc',
+  rowBgColor = '#fafbfc',
+  hoverBgColor = '#f5f7fa',
 }: SharedTableProps<T>) {
   const resolvedTotalCount = totalCount ?? rows.length;
   const effectiveRows = rows;
@@ -146,8 +158,12 @@ export function SharedTable<T>({
   };
 
   const tableWrapperClass = [
-    'shared-table-wrapper w-full overflow-x-auto bg-transparent',
-    noBorder ? 'no-border' : 'border border-slate-200 bg-white',
+    'shared-table-wrapper w-full overflow-x-auto',
+    shadowBorder
+      ? 'shared-table-shadow-border'
+      : noBorder
+        ? 'no-border bg-transparent'
+        : 'border border-slate-200 bg-white',
     className,
   ]
     .filter(Boolean)
@@ -155,23 +171,32 @@ export function SharedTable<T>({
 
   const tableClass = [
     'shared-table-root min-w-full border-collapse',
-    noBorder ? 'border-0' : 'border-separate border-spacing-0',
+    noBorder || shadowBorder ? 'border-0' : 'border-separate border-spacing-0',
     tableClassName,
   ]
     .filter(Boolean)
     .join(' ');
 
   return (
-    <div className={tableWrapperClass} aria-label={ariaLabel}>
+    <div
+      className={tableWrapperClass}
+      aria-label={ariaLabel}
+      style={{
+        ['--table-header-bg' as any]: headerBgColor,
+        ['--table-row-bg' as any]: rowBgColor,
+        ['--table-row-hover-bg' as any]: hoverBgColor,
+      }}
+    >
       <TableContainer className="max-w-full overflow-x-auto">
         <Table className={tableClass} size={dense ? 'small' : 'medium'} stickyHeader={stickyHeader} aria-label={ariaLabel}>
           <TableHead>
-            <TableRow className="bg-[#f2f2f1]">
+            <TableRow style={{ backgroundColor: headerBgColor }}>
               {columns.map((column) => {
                 const isSorted = sortField === column.id && !!onSortChange;
                 const alignment = column.align ?? 'left';
                 const cellClassName = [
-                  'border-b border-slate-200 bg-[#f2f2f1] px-4 py-3 align-middle text-left',
+                  'type-table-header px-4 py-3 align-middle text-left',
+                  shadowBorder ? 'border-b-0' : 'border-b border-slate-200',
                   'font-bold uppercase tracking-[0.12em] text-slate-500',
                   alignment === 'center' ? 'text-center' : alignment === 'right' ? 'text-right' : 'text-left',
                   column.className ?? '',
@@ -185,19 +210,43 @@ export function SharedTable<T>({
                     align={alignment}
                     sortDirection={isSorted ? sortDirection : false}
                     className={cellClassName}
-                    style={{ width: column.width ?? 'auto', backgroundColor: '#f2f2f1' }}
+                    style={{
+                      width: column.width ?? 'auto',
+                      backgroundColor: headerBgColor,
+                      borderBottom: shadowBorder ? 'none' : undefined,
+                      boxShadow: shadowBorder ? '0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03)' : undefined,
+                      position: shadowBorder ? 'relative' : undefined,
+                      zIndex: shadowBorder ? 2 : undefined,
+                      fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                      fontSize: 'var(--type-table-header-size, 11px)',
+                      fontWeight: 'var(--type-table-header-weight, 700)' as any,
+                      lineHeight: 'var(--type-table-header-leading, 1.25)' as any,
+                      color: 'var(--type-table-header-color, #64748B)',
+                    }}
                   >
                     {column.sortable && onSortChange ? (
                       <TableSortLabel
                         active={isSorted}
                         direction={isSorted ? sortDirection : 'asc'}
                         onClick={() => handleSort(column)}
-                        className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500"
+                        className="type-table-header font-bold uppercase tracking-[0.12em] text-slate-500"
+                        style={{
+                          fontFamily: 'inherit',
+                          fontSize: 'inherit',
+                          fontWeight: 'inherit',
+                        }}
                       >
                         {column.label}
                       </TableSortLabel>
                     ) : (
-                      <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                      <span
+                        className="type-table-header font-bold uppercase tracking-[0.12em] text-slate-500"
+                        style={{
+                          fontFamily: 'inherit',
+                          fontSize: 'inherit',
+                          fontWeight: 'inherit',
+                        }}
+                      >
                         {column.label}
                       </span>
                     )}
@@ -209,34 +258,36 @@ export function SharedTable<T>({
 
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="border-b border-slate-200 bg-white p-0">
+              <TableRow style={{ backgroundColor: rowBgColor }}>
+                <TableCell colSpan={columns.length} className={shadowBorder ? 'p-0 border-b-0' : 'border-b border-slate-200 p-0'} style={{ backgroundColor: rowBgColor }}>
                   {renderLoadingState()}
                 </TableCell>
               </TableRow>
             ) : error ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="border-b border-slate-200 bg-white p-0">
+              <TableRow style={{ backgroundColor: rowBgColor }}>
+                <TableCell colSpan={columns.length} className={shadowBorder ? 'p-0 border-b-0' : 'border-b border-slate-200 p-0'} style={{ backgroundColor: rowBgColor }}>
                   {renderErrorState()}
                 </TableCell>
               </TableRow>
             ) : effectiveRows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="border-b border-slate-200 bg-white p-0">
+              <TableRow style={{ backgroundColor: rowBgColor }}>
+                <TableCell colSpan={columns.length} className={shadowBorder ? 'p-0 border-b-0' : 'border-b border-slate-200 p-0'} style={{ backgroundColor: rowBgColor }}>
                   {renderEmptyState()}
                 </TableCell>
               </TableRow>
             ) : (
               effectiveRows.map((row, rowIndex) => {
                 const key = rowKey ? rowKey(row, rowIndex) : rowIndex;
+                const isLastRow = rowIndex === effectiveRows.length - 1;
 
                 return (
                   <TableRow
                     key={String(key)}
                     hover={Boolean(onRowClick)}
                     onClick={() => onRowClick?.(row, rowIndex)}
+                    style={{ backgroundColor: rowBgColor }}
                     className={[
-                      'transition-colors duration-150 hover:bg-slate-50',
+                      'transition-colors duration-150',
                       onRowClick ? 'cursor-pointer' : '',
                     ]
                       .filter(Boolean)
@@ -246,7 +297,10 @@ export function SharedTable<T>({
                       const value = getCellValue(row, column, rowIndex);
                       const alignment = column.align ?? 'left';
                       const cellClassName = [
-                        'border-b border-slate-200 bg-white px-4 py-3 align-middle text-[13px] text-slate-700',
+                        'type-table-cell px-4 py-3 align-middle text-[13px] text-slate-700',
+                        shadowBorder
+                          ? (isLastRow ? 'border-b-0' : 'border-b border-[#edf0f4]')
+                          : 'border-b border-slate-200',
                         alignment === 'center' ? 'text-center' : alignment === 'right' ? 'text-right' : 'text-left',
                         column.className ?? '',
                         dense ? 'py-2' : '',
@@ -255,7 +309,18 @@ export function SharedTable<T>({
                         .join(' ');
 
                       return (
-                        <TableCell key={`${String(key)}-${column.id}`} align={alignment} className={cellClassName}>
+                        <TableCell
+                          key={`${String(key)}-${column.id}`}
+                          align={alignment}
+                          className={cellClassName}
+                          style={{
+                            backgroundColor: rowBgColor,
+                            fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                            fontSize: 'var(--type-table-row-size, 12.5px)',
+                            lineHeight: 'var(--type-table-row-leading, 1.4)' as any,
+                            color: 'var(--type-table-row-color, #1E293B)',
+                          }}
+                        >
                           {value as React.ReactNode}
                         </TableCell>
                       );

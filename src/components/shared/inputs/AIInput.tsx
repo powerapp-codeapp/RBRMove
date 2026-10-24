@@ -511,10 +511,10 @@ export const AIInput: React.FC<AIInputProps> = ({
           {prefixText && (
             <div
               style={{
-                fontSize: '14px',
-                lineHeight: '21px',
+                fontSize: 'var(--type-input-text-size, 14px)',
+                lineHeight: 1.45,
                 color: '#1E293B',
-                fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+                fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word'
               }}
@@ -666,7 +666,7 @@ export const AIInput: React.FC<AIInputProps> = ({
                   boxSizing: 'border-box',
                   padding: '4px 0',
                   margin: 0,
-                  fontSize: '14px',
+                  fontSize: 'var(--type-input-text-size, 12.5px)',
                   fontWeight: 400,
                   lineHeight: '21px',
                   border: 'none',
@@ -722,10 +722,10 @@ export const AIInput: React.FC<AIInputProps> = ({
           {suffixText && (
             <div
               style={{
-                fontSize: '14px',
-                lineHeight: '21px',
+                fontSize: 'var(--type-input-text-size, 12.5px)',
+                lineHeight: 1.45,
                 color: '#1E293B',
-                fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+                fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word'
               }}
@@ -845,9 +845,9 @@ export const AIInput: React.FC<AIInputProps> = ({
               width: '100%',
               boxSizing: 'border-box',
               padding: '8px 12px',
-              fontSize: '14px',
+              fontSize: 'var(--type-input-text-size, 12.5px)',
               fontWeight: 400,
-              lineHeight: '21px',
+              lineHeight: 1.45,
               borderRadius: '4px',
               border: disabled
                 ? '1px solid #CBD5E1'

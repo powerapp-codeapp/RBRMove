@@ -37,7 +37,7 @@ export const muiThemeOptions: ThemeOptions = {
 	typography: {
 		fontFamily: ['jj-circular', 'Arial', 'Helvetica', 'sans-serif'].join(', '),
 		fontWeightRegular: 400,
-		fontWeightMedium: 900,
+		fontWeightMedium: 500,
 	},
 	components: {
 		MuiDivider: {

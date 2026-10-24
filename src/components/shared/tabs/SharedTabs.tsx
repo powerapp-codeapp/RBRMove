@@ -27,6 +27,12 @@ export interface SharedTabsProps<T = string> {
   borderWidth?: string | number;
   /** Selected tab text & indicator color. Default: #000099 (Primary Blue) */
   activeColor?: string;
+  /** Optional bottom margin override. Defaults to 0px for workbench, 14px for primary */
+  marginBottom?: string | number;
+  /** Gap between individual tab items. Defaults to 28px for workbench, 8px for primary */
+  tabGap?: string | number;
+  /** Optional SxProps for custom root styling */
+  sx?: any;
 }
 
 export const SharedTabs = <T extends string = string>({
@@ -40,7 +46,10 @@ export const SharedTabs = <T extends string = string>({
   hasBottomBorder = true,
   borderColor = '#d8d8d8',
   borderWidth = '1px',
-  activeColor = '#000099'
+  activeColor = '#000099',
+  marginBottom,
+  tabGap,
+  sx = {}
 }: SharedTabsProps<T>): React.ReactElement => {
   const handleChange = (_event: React.SyntheticEvent, newValue: T) => {
     onChange(newValue);
@@ -48,6 +57,22 @@ export const SharedTabs = <T extends string = string>({
 
   const isWorkbench = variant === 'workbench';
   const resolvedBorderWidth = typeof borderWidth === 'number' ? `${borderWidth}px` : borderWidth;
+  const resolvedMarginBottom =
+    marginBottom !== undefined
+      ? typeof marginBottom === 'number'
+        ? `${marginBottom}px`
+        : marginBottom
+      : isWorkbench
+      ? '0px'
+      : '14px';
+  const resolvedTabGap =
+    tabGap !== undefined
+      ? typeof tabGap === 'number'
+        ? `${tabGap}px`
+        : tabGap
+      : isWorkbench
+      ? '28px'
+      : '8px';
 
   return (
     <Box
@@ -56,9 +81,11 @@ export const SharedTabs = <T extends string = string>({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        gap: '24px',
         borderBottom: hasBottomBorder ? `${resolvedBorderWidth} solid ${borderColor}` : 'none',
-        marginBottom: isWorkbench ? '0px' : '14px',
-        paddingLeft: isWorkbench ? '38px' : '0px'
+        marginBottom: resolvedMarginBottom,
+        paddingLeft: isWorkbench ? '38px' : '0px',
+        ...sx
       }}
     >
       <Tabs
@@ -69,7 +96,7 @@ export const SharedTabs = <T extends string = string>({
         scrollButtons="auto"
         allowScrollButtonsMobile
         sx={{
-          minHeight: size === 'small' ? '36px' : '44px',
+          minHeight: size === 'small' ? '32px' : '36px',
           '& .MuiTabs-indicator': {
             backgroundColor: activeColor,
             height: '3px',
@@ -78,7 +105,8 @@ export const SharedTabs = <T extends string = string>({
             bottom: 0
           },
           '& .MuiTabs-flexContainer': {
-            gap: isWorkbench ? '16px' : '6px'
+            gap: resolvedTabGap,
+            alignItems: 'center'
           }
         }}
       >
@@ -117,9 +145,9 @@ export const SharedTabs = <T extends string = string>({
                     <Box
                       component="span"
                       sx={{
-                        fontSize: isWorkbench ? '10.5px' : '11px',
-                        fontWeight: 700,
-                        padding: isWorkbench ? '1px 6px' : '1px 8px',
+                        fontSize: isWorkbench ? '10.5px' : 'var(--type-badge-size, 11px)',
+                        fontWeight: 'var(--type-badge-weight, 700)',
+                        padding: isWorkbench ? '1px 6px' : '2px 8px',
                         borderRadius: isWorkbench ? '10px' : '12px',
                         backgroundColor: isSelected
                           ? (isWorkbench ? '#EFF6FF' : activeColor)
@@ -136,19 +164,30 @@ export const SharedTabs = <T extends string = string>({
                 </Box>
               }
               sx={{
-                minHeight: size === 'small' ? '36px' : '44px',
+                minHeight: size === 'small' ? '32px' : '36px',
                 minWidth: 'auto',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 padding: isWorkbench
-                  ? '6px 2px 8px 2px'
-                  : (size === 'small' ? '6px 12px' : '10px 18px'),
-                fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-                fontSize: isWorkbench ? '12.5px' : (size === 'small' ? '12.5px' : '13.5px'),
-                fontWeight: isSelected ? 700 : (isWorkbench ? 700 : 600),
+                  ? '6px 4px 8px 4px'
+                  : (size === 'small'
+                    ? '4px 10px 6px 10px'
+                    : '6px clamp(10px, 0.8vw, 16px) 8px clamp(10px, 0.8vw, 16px)'),
+                fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                fontSize: isWorkbench
+                  ? 'var(--type-table-header-size, 12px)'
+                  : (size === 'small' ? 'var(--type-table-row-size, 12.5px)' : 'var(--type-studio-title-size, 14.5px)'),
+                fontWeight: isSelected
+                  ? 'var(--type-weight-semibold, 600)'
+                  : 'var(--type-weight-medium, 500)',
+                lineHeight: 'var(--type-studio-title-leading, 1.3)',
                 textTransform: isWorkbench ? 'uppercase' : 'none',
                 color: isSelected ? activeColor : '#64748B',
                 transition: 'color 0.15s ease',
                 '&.Mui-selected': {
-                  color: activeColor
+                  color: activeColor,
+                  fontWeight: 'var(--type-weight-semibold, 600)'
                 },
                 '&:hover': {
                   color: activeColor,

@@ -72,6 +72,9 @@ export type { SharedPopoverProps, SharedPopoverItemProps } from './common/Shared
 export { SharedConfirmDialog } from './feedback/SharedConfirmDialog';
 export type { SharedConfirmDialogProps } from './feedback/SharedConfirmDialog';
 
+export { SharedToast } from './feedback/SharedToast';
+export type { SharedToastProps, ToastSeverity, ToastPosition } from './feedback/SharedToast';
+
 // AI Enhanced Components
 export { AIInput } from './inputs/AIInput';
 export type { AIInputProps } from './inputs/AIInput';
@@ -83,6 +86,10 @@ export type { IssueNavCardProps } from './cards/IssueNavCard';
 // Filter Components
 export { SharedListBoxFilter } from './inputs/SharedListBoxFilter';
 export type { SharedListBoxFilterProps, ListBoxFilterOption } from './inputs/SharedListBoxFilter';
+
+// Page Layout & Header Components
+export { PageHeader } from './common/PageHeader';
+export type { PageHeaderProps } from './common/PageHeader';
 
 
 
