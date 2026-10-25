@@ -3,7 +3,9 @@ import {
   RotateCcw,
   Filter,
   ArrowUpDown,
-  Calendar
+  Calendar,
+  RefreshCw,
+  Database
 } from 'lucide-react';
 import { useEngagement } from '../../../context/EngagementContext';
 import { useUserSession } from '../../../context/UserSessionContext';
@@ -16,6 +18,7 @@ import {
   getUserRoleOnEngagement,
   getRoleDetails,
 } from '../utils/reportingWorkflowEngine';
+import { fetchDataverseReportingData } from '../../../services/dataverseReportingService';
 import { ReportingDetailDrawer } from '../components/ReportingDetailDrawer';
 import { CreateIssueDialog } from '../components/CreateIssueDialog';
 import { AuditQueueCardRow } from '../components/AuditQueueCardRow';
@@ -47,7 +50,38 @@ export const AuditQueueView: React.FC = () => {
   const isBusinessRole = userRoleDetails.baseRole === 'primary-business-contact';
 
   const [jobs, setJobs] = useState<any[]>(getInitialReportingJobs);
+  const [assessmentsList, setAssessmentsList] = useState<any[]>(assessments);
+  const [isLiveConnected, setIsLiveConnected] = useState<boolean>(false);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [auditTab, setAuditTab] = useState<'my-actions' | 'all-associated'>('my-actions');
+
+  // Load Dataverse tables on mount and when manually refreshed
+  const loadLiveReportingData = async (showToast = false) => {
+    setIsRefreshing(true);
+    try {
+      const payload = await fetchDataverseReportingData();
+      setJobs(payload.jobs);
+      setAssessmentsList(payload.assessments);
+      setIsLiveConnected(payload.isLiveConnected);
+      if (showToast) {
+        setToastMessage({
+          title: payload.isLiveConnected ? 'Connected to Dataverse' : 'Local Dev Mode',
+          description: payload.isLiveConnected
+            ? `Successfully synchronized ${payload.jobs.length} engagements from Microsoft Dataverse.`
+            : 'Power Apps host session not detected. Serving local seed catalog.',
+          severity: payload.isLiveConnected ? 'success' : 'info'
+        });
+      }
+    } catch (err) {
+      console.warn('[AuditQueueView] Dataverse fetch error:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadLiveReportingData(false);
+  }, []);
 
   // Filter Toolbar States (Driven by Shared Components)
   const [selectedAssessments, setSelectedAssessments] = useState<string[]>([]);
@@ -85,14 +119,14 @@ export const AuditQueueView: React.FC = () => {
 
   // Memoized filter options for SharedFilterSelect (Loads only years: 2024, 2025, 2026, 2027)
   const assessmentOptions: FilterOption[] = useMemo(() => {
-    return assessments.map((asm: any) => {
+    return assessmentsList.map((asm: any) => {
       const asmCount = userAssociatedJobs.filter(
         (j) => (j.assessmentId || (j.id.startsWith('2025') ? 'ASM-2025' : j.id.startsWith('2027') ? 'ASM-2027' : 'ASM-2026')) === asm.id
       ).length;
-      const isClosed = asm.status === 'Closed';
+      const isClosed = asm.status === 'Closed' || asm.status === 'Finalized';
       return {
         value: asm.id,
-        label: String(asm.year || (asm.name.match(/\d{4}/)?.[0]) || asm.name),
+        label: String(asm.year || (asm.name?.match(/\d{4}/)?.[0]) || asm.name),
         count: asmCount,
         tag: asm.status,
         tagColor: isClosed
@@ -100,7 +134,7 @@ export const AuditQueueView: React.FC = () => {
           : { bg: '#ECFDF5', text: '#087D0D', border: '#A7F3D0' }
       };
     });
-  }, [userAssociatedJobs]);
+  }, [userAssociatedJobs, assessmentsList]);
 
   const statusOptions: FilterOption[] = useMemo(() => {
     return STATUS_OPTIONS.map((opt) => {
@@ -474,6 +508,74 @@ export const AuditQueueView: React.FC = () => {
                 strokeWidth={2.2}
               />
             </SharedButton>
+          </SharedTooltip>
+
+          {/* Refresh Dataverse Data Button */}
+          <SharedTooltip
+            title="Refresh Data from Dataverse"
+            placement="top"
+          >
+            <SharedButton
+              variant="outline"
+              size="small"
+              onClick={() => loadLiveReportingData(true)}
+              aria-label="Refresh Data from Dataverse"
+              style={{
+                width: 'var(--control-min-height-sm, 2.25rem)',
+                height: 'var(--control-min-height-sm, 2.25rem)',
+                minWidth: 'var(--control-min-height-sm, 2.25rem)',
+                minHeight: 'var(--control-min-height-sm, 2.25rem)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#F8FAFC',
+                borderColor: '#E2E8F0',
+                borderRadius: '4px',
+                padding: 0,
+                flexShrink: 0,
+              }}
+            >
+              <RefreshCw
+                size={14}
+                color="#000099"
+                strokeWidth={2.2}
+                style={{
+                  animation: isRefreshing ? 'spin 1s linear infinite' : 'none'
+                }}
+              />
+            </SharedButton>
+          </SharedTooltip>
+
+          {/* Live Dataverse Connection Status Badge */}
+          <SharedTooltip
+            title={
+              isLiveConnected
+                ? 'Connected to Microsoft Dataverse (Org: orge7f34042.api.crm8.dynamics.com). Serving live records.'
+                : 'Serving local seed catalog. To view live Dataverse tables locally, launch via the Power Apps Local Play URL.'
+            }
+            placement="top"
+          >
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                borderRadius: '16px',
+                fontSize: '11px',
+                fontWeight: 600,
+                fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+                backgroundColor: isLiveConnected ? '#ECFDF5' : '#FFFBEB',
+                color: isLiveConnected ? '#087D0D' : '#B45309',
+                border: isLiveConnected ? '1px solid #A7F3D0' : '1px solid #FDE68A',
+                cursor: 'default',
+                userSelect: 'none',
+                flexShrink: 0
+              }}
+            >
+              <Database size={12} color={isLiveConnected ? '#087D0D' : '#B45309'} />
+              <span>{isLiveConnected ? 'Dataverse Live' : 'Local Dev Mode'}</span>
+            </div>
           </SharedTooltip>
         </div>
 

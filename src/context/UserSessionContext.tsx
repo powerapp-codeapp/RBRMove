@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 import type { ApplicationRole, UserSession } from '../types/navigation.types';
 import rawUsersData from '../modules/reporting/data/users.json';
 import { Iar_administratorsesService } from '../generated/services/Iar_administratorsesService';
+import { SystemusersService } from '../generated/services/SystemusersService';
 
 export const APPLICATION_ROLES: ApplicationRole[] = [
   // IT Roles
@@ -77,21 +78,26 @@ export const UserSessionProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [realUser, setRealUser] = useState<UserSession>(DEFAULT_REAL_USER);
   const [impersonatedUser, setImpersonatedUser] = useState<UserSession | null>(null);
   const [activeRoleId, setActiveRoleId] = useState<string>('it-manager');
+  const [liveUsers, setLiveUsers] = useState<UserSession[]>([]);
 
-  // Available users directory
+  // Available users directory (prefers live Dataverse systemusers, falls back to seeded users)
   const availableUsers: UserSession[] = useMemo(() => {
+    if (liveUsers.length > 0) return liveUsers;
     return rawUsersData.map(mapRawUserToSession);
-  }, []);
+  }, [liveUsers]);
 
-  // Check Dataverse iar_administratorses on app initialization if running in Power Apps
+  // Check Dataverse iar_administratorses & systemusers on app initialization
   useEffect(() => {
     let isMounted = true;
-    async function checkAdminStatus() {
+    async function initDataverseSecurity() {
       try {
-        const result = await Iar_administratorsesService.getAll();
-        if (result && result.data && Array.isArray(result.data) && result.data.length > 0) {
-          // If administrators exist in Dataverse, check if current user is active admin
-          const adminRecords = result.data;
+        const [adminRes, usersRes] = await Promise.allSettled([
+          Iar_administratorsesService.getAll(),
+          SystemusersService.getAll()
+        ]);
+
+        if (adminRes.status === 'fulfilled' && adminRes.value?.data && Array.isArray(adminRes.value.data) && adminRes.value.data.length > 0) {
+          const adminRecords = adminRes.value.data;
           const isUserAdmin = adminRecords.some((a: any) => 
             a.iar_admin?.internalemailaddress?.toLowerCase() === realUser.email.toLowerCase() ||
             a._iar_admin_value === realUser.userId ||
@@ -101,12 +107,36 @@ export const UserSessionProvider: React.FC<{ children: React.ReactNode }> = ({ c
             setRealUser(prev => ({ ...prev, isAdmin: isUserAdmin }));
           }
         }
+
+        if (usersRes.status === 'fulfilled' && usersRes.value?.data && Array.isArray(usersRes.value.data) && usersRes.value.data.length > 0) {
+          const dataverseUsers: UserSession[] = usersRes.value.data.map((u: any) => {
+            const initials =
+              (u.firstname?.[0] || '') + (u.lastname?.[0] || '') ||
+              (u.fullname ? u.fullname.slice(0, 2).toUpperCase() : 'U');
+            return {
+              userId: u.systemuserid,
+              name: u.fullname || u.domainname || 'Dataverse User',
+              email: u.internalemailaddress || '',
+              role: 'IT Manager',
+              baseRole: 'manager',
+              avatar: initials,
+              department: 'Global Audit & Assurance (GA&A)',
+              isAdmin: false,
+              title: u.title || 'Internal Auditor',
+              function: 'IT',
+              location: 'Enterprise',
+              initials: initials
+            };
+          });
+          if (isMounted && dataverseUsers.length > 0) {
+            setLiveUsers(dataverseUsers);
+          }
+        }
       } catch (err) {
-        // Fallback cleanly to default admin privileges in dev mode
         console.info('[UserSession] Dataverse admin check bypassed; using seeded admin identity.');
       }
     }
-    checkAdminStatus();
+    initDataverseSecurity();
     return () => { isMounted = false; };
   }, [realUser.email, realUser.userId]);
 
