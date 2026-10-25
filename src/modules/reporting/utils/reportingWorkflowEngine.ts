@@ -414,6 +414,255 @@ export const isAuditNeedingAction = (job: any, role?: string): boolean => {
   return (job.issuesList || []).some((iss: any) => isIssueNeedingUserAction(iss, role));
 };
 
+/**
+ * Checks if a given user (by email or ID) is assigned to the engagement,
+ * either in iar_securityassignmentses roster, as lead owner, or as business contact.
+ */
+export const isUserAssignedToEngagement = (
+  job: any,
+  userEmail?: string,
+  userId?: string
+): boolean => {
+  if (!job || (!userEmail && !userId)) return false;
+  const targetEmail = (userEmail || '').toLowerCase().trim();
+  const targetId = userId || '';
+
+  const engId = job.jobId || job.id || job.engagementId;
+  const asgs = getAssignmentsByEngagement(engId);
+
+  // 1. Check in security assignments roster
+  const inAssignments = asgs.some((a: any) => {
+    if (a.userIds && targetId && a.userIds.includes(targetId)) return true;
+    if (a.users && Array.isArray(a.users)) {
+      return a.users.some(
+        (u: any) =>
+          (u.email && u.email.toLowerCase().trim() === targetEmail) ||
+          (u.id && u.id === targetId)
+      );
+    }
+    return false;
+  });
+  if (inAssignments) return true;
+
+  // 2. Check in engagement direct metadata (leadOwner, businessContactId)
+  if (job.businessContactId && targetId && job.businessContactId === targetId) return true;
+  if (job.leadOwner && targetEmail && job.leadOwner.toLowerCase().includes(targetEmail)) return true;
+
+  // 3. Check in engagement issues (primaryBusinessOwner, businessContactId)
+  const issuesList: any[] = job.issuesList || getIssuesByEngagement(engId);
+  const inIssues = issuesList.some((iss: any) => {
+    if (iss.businessContactId && targetId && iss.businessContactId === targetId) return true;
+    if (iss.primaryBusinessOwner && targetEmail && iss.primaryBusinessOwner.toLowerCase().includes(targetEmail)) return true;
+    return false;
+  });
+
+  return inIssues;
+};
+
+/**
+ * Returns the specific role assigned to a user on an engagement (e.g. 'it-auditor', 'it-manager').
+ */
+export const getUserRoleOnEngagement = (
+  job: any,
+  userEmail?: string,
+  userId?: string
+): string | null => {
+  if (!job || (!userEmail && !userId)) return null;
+  const targetEmail = (userEmail || '').toLowerCase().trim();
+  const targetId = userId || '';
+
+  const engId = job.jobId || job.id || job.engagementId;
+  const asgs = getAssignmentsByEngagement(engId);
+
+  for (const a of asgs) {
+    const isMatch = (a.userIds && targetId && a.userIds.includes(targetId)) ||
+      (a.users && a.users.some(
+        (u: any) =>
+          (u.email && u.email.toLowerCase().trim() === targetEmail) ||
+          (u.id && u.id === targetId)
+      ));
+    if (isMatch) {
+      return a.roleId || a.roleName || null;
+    }
+  }
+
+  if (job.businessContactId && targetId && job.businessContactId === targetId) return 'business-contact';
+  return null;
+};
+
+export interface EngagementAssignee {
+  id: string;
+  name: string;
+  displayName: string;
+  email: string;
+  initials: string;
+  roleId: string;
+  roleName: string;
+  roleAbbr: string;
+}
+
+export const getRoleAbbreviation = (roleIdOrName?: string): string => {
+  if (!roleIdOrName) return 'AUD';
+  const r = roleIdOrName.toLowerCase();
+
+  if (r.includes('vp')) return r.includes('fin') ? 'FIN VP' : 'IT VP';
+  if (r.includes('director')) return r.includes('fin') ? 'FIN DIR' : 'IT DIR';
+  if (r.includes('manager') || r.includes('mgr')) return r.includes('fin') ? 'FIN MGR' : 'IT MGR';
+  if (r.includes('coordinator') || r.includes('tc')) return r.includes('fin') ? 'FIN TC' : 'IT TC';
+  if (r.includes('auditor') || r.includes('staff')) return r.includes('fin') ? 'FIN AUD' : 'IT AUD';
+  if (r.includes('business') || r.includes('contact') || r.includes('owner')) return 'BIZ';
+
+  return 'AUD';
+};
+
+export const getEngagementAssignees = (job: any): EngagementAssignee[] => {
+  const engId = job?.jobId || job?.id || job?.engagementId;
+  const asgs = getAssignmentsByEngagement(engId);
+  const seenUserIds = new Set<string>();
+  const assignees: EngagementAssignee[] = [];
+
+  for (const asg of asgs) {
+    const roleId = asg.roleId || 'it-auditor';
+    const roleName = asg.roleName || 'Auditor';
+    const roleAbbr = getRoleAbbreviation(roleId || roleName);
+
+    if (Array.isArray(asg.users)) {
+      for (const u of asg.users) {
+        const uId = u.id || u.email || u.name;
+        if (!seenUserIds.has(uId)) {
+          seenUserIds.add(uId);
+          // Format short name for Tamilselvan if applicable to match spec: Tamilselvan (IT MGR)
+          const displayName = u.name?.includes('Tamilselvan') ? 'Tamilselvan' : u.name;
+          assignees.push({
+            id: u.id || '',
+            name: u.name,
+            displayName,
+            email: u.email || '',
+            initials: u.initials || (u.name ? u.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() : 'U'),
+            roleId,
+            roleName,
+            roleAbbr
+          });
+        }
+      }
+    }
+  }
+
+  // Also check if job has roster
+  if (Array.isArray(job?.roster)) {
+    for (const r of job.roster) {
+      if (r.name && !seenUserIds.has(r.name)) {
+        seenUserIds.add(r.name);
+        const roleAbbr = getRoleAbbreviation(r.role);
+        const displayName = r.name.includes('Tamilselvan') ? 'Tamilselvan' : r.name;
+        assignees.push({
+          id: r.id || r.name,
+          name: r.name,
+          displayName,
+          email: r.email || '',
+          initials: r.avatar || r.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+          roleId: r.role || 'it-auditor',
+          roleName: r.role || 'Auditor',
+          roleAbbr
+        });
+      }
+    }
+  }
+
+  return assignees;
+};
+
+export const resolveEngagementQueueAvatars = (
+  job: any,
+  currentUser: { email?: string; userId?: string; name?: string; avatar?: string; role?: string },
+  auditTab: 'my-actions' | 'all-associated',
+  workflowState: any
+) => {
+  const allAssignees = getEngagementAssignees(job);
+
+  if (allAssignees.length === 0) {
+    const defaultName = job?.leadOwner || 'Amanda Palmer';
+    return {
+      primaryUser: {
+        name: defaultName,
+        displayName: defaultName,
+        initials: defaultName.split(' ').map((n: string) => n[0]).join('').slice(0, 2),
+        roleAbbr: 'IT MGR'
+      },
+      remainingAssignees: []
+    };
+  }
+
+  const currentEmail = (currentUser?.email || '').toLowerCase().trim();
+  const currentId = currentUser?.userId || '';
+  const currentName = (currentUser?.name || '').toLowerCase().trim();
+
+  const userAssignee = allAssignees.find(a =>
+    (a.email && a.email.toLowerCase().trim() === currentEmail) ||
+    (a.id && a.id === currentId) ||
+    (a.name && a.name.toLowerCase().trim() === currentName) ||
+    (currentName.includes('tamilselvan') && a.name.toLowerCase().includes('tamilselvan'))
+  );
+
+  const isUserInCurrentQueue = Boolean(
+    userAssignee && (
+      (workflowState?.owners || []).some((o: string) =>
+        o.toLowerCase().includes(userAssignee.name.toLowerCase()) ||
+        userAssignee.name.toLowerCase().includes(o.toLowerCase())
+      ) ||
+      (workflowState?.queueList || []).some((qRole: string) => {
+        const qLower = qRole.toLowerCase();
+        const aRoleLower = (userAssignee.roleName || userAssignee.roleId).toLowerCase();
+        if (qLower.includes('staff') || qLower.includes('auditor')) return aRoleLower.includes('auditor');
+        if (qLower.includes('coordinator') || qLower.includes('tc')) return aRoleLower.includes('coordinator') || aRoleLower.includes('tc');
+        if (qLower.includes('manager')) return aRoleLower.includes('manager');
+        if (qLower.includes('director')) return aRoleLower.includes('director');
+        if (qLower.includes('vp')) return aRoleLower.includes('vp');
+        if (qLower.includes('business')) return aRoleLower.includes('business');
+        return false;
+      })
+    )
+  );
+
+  let primary: EngagementAssignee;
+
+  if (auditTab === 'my-actions') {
+    // "In the Audit Queue's 'My Action Audits' tab, the logged-in user is always the primary visible avatar."
+    if (userAssignee) {
+      primary = userAssignee;
+    } else {
+      primary = {
+        id: currentId,
+        name: currentUser?.name || 'Logged In User',
+        displayName: currentUser?.name?.includes('Tamilselvan') ? 'Tamilselvan' : (currentUser?.name || 'Logged In User'),
+        email: currentEmail,
+        initials: currentUser?.avatar || 'TN',
+        roleId: 'admin',
+        roleName: currentUser?.role || 'Admin',
+        roleAbbr: getRoleAbbreviation(currentUser?.role || 'IT Manager')
+      };
+    }
+  } else {
+    // "In 'All Associated', the logged-in user is shown if they are part of the current queue of any active issue, or otherwise the first assigned user alphabetically."
+    if (userAssignee && isUserInCurrentQueue) {
+      primary = userAssignee;
+    } else {
+      const sortedAlphabetical = [...allAssignees].sort((a, b) => a.displayName.localeCompare(b.displayName));
+      primary = sortedAlphabetical[0];
+    }
+  }
+
+  // "The multi-user popover (+ more users) lists all assignees alphabetically with their role name appended in parentheses (e.g. Tamilselvan (IT MGR))."
+  const remaining = allAssignees
+    .filter(a => a.id !== primary.id && a.name.toLowerCase() !== primary.name.toLowerCase())
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+  return {
+    primaryUser: primary,
+    remainingAssignees: remaining
+  };
+};
+
 export const getIssueBreakdown = (job: any, userRole?: string, forMyActionsOnly: boolean = false) => {
   let issuesList: any[] = job.issuesList || [];
   const { baseRole } = getRoleDetails(userRole);

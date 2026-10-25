@@ -244,7 +244,7 @@ export const ReportingDetailDrawer: React.FC<ReportingDetailDrawerProps> = ({
               </strong>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 'var(--type-caption-size, 11.5px)', fontWeight: 600, color: '#63666a' }}>Current Lead Auditor</span>
+              <span style={{ fontSize: 'var(--type-caption-size, 11.5px)', fontWeight: 600, color: '#63666a' }}>Assigned Audit Team</span>
               <strong style={{ fontSize: 'var(--type-table-row-size, 12px)', fontWeight: 700, color: '#000099' }}>
                 {job.leadOwner || 'Amanda Palmer'}
               </strong>

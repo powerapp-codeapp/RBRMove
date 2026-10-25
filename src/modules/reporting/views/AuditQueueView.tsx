@@ -12,6 +12,8 @@ import {
   getInitialReportingJobs,
   getEngagementWorkflowState,
   isAuditNeedingAction,
+  isUserAssignedToEngagement,
+  getUserRoleOnEngagement,
   getRoleDetails,
 } from '../utils/reportingWorkflowEngine';
 import { ReportingDetailDrawer } from '../components/ReportingDetailDrawer';
@@ -39,8 +41,10 @@ const STATUS_OPTIONS = [
 
 export const AuditQueueView: React.FC = () => {
   const { setSelectedEngagementId, setActiveReportingView, setActiveEngagement } = useEngagement();
-  const { activeRole } = useUserSession();
+  const { currentUser, activeRole, isAdmin, isImpersonating } = useUserSession();
   const userRole = activeRole?.id || 'it-manager';
+  const userRoleDetails = useMemo(() => getRoleDetails(userRole), [userRole]);
+  const isBusinessRole = userRoleDetails.baseRole === 'primary-business-contact';
 
   const [jobs, setJobs] = useState<any[]>(getInitialReportingJobs);
   const [auditTab, setAuditTab] = useState<'my-actions' | 'all-associated'>('my-actions');
@@ -50,10 +54,39 @@ export const AuditQueueView: React.FC = () => {
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Enterprise full portfolio access when Admin is NOT impersonating another user
+  const hasFullPortfolioAccess = isAdmin && !isImpersonating;
+
+  // 1. Engagements visible to this user / persona (Admin has all; standard user has assigned only)
+  const userAssociatedJobs = useMemo(() => {
+    if (hasFullPortfolioAccess) {
+      return jobs;
+    }
+    return jobs.filter((job) =>
+      isUserAssignedToEngagement(job, currentUser.email, currentUser.userId)
+    );
+  }, [jobs, hasFullPortfolioAccess, currentUser.email, currentUser.userId]);
+
+  // 2. Engagements requiring action for this user / persona
+  const userActionJobs = useMemo(() => {
+    return userAssociatedJobs.filter((job) => {
+      if (isBusinessRole) {
+        return (
+          (job.issuesList || []).some((iss: any) => (iss.status || '').toLowerCase().includes('business')) ||
+          (job.status || '').toLowerCase().includes('business') ||
+          (job.subStatus || '').toLowerCase().includes('business')
+        );
+      }
+      // Check user's assigned role on this specific engagement, or use active role
+      const roleOnEng = getUserRoleOnEngagement(job, currentUser.email, currentUser.userId) || userRole;
+      return isAuditNeedingAction(job, roleOnEng);
+    });
+  }, [userAssociatedJobs, isBusinessRole, currentUser.email, currentUser.userId, userRole]);
+
   // Memoized filter options for SharedFilterSelect (Loads only years: 2024, 2025, 2026, 2027)
   const assessmentOptions: FilterOption[] = useMemo(() => {
     return assessments.map((asm: any) => {
-      const asmCount = jobs.filter(
+      const asmCount = userAssociatedJobs.filter(
         (j) => (j.assessmentId || (j.id.startsWith('2025') ? 'ASM-2025' : j.id.startsWith('2027') ? 'ASM-2027' : 'ASM-2026')) === asm.id
       ).length;
       const isClosed = asm.status === 'Closed';
@@ -67,11 +100,11 @@ export const AuditQueueView: React.FC = () => {
           : { bg: '#ECFDF5', text: '#087D0D', border: '#A7F3D0' }
       };
     });
-  }, [jobs]);
+  }, [userAssociatedJobs]);
 
   const statusOptions: FilterOption[] = useMemo(() => {
     return STATUS_OPTIONS.map((opt) => {
-      const optCount = jobs.filter((j) => getEngagementWorkflowState(j).status === opt.id).length;
+      const optCount = userAssociatedJobs.filter((j) => getEngagementWorkflowState(j).status === opt.id).length;
       return {
         value: opt.id,
         label: opt.label,
@@ -79,7 +112,7 @@ export const AuditQueueView: React.FC = () => {
         tagColor: { bg: opt.bg, text: opt.color, border: opt.border }
       };
     });
-  }, [jobs]);
+  }, [userAssociatedJobs]);
 
   // Workbench & Expansion States
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
@@ -108,9 +141,6 @@ export const AuditQueueView: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const userRoleDetails = useMemo(() => getRoleDetails(userRole), [userRole]);
-  const isBusinessRole = userRoleDetails.baseRole === 'primary-business-contact';
 
   // Navigation handlers
   const handleWorkOnReport = (job: any, type: 'audit' | 'executive') => {
@@ -197,32 +227,9 @@ export const AuditQueueView: React.FC = () => {
     setSendToDropdownIssueId(null);
   };
 
-  // Badges counts for Primary Tabs
-  const myActionAuditsCount = useMemo(() => {
-    return jobs.filter(j => {
-      if (isBusinessRole) {
-        return (
-          (j.issuesList || []).some((iss: any) => (iss.status || '').toLowerCase().includes('business')) ||
-          (j.status || '').toLowerCase().includes('business') ||
-          (j.subStatus || '').toLowerCase().includes('business')
-        );
-      }
-      return isAuditNeedingAction(j, userRole);
-    }).length;
-  }, [jobs, isBusinessRole, userRole]);
-
-  const allAssociatedAuditsCount = useMemo(() => {
-    return jobs.filter(j => {
-      if (isBusinessRole) {
-        return (
-          (j.issuesList || []).some((iss: any) => (iss.status || '').toLowerCase().includes('business')) ||
-          (j.status || '').toLowerCase().includes('business') ||
-          (j.subStatus || '').toLowerCase().includes('business')
-        );
-      }
-      return true;
-    }).length;
-  }, [jobs, isBusinessRole]);
+  // Dynamic Badges counts for Primary Tabs
+  const myActionAuditsCount = userActionJobs.length;
+  const allAssociatedAuditsCount = userAssociatedJobs.length;
 
   const primaryTabItems: SharedTabItem<'my-actions' | 'all-associated'>[] = useMemo(() => [
     {
@@ -239,29 +246,16 @@ export const AuditQueueView: React.FC = () => {
 
   // Filtering Logic
   const filteredJobs = useMemo(() => {
-    return jobs
-      .filter(job => {
-        if (isBusinessRole) {
-          const hasBusinessIssue = (job.issuesList || []).some((iss: any) =>
-            (iss.status || '').toLowerCase().includes('business')
-          );
-          const isJobBusiness =
-            (job.status || '').toLowerCase().includes('business') ||
-            (job.subStatus || '').toLowerCase().includes('business');
-          if (!hasBusinessIssue && !isJobBusiness) return false;
-        }
+    const baseList = auditTab === 'my-actions' ? userActionJobs : userAssociatedJobs;
 
+    return baseList
+      .filter(job => {
         // Assessment Filter (Multi-Select)
         if (selectedAssessments.length > 0) {
           const jobAsm =
             job.assessmentId ||
             (job.id.startsWith('2025') ? 'ASM-2025' : job.id.startsWith('2027') ? 'ASM-2027' : 'ASM-2026');
           if (!selectedAssessments.includes(jobAsm)) return false;
-        }
-
-        // Primary Category Tab Filter
-        if (auditTab === 'my-actions' && !isBusinessRole) {
-          if (!isAuditNeedingAction(job, userRole)) return false;
         }
 
         // Status Filter
@@ -317,11 +311,10 @@ export const AuditQueueView: React.FC = () => {
         return 0;
       });
   }, [
-    jobs,
-    isBusinessRole,
+    userActionJobs,
+    userAssociatedJobs,
     selectedAssessments,
     auditTab,
-    userRole,
     selectedStatuses,
     searchQuery,
     sortField,
@@ -566,10 +559,12 @@ export const AuditQueueView: React.FC = () => {
               </p>
               <p style={{ fontSize: '11px', color: '#94A3B8' }}>
                 {auditTab === 'my-actions'
-                  ? 'You are all caught up! Switch to "All Associated" to view all audits across the team.'
+                  ? `You are all caught up for ${currentUser.name} (${activeRole.label})! Switch to "All Associated" to view all assigned audits.`
+                  : isImpersonating
+                  ? `${currentUser.name} (${currentUser.email}) has no assigned audits in this portfolio matching your filters.`
                   : 'Try clearing your search query or status filters.'}
               </p>
-              {auditTab === 'my-actions' && (
+              {auditTab === 'my-actions' && allAssociatedAuditsCount > 0 && (
                 <button
                   type="button"
                   onClick={() => setAuditTab('all-associated')}
@@ -585,7 +580,7 @@ export const AuditQueueView: React.FC = () => {
                     cursor: 'pointer'
                   }}
                 >
-                  Switch to All Associated Audits
+                  Switch to All Associated Audits ({allAssociatedAuditsCount})
                 </button>
               )}
             </div>

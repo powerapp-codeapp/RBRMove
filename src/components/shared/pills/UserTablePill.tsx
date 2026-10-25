@@ -2,8 +2,24 @@ import React, { useState, useRef, useEffect } from 'react';
 import Popper from '@mui/material/Popper';
 import { SharedTooltip } from '../feedback/SharedTooltip';
 
+export interface EngagementAssigneeItem {
+  id?: string;
+  name: string;
+  displayName?: string;
+  roleAbbr?: string;
+  initials?: string;
+  email?: string;
+}
+
 export interface UserTablePillProps {
   owners?: string[];
+  primaryUser?: {
+    name: string;
+    displayName?: string;
+    initials?: string;
+    roleAbbr?: string;
+  };
+  remainingAssignees?: EngagementAssigneeItem[];
   queue?: string;
   className?: string;
   style?: React.CSSProperties;
@@ -68,6 +84,8 @@ const UserPopoverItem: React.FC<UserPopoverItemProps> = ({ name, initials }) => 
 
 export const UserTablePill: React.FC<UserTablePillProps> = ({
   owners = [],
+  primaryUser,
+  remainingAssignees,
   queue,
   className = '',
   style
@@ -83,21 +101,6 @@ export const UserTablePill: React.FC<UserTablePillProps> = ({
     };
   }, []);
 
-  if (!owners || owners.length === 0) {
-    return <span style={{ fontSize: '12px', color: '#94A3B8' }}>—</span>;
-  }
-
-  if (queue === 'Closed') {
-    return (
-      <span style={{ fontSize: '11.5px', color: '#64748B', fontStyle: 'italic', fontWeight: 400 }}>
-        Finalized (Archive)
-      </span>
-    );
-  }
-
-  const firstUser = owners[0];
-  const remainingUsers = owners.slice(1);
-
   const getInitials = (name: string): string => {
     return (name || '')
       .split(' ')
@@ -107,6 +110,47 @@ export const UserTablePill: React.FC<UserTablePillProps> = ({
       .toUpperCase()
       .slice(0, 2);
   };
+
+  if (queue === 'Closed') {
+    return (
+      <span style={{ fontSize: '11.5px', color: '#64748B', fontStyle: 'italic', fontWeight: 400 }}>
+        Finalized (Archive)
+      </span>
+    );
+  }
+
+  // Resolve primary user and remaining popover items
+  let firstUserName = '';
+  let firstUserInitials = '';
+  let firstUserTooltip = '';
+  let popoverItems: Array<{ name: string; initials: string }> = [];
+
+  if (primaryUser) {
+    firstUserName = primaryUser.displayName || primaryUser.name;
+    firstUserInitials = primaryUser.initials || getInitials(primaryUser.name);
+    firstUserTooltip = primaryUser.roleAbbr ? `${firstUserName} (${primaryUser.roleAbbr})` : firstUserName;
+
+    if (remainingAssignees && remainingAssignees.length > 0) {
+      popoverItems = remainingAssignees.map((a) => {
+        const dName = a.displayName || a.name;
+        const formatted = a.roleAbbr ? `${dName} (${a.roleAbbr})` : dName;
+        return {
+          name: formatted,
+          initials: a.initials || getInitials(a.name)
+        };
+      });
+    }
+  } else if (owners && owners.length > 0) {
+    firstUserName = owners[0];
+    firstUserInitials = getInitials(firstUserName);
+    firstUserTooltip = firstUserName;
+    popoverItems = owners.slice(1).map((n) => ({
+      name: n,
+      initials: getInitials(n)
+    }));
+  } else {
+    return <span style={{ fontSize: '12px', color: '#94A3B8' }}>—</span>;
+  }
 
   const handleBadgeMouseEnter = (e: React.MouseEvent<HTMLElement>) => {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
@@ -129,7 +173,7 @@ export const UserTablePill: React.FC<UserTablePillProps> = ({
     setAnchorEl(null);
   };
 
-  const isPopoverOpen = Boolean(anchorEl) && remainingUsers.length > 0;
+  const isPopoverOpen = Boolean(anchorEl) && popoverItems.length > 0;
 
   return (
     <div
@@ -144,7 +188,7 @@ export const UserTablePill: React.FC<UserTablePillProps> = ({
       onClick={(e) => e.stopPropagation()}
     >
       {/* 1. Primary Full User Pill */}
-      <SharedTooltip title={firstUser} placement="top">
+      <SharedTooltip title={firstUserTooltip} placement="top">
         <div
           className="user-table-pill-primary"
           style={{
@@ -179,7 +223,7 @@ export const UserTablePill: React.FC<UserTablePillProps> = ({
               flexShrink: 0
             }}
           >
-            {getInitials(firstUser)}
+            {firstUserInitials}
           </span>
           <span
             style={{
@@ -194,18 +238,18 @@ export const UserTablePill: React.FC<UserTablePillProps> = ({
               maxWidth: '120px'
             }}
           >
-            {firstUser}
+            {firstUserName}
           </span>
         </div>
       </SharedTooltip>
 
       {/* 2. Remaining Users (+N) Badge with Hover Popover matching SharedSelectButton */}
-      {remainingUsers.length > 0 && (
+      {popoverItems.length > 0 && (
         <>
           <button
             type="button"
             className="user-table-pill-overflow-badge"
-            aria-label={`${remainingUsers.length} more owners`}
+            aria-label={`${popoverItems.length} more owners`}
             onMouseEnter={handleBadgeMouseEnter}
             onMouseLeave={handleBadgeMouseLeave}
             onClick={(e) => {
@@ -230,7 +274,7 @@ export const UserTablePill: React.FC<UserTablePillProps> = ({
               outline: 'none',
             }}
           >
-            +{remainingUsers.length}
+            +{popoverItems.length}
           </button>
 
           {/* Componentised Popover Menu with exact border, shadow, item text, and hover from SharedSelectButton */}
@@ -267,11 +311,11 @@ export const UserTablePill: React.FC<UserTablePillProps> = ({
             >
               {/* Items List with SharedSelectButton typography and #f1f5f9 hover */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                {remainingUsers.map((name, i) => (
+                {popoverItems.map((item, i) => (
                   <UserPopoverItem
-                    key={`${name}-${i}`}
-                    name={name}
-                    initials={getInitials(name)}
+                    key={`${item.name}-${i}`}
+                    name={item.name}
+                    initials={item.initials}
                   />
                 ))}
               </div>

@@ -39,4 +39,9 @@ export interface UserSession {
   baseRole: BaseRole;
   avatar: string;
   department: string;
+  isAdmin?: boolean;
+  title?: string;
+  function?: string;
+  location?: string;
+  initials?: string;
 }

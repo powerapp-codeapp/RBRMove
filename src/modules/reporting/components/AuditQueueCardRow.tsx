@@ -17,12 +17,14 @@ import {
   QueueRolePillGroup,
   UserTablePill
 } from '../../../components/shared';
+import { useUserSession } from '../../../context/UserSessionContext';
 import {
   getEngagementWorkflowState,
   getIssueBreakdown,
   getCategoryFilteredIssues,
   isITIssue,
-  getRoleDetails
+  getRoleDetails,
+  resolveEngagementQueueAvatars
 } from '../utils/reportingWorkflowEngine';
 import { WorkflowModal } from './WorkflowModal';
 import { IssueLogsDialog } from './IssueLogsDialog';
@@ -60,6 +62,7 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
   onSelectReportingJob,
   onSendToRole: _onSendToRole
 }) => {
+  const { currentUser } = useUserSession();
   const [workflowModalIssue, setWorkflowModalIssue] = useState<any | null>(null);
   const [trackChangesIssue, setTrackChangesIssue] = useState<any | null>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
@@ -113,6 +116,7 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
   };
 
   const wf = getEngagementWorkflowState(job);
+  const { primaryUser, remainingAssignees } = resolveEngagementQueueAvatars(job, currentUser, auditTab, wf);
   const isNotStarted = wf.status === 'Not Started';
   const bd = getIssueBreakdown(job, userRole, auditTab === 'my-actions');
 
@@ -705,7 +709,12 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
 
             {/* Current Owner (Componentized UserTablePill with 1st user + +N hover) */}
             <div style={{ paddingRight: '8px' }}>
-              <UserTablePill owners={wf.owners} queue={wf.queue} />
+              <UserTablePill
+                owners={wf.owners}
+                primaryUser={primaryUser}
+                remainingAssignees={remainingAssignees}
+                queue={wf.queue}
+              />
             </div>
 
             {/* When All Associated Audits: Only In-Progress Issues Breakdown in primary row (Single Row, Center Aligned) */}

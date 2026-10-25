@@ -1492,7 +1492,8 @@
     "function": "IT",
     "level": "Manager",
     "userIds": [
-      "USR-006"
+      "USR-006",
+      "USR-000"
     ],
     "users": [
       {
@@ -1501,6 +1502,16 @@
         "email": "amanda.palmer@jnj.com",
         "initials": "AP",
         "title": "IT Audit Manager",
+        "function": "IT",
+        "isAlternateRole": false,
+        "baselineRole": "it-manager"
+      },
+      {
+        "id": "USR-000",
+        "name": "Tamilselvan Natarajan",
+        "email": "tamilselvan@jnj.com",
+        "initials": "TN",
+        "title": "Global Audit Administrator & IT Lead",
         "function": "IT",
         "isAlternateRole": false,
         "baselineRole": "it-manager"
@@ -2196,7 +2207,8 @@
     "function": "IT",
     "level": "Manager",
     "userIds": [
-      "USR-006"
+      "USR-006",
+      "USR-000"
     ],
     "users": [
       {
@@ -2205,6 +2217,16 @@
         "email": "amanda.palmer@jnj.com",
         "initials": "AP",
         "title": "IT Audit Manager",
+        "function": "IT",
+        "isAlternateRole": false,
+        "baselineRole": "it-manager"
+      },
+      {
+        "id": "USR-000",
+        "name": "Tamilselvan Natarajan",
+        "email": "tamilselvan@jnj.com",
+        "initials": "TN",
+        "title": "Global Audit Administrator & IT Lead",
         "function": "IT",
         "isAlternateRole": false,
         "baselineRole": "it-manager"
@@ -2900,7 +2922,8 @@
     "function": "IT",
     "level": "Manager",
     "userIds": [
-      "USR-006"
+      "USR-006",
+      "USR-000"
     ],
     "users": [
       {
@@ -2909,6 +2932,16 @@
         "email": "amanda.palmer@jnj.com",
         "initials": "AP",
         "title": "IT Audit Manager",
+        "function": "IT",
+        "isAlternateRole": false,
+        "baselineRole": "it-manager"
+      },
+      {
+        "id": "USR-000",
+        "name": "Tamilselvan Natarajan",
+        "email": "tamilselvan@jnj.com",
+        "initials": "TN",
+        "title": "Global Audit Administrator & IT Lead",
         "function": "IT",
         "isAlternateRole": false,
         "baselineRole": "it-manager"

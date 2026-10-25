@@ -1,5 +1,16 @@
 [
   {
+    "id": "USR-000",
+    "name": "Tamilselvan Natarajan",
+    "email": "tamilselvan@jnj.com",
+    "initials": "TN",
+    "title": "Global Audit Administrator & IT Lead",
+    "function": "IT",
+    "location": "New Brunswick, NJ (US)",
+    "baselineRole": "it-manager",
+    "isAdmin": true
+  },
+  {
     "id": "USR-001",
     "name": "Marcus Vance",
     "email": "marcus.vance@jnj.com",
