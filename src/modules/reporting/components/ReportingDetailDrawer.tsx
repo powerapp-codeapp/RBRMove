@@ -246,7 +246,7 @@ export const ReportingDetailDrawer: React.FC<ReportingDetailDrawerProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 'var(--type-caption-size, 11.5px)', fontWeight: 600, color: '#63666a' }}>Assigned Audit Team</span>
               <strong style={{ fontSize: 'var(--type-table-row-size, 12px)', fontWeight: 700, color: '#000099' }}>
-                {job.leadOwner || 'Amanda Palmer'}
+                {(Array.isArray(job.assignedUsers) && job.assignedUsers.length > 0) ? job.assignedUsers.map((u: any) => u.displayName || u.name).join(', ') : (job.leadOwner && job.leadOwner !== 'Amanda Palmer' ? job.leadOwner : 'Unassigned')}
               </strong>
             </div>
           </div>

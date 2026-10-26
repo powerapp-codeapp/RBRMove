@@ -12,13 +12,14 @@ export interface ProcessMatrixRow {
 }
 
 export interface ScopeSummary {
-  assessmentPeriod: string;
+  assessmentPeriod?: string;
   entitySector: string;
   entityLocation: string;
   metric: string;
-  objectivePrefix: string;
-  objectiveBullets: string[];
-  objectiveHtml: string;
+  objectivePrefix?: string;
+  objectiveBullets?: string[];
+  objectiveHtml?: string;
+  objectiveText?: string;
   processMatrix: ProcessMatrixRow[];
   background: string;
 }
@@ -34,13 +35,56 @@ export interface ExecutiveSummaryData {
   fileName: string;
   reportTitle: string;
   auditableEntity: string;
+  isZeroIssue?: boolean;
   scopeSummary: ScopeSummary;
   auditInsights: AuditInsights;
   criticalMajorSection: {
     criticalIssue?: { title: string; description: string };
     majorIssue?: { title: string; description: string };
+    zeroIssueNote?: string;
   };
 }
+
+export const zeroIssueTransActData: ExecutiveSummaryData = {
+  id: "EXEC-2026-TRANSACT",
+  fileName: "TransAct Health Check Review_ExecSummary",
+  reportTitle: "Executive Summary Report",
+  auditableEntity: "Corporate / TransAct Program",
+  isZeroIssue: true,
+  scopeSummary: {
+    assessmentPeriod: "",
+    entitySector: "Corporate",
+    entityLocation: "New Brunswick | United States",
+    metric: "CAR Amount: USD 395MM",
+    objectivePrefix: "",
+    objectiveBullets: [],
+    objectiveHtml: "",
+    objectiveText: "To assess the go-live readiness of the TransAct program by evaluating the design, implementation strategy, and operating effectiveness with respect to internal controls, procedures, and governance.",
+    processMatrix: [
+      { processTitle: "Business Process Framework", critical: 0, major: 0, minor: 0, total: 0 },
+      { processTitle: "Compliance", critical: 0, major: 0, minor: 0, total: 0 },
+      { processTitle: "Project Governance", critical: 0, major: 0, minor: 0, total: 0 },
+      { processTitle: "Access Management", critical: 0, major: 0, minor: 0, total: 0 },
+      { processTitle: "Cutover & Hypercare", critical: 0, major: 0, minor: 0, total: 0 },
+      { processTitle: "Data Conversion & Migration", critical: 0, major: 0, minor: 0, total: 0 },
+      { processTitle: "Interfaces", critical: 0, major: 0, minor: 0, total: 0 },
+      { processTitle: "IT Framework", critical: 0, major: 0, minor: 0, total: 0 },
+      { processTitle: "Testing & Releases", critical: 0, major: 0, minor: 0, total: 0 },
+      { processTitle: "Total Issues", critical: 0, major: 0, minor: 0, total: 0 },
+    ],
+    background: `<p>TransAct is a multi-year initiative that extends Central Finance (CFIN) to enable full transactional capabilities within a single "Finance S/4" SAP S/4HANA ERP instance. It provides a single Finance ERP instance for general ledger and sub-ledger data, centralized fixed assets, a central intercompany hub, and integration with the Transcend environments. TransAct centralizes and harmonizes financial data and reduces the technology landscape from approximately 40 ERPs to a single transactional source of record for financial actuals across the future-state J&J technology ecosystem.</p><p>By evolving SAP S/4HANA from a replication layer into the transactional system of record, TransAct establishes S/4 Finance as the primary source for financial actuals. This change supports enterprise-wide harmonization and scalability and aligns with the Innovative Medicine (IM), MedTech (MT), and Vision ERP programs.</p><p>This health check focused on the planned Q3 2026 deployment of TransAct MedTech Cilag and GTE within the TransAct Finance S/4 environment, representing both the rollout of the standardized TransAct global template to Cilag and continued enhancement across the enterprise.</p><p>The Cilag release deploys the TransAct global template for the MedTech legal entity (LE 8527 – MRC 2666). It enables end-state Account-to-Report (A2R) processes, indirect Procedure-to-Pay (P2P), tax, treasury and statutory reporting for Switzerland. The deployment integrates with existing MedTech Transcend environments, with limited changes related to central payments for intercompany AR/AP and the transition to S/4 Finance as the ledger of record.</p><p>In parallel, the GTE release delivers incremental enhancements to the global template across A2R, Invoice-to-Cash (I2C), and both direct and indirect P2P, supported by the same integrated applications.</p>`,
+  },
+  auditInsights: {
+    overallText: "Overall, for the processes reviewed, 0 critical, 0 major, and 0 minor findings were identified.",
+    narrativeHtml: `<p>Due to the timing of the review relative to go-live, certain deliverables and documentation were still being finalized following User Acceptance Testing (UAT) and implementation readiness activities. As a result, these open items will be addressed through run-state SOX testing performed by the SOX GS and GA&A IT testing teams.</p>`,
+    paragraphs: [
+      "Due to the timing of the review relative to go-live, certain deliverables and documentation were still being finalized following User Acceptance Testing (UAT) and implementation readiness activities. As a result, these open items will be addressed through run-state SOX testing performed by the SOX GS and GA&A IT testing teams.",
+    ],
+  },
+  criticalMajorSection: {
+    zeroIssueNote: "The audit review did not identify any critical or major issues.",
+  },
+};
 
 export const mockExecutiveSummaryData: ExecutiveSummaryData = {
   id: "EXEC-2026-881",
@@ -142,6 +186,38 @@ export function generateExecutiveSummaryData(job: any): ExecutiveSummaryData {
     metric = "Automated Optical Inspection GxP, ISO 13485 Standards & Cleanroom Environmental Controls";
   }
 
+  // Extract issues from job
+  const activeIssues = Array.isArray(job.issuesList)
+    ? job.issuesList.filter((iss: any) => iss.status !== 'Excluded' && iss.status !== 822500009)
+    : [];
+
+  const isNotStarted =
+    job.status === 'Not Started' ||
+    job.workflowStatus === 'Not Started' ||
+    job.subStatus === 'Not Started';
+
+  // When audit has no active issues and is in Not Started state (or zero issues)
+  if (activeIssues.length === 0 && (!lowerName.includes("suzhou") || isNotStarted || job.isZeroIssue)) {
+    return {
+      ...zeroIssueTransActData,
+      id: `EXEC-${job.id || "2026-TRANSACT"}`,
+      fileName: job.fileName || job.fullName || job.engagement || job.title
+        ? `${cleanTitle}_ExecSummary`
+        : zeroIssueTransActData.fileName,
+      scopeSummary: {
+        ...zeroIssueTransActData.scopeSummary,
+        processMatrix: zeroIssueTransActData.scopeSummary.processMatrix.map((r) => ({ ...r })),
+      },
+      auditInsights: {
+        ...zeroIssueTransActData.auditInsights,
+        paragraphs: [...zeroIssueTransActData.auditInsights.paragraphs],
+      },
+      criticalMajorSection: {
+        zeroIssueNote: "The audit review did not identify any critical or major issues.",
+      },
+    };
+  }
+
   // If this is the default MedTech Suzhou audit, return the exact mock sample
   if (lowerName.includes("suzhou") && (!job.issuesList || job.issuesList.length === 0 || job.issuesList.length === 8)) {
     return {
@@ -152,7 +228,7 @@ export function generateExecutiveSummaryData(job: any): ExecutiveSummaryData {
   }
 
   // Extract issues from job
-  const issues: any[] = Array.isArray(job.issuesList) ? job.issuesList : [];
+  const issues: any[] = activeIssues;
 
   // Build Process Breakdown Matrix from actual issues
   let processMatrix: ProcessMatrixRow[] = [];

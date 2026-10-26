@@ -4,24 +4,21 @@ import {
   Filter,
   ArrowUpDown,
   Calendar,
-  RefreshCw,
-  Database
+  RefreshCw
 } from 'lucide-react';
 import { useEngagement } from '../../../context/EngagementContext';
 import { useUserSession } from '../../../context/UserSessionContext';
 import {
-  assessments,
-  getInitialReportingJobs,
   getEngagementWorkflowState,
   isAuditNeedingAction,
   isUserAssignedToEngagement,
   getUserRoleOnEngagement,
   getRoleDetails,
 } from '../utils/reportingWorkflowEngine';
-import { fetchDataverseReportingData } from '../../../services/dataverseReportingService';
-import { ReportingDetailDrawer } from '../components/ReportingDetailDrawer';
+import { fetchDataverseReportingData, createDataverseIssue } from '../../../services/dataverseReportingService';
 import { CreateIssueDialog } from '../components/CreateIssueDialog';
 import { AuditQueueCardRow } from '../components/AuditQueueCardRow';
+import { CreateSummaryConfirmModal } from '../components/CreateSummaryConfirmModal';
 import {
   SharedTabs,
   type SharedTabItem,
@@ -49,10 +46,11 @@ export const AuditQueueView: React.FC = () => {
   const userRoleDetails = useMemo(() => getRoleDetails(userRole), [userRole]);
   const isBusinessRole = userRoleDetails.baseRole === 'primary-business-contact';
 
-  const [jobs, setJobs] = useState<any[]>(getInitialReportingJobs);
-  const [assessmentsList, setAssessmentsList] = useState<any[]>(assessments);
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [assessmentsList, setAssessmentsList] = useState<any[]>([]);
   const [isLiveConnected, setIsLiveConnected] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
   const [auditTab, setAuditTab] = useState<'my-actions' | 'all-associated'>('my-actions');
 
   // Load Dataverse tables on mount and when manually refreshed
@@ -65,10 +63,10 @@ export const AuditQueueView: React.FC = () => {
       setIsLiveConnected(payload.isLiveConnected);
       if (showToast) {
         setToastMessage({
-          title: payload.isLiveConnected ? 'Connected to Dataverse' : 'Local Dev Mode',
+          title: payload.isLiveConnected ? 'Connected to Dataverse' : 'Dataverse Disconnected',
           description: payload.isLiveConnected
             ? `Successfully synchronized ${payload.jobs.length} engagements from Microsoft Dataverse.`
-            : 'Power Apps host session not detected. Serving local seed catalog.',
+            : 'Power Apps host session not detected or tables empty.',
           severity: payload.isLiveConnected ? 'success' : 'info'
         });
       }
@@ -76,6 +74,7 @@ export const AuditQueueView: React.FC = () => {
       console.warn('[AuditQueueView] Dataverse fetch error:', err);
     } finally {
       setIsRefreshing(false);
+      setIsInitialLoading(false);
     }
   };
 
@@ -117,16 +116,25 @@ export const AuditQueueView: React.FC = () => {
     });
   }, [userAssociatedJobs, isBusinessRole, currentUser.email, currentUser.userId, userRole]);
 
-  // Memoized filter options for SharedFilterSelect (Loads only years: 2024, 2025, 2026, 2027)
+  // Memoized filter options for SharedFilterSelect (Loads portfolio assessment years)
   const assessmentOptions: FilterOption[] = useMemo(() => {
     return assessmentsList.map((asm: any) => {
-      const asmCount = userAssociatedJobs.filter(
-        (j) => (j.assessmentId || (j.id.startsWith('2025') ? 'ASM-2025' : j.id.startsWith('2027') ? 'ASM-2027' : 'ASM-2026')) === asm.id
-      ).length;
+      const asmYear = String(asm.year || asm.name?.match(/20\d{2}/)?.[0] || '');
+      const asmId = asm.id;
+      const normAsmId = asmId ? String(asmId).toLowerCase().replace(/[{}]/g, '').trim() : '';
+
+      const asmCount = userAssociatedJobs.filter((j) => {
+        const jAsmId = j.assessmentId ? String(j.assessmentId).toLowerCase().replace(/[{}]/g, '').trim() : '';
+        if (normAsmId && jAsmId && jAsmId === normAsmId) return true;
+        const jYear = String(j.year || j.assessmentYear || '');
+        if (asmYear && jYear && asmYear === jYear) return true;
+        return false;
+      }).length;
+
       const isClosed = asm.status === 'Closed' || asm.status === 'Finalized';
       return {
         value: asm.id,
-        label: String(asm.year || (asm.name?.match(/\d{4}/)?.[0]) || asm.name),
+        label: asmYear || String(asm.name),
         count: asmCount,
         tag: asm.status,
         tagColor: isClosed
@@ -157,9 +165,9 @@ export const AuditQueueView: React.FC = () => {
   const [sortAsc, setSortAsc] = useState<boolean>(false);
 
   // Drawer & Dialog States
-  const [selectedReportingJobId, setSelectedReportingJobId] = useState<string | null>(null);
   const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
   const [selectedJobForIssue, setSelectedJobForIssue] = useState<any | null>(null);
+  const [confirmSummaryJob, setConfirmSummaryJob] = useState<any | null>(null);
   const [sendToDropdownIssueId, setSendToDropdownIssueId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<{
     title: string;
@@ -178,9 +186,33 @@ export const AuditQueueView: React.FC = () => {
 
   // Navigation handlers
   const handleWorkOnReport = (job: any, type: 'audit' | 'executive') => {
+    if (type === 'executive') {
+      const activeIssuesCount = Array.isArray(job.issuesList)
+        ? job.issuesList.filter((iss: any) => iss.status !== 'Excluded' && iss.status !== 822500009).length
+        : 0;
+      const isNotStarted =
+        job.status === 'Not Started' ||
+        job.workflowStatus === 'Not Started' ||
+        job.subStatus === 'Not Started';
+
+      if (activeIssuesCount === 0 && isNotStarted) {
+        setConfirmSummaryJob(job);
+        return;
+      }
+    }
+
     setSelectedEngagementId(job.id);
     setActiveEngagement(job);
     setActiveReportingView(type === 'audit' ? 'audit-studio' : 'executive-studio');
+  };
+
+  const handleConfirmCreateSummary = () => {
+    if (!confirmSummaryJob) return;
+    const targetJob = confirmSummaryJob;
+    setConfirmSummaryJob(null);
+    setSelectedEngagementId(targetJob.id);
+    setActiveEngagement(targetJob);
+    setActiveReportingView('executive-studio');
   };
 
   const handleOpenCreateForJob = (job: any) => {
@@ -188,45 +220,66 @@ export const AuditQueueView: React.FC = () => {
     setIsCreateDrawerOpen(true);
   };
 
-  const handleSaveNewIssue = (newIssueData: any) => {
+  const handleSaveNewIssue = async (newIssueData: any, statusAction?: 'draft' | 'submit') => {
     if (selectedJobForIssue) {
-      const newIssue = {
-        id: `ISSUE-${Date.now().toString().slice(-4)}`,
-        title: newIssueData.title || 'New Finding',
-        header: newIssueData.title || 'New Finding',
-        criticality: newIssueData.criticality || 'Major',
-        status: 'Drafting',
-        currentLevel: 'Auditor Drafting',
-        createdBy: activeRole?.label || 'Marcus Vance',
-        lastEditedBy: activeRole?.label || 'Marcus Vance',
-        lastUpdated: new Date().toISOString().split('T')[0],
-        tech: activeRole?.domain || 'IT',
-        ...newIssueData
-      };
+      try {
+        const created = await createDataverseIssue(
+          {
+            engagementId: selectedJobForIssue.id,
+            ...newIssueData
+          },
+          currentUser
+        );
 
-      setJobs(prev =>
-        prev.map(j => {
-          if (j.id === selectedJobForIssue.id) {
-            const updatedIssues = [...(j.issuesList || []), newIssue];
-            return {
-              ...j,
-              status: j.status === 'Not Started' ? 'In Progress' : j.status,
-              subStatus: 'Audit Report In Progress',
-              issuesList: updatedIssues
-            };
-          }
-          return j;
-        })
-      );
+        const newIssue = created?.issue || {
+          id: created?.iar_issuesid || `ISSUE-${Date.now().toString().slice(-4)}`,
+          title: newIssueData.title || 'New Finding',
+          header: newIssueData.title || 'New Finding',
+          criticality: newIssueData.criticality || 'Major',
+          status: newIssueData.status || (statusAction === 'submit' ? 'Pending TC' : 'Pending Staff'),
+          currentLevel: newIssueData.status || (statusAction === 'submit' ? 'Pending TC' : 'Pending Staff'),
+          createdBy: currentUser?.name || activeRole?.label || 'Auditor',
+          lastEditedBy: currentUser?.name || activeRole?.label || 'Auditor',
+          lastUpdated: new Date().toISOString().split('T')[0],
+          tech: activeRole?.domain || newIssueData.function || 'IT',
+          ...newIssueData
+        };
 
-      const isSubmitted = newIssue.status === 'Pending TC';
-      setToastMessage({
-        title: isSubmitted ? 'Issue Submitted to TC' : 'Issue Saved as Draft',
-        description: isSubmitted
-          ? `Issue "${newIssue.title}" submitted to TC Review for ${selectedJobForIssue.id}.`
-          : `New draft issue "${newIssue.title}" saved in ${selectedJobForIssue.id}.`,
-        severity: 'success'
-      });
+        setJobs(prev =>
+          prev.map(j => {
+            if (j.id === selectedJobForIssue.id) {
+              const updatedIssues = [...(j.issuesList || []), newIssue];
+              return {
+                ...j,
+                status: j.status === 'Not Started' ? 'In Progress' : j.status,
+                subStatus: 'Audit Report In Progress',
+                workflowStatus: 'Audit Report In Progress',
+                issuesList: updatedIssues
+              };
+            }
+            return j;
+          })
+        );
+
+        const isSubmitted = statusAction === 'submit' || (newIssue.status && !newIssue.status.includes('Draft') && !newIssue.status.includes('Staff'));
+        setToastMessage({
+          title: isSubmitted ? 'Issue Submitted to Review' : 'Issue Saved as Draft',
+          description: isSubmitted
+            ? `Issue "${newIssue.title}" submitted to review for ${selectedJobForIssue.id}.`
+            : `New draft issue "${newIssue.title}" saved in ${selectedJobForIssue.id}.`,
+          severity: 'success'
+        });
+
+        // Background sync to ensure exact state alignment
+        loadLiveReportingData(false).catch(() => {});
+      } catch (err: any) {
+        console.error('[AuditQueueView] Error saving issue to Dataverse:', err);
+        setToastMessage({
+          title: 'Error Saving Issue',
+          description: err?.message || 'Could not persist issue to Dataverse.',
+          severity: 'error'
+        });
+      }
     }
     setIsCreateDrawerOpen(false);
     setSelectedJobForIssue(null);
@@ -284,12 +337,34 @@ export const AuditQueueView: React.FC = () => {
 
     return baseList
       .filter(job => {
-        // Assessment Filter (Multi-Select)
+        // Assessment Filter (Multi-Select & Single-Select)
         if (selectedAssessments.length > 0) {
-          const jobAsm =
-            job.assessmentId ||
-            (job.id.startsWith('2025') ? 'ASM-2025' : job.id.startsWith('2027') ? 'ASM-2027' : 'ASM-2026');
-          if (!selectedAssessments.includes(jobAsm)) return false;
+          const isMatch = selectedAssessments.some((selectedVal) => {
+            const normSelected = String(selectedVal).toLowerCase().replace(/[{}]/g, '').trim();
+
+            // 1. Direct match on job.assessmentId GUID or ID
+            const jAsmId = job.assessmentId ? String(job.assessmentId).toLowerCase().replace(/[{}]/g, '').trim() : '';
+            if (jAsmId && (jAsmId === normSelected || jAsmId === selectedVal)) return true;
+
+            // 2. Direct match on job.year or job.assessmentYear
+            const jobYear = String(job.year || job.assessmentYear || '');
+            if (jobYear && (jobYear === selectedVal || jobYear === normSelected)) return true;
+
+            // 3. Match against assessmentsList record
+            const selectedAsm = assessmentsList.find((a: any) => {
+              const aId = a.id ? String(a.id).toLowerCase().replace(/[{}]/g, '').trim() : '';
+              return aId === normSelected || a.id === selectedVal || a.year === selectedVal || a.name === selectedVal;
+            });
+            if (selectedAsm) {
+              const selectedYear = String(selectedAsm.year || selectedAsm.name?.match(/20\d{2}/)?.[0] || '');
+              if (selectedYear && jobYear && selectedYear === jobYear) return true;
+              const selAsmId = selectedAsm.id ? String(selectedAsm.id).toLowerCase().replace(/[{}]/g, '').trim() : '';
+              if (jAsmId && selAsmId && jAsmId === selAsmId) return true;
+            }
+
+            return false;
+          });
+          if (!isMatch) return false;
         }
 
         // Status Filter
@@ -373,10 +448,6 @@ export const AuditQueueView: React.FC = () => {
   const isFilterActive =
     selectedStatuses.length > 0 || searchQuery.trim() !== '' || selectedAssessments.length > 0;
 
-  const selectedReportingJob = useMemo(() => {
-    return jobs.find(j => j.id === selectedReportingJobId) || null;
-  }, [jobs, selectedReportingJobId]);
-
   return (
     <div
       style={{
@@ -430,7 +501,7 @@ export const AuditQueueView: React.FC = () => {
           alignItems: 'center',
           gap: '12px',
           width: '100%',
-          marginBottom: 'var(--space-filter-margin-bottom, 16px)',
+          marginBottom: '22px',
           minHeight: 'var(--control-min-height-sm, 2.25rem)',
           flexWrap: 'wrap',
         }}
@@ -545,38 +616,6 @@ export const AuditQueueView: React.FC = () => {
               />
             </SharedButton>
           </SharedTooltip>
-
-          {/* Live Dataverse Connection Status Badge */}
-          <SharedTooltip
-            title={
-              isLiveConnected
-                ? 'Connected to Microsoft Dataverse (Org: orge7f34042.api.crm8.dynamics.com). Serving live records.'
-                : 'Serving local seed catalog. To view live Dataverse tables locally, launch via the Power Apps Local Play URL.'
-            }
-            placement="top"
-          >
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px 10px',
-                borderRadius: '16px',
-                fontSize: '11px',
-                fontWeight: 600,
-                fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-                backgroundColor: isLiveConnected ? '#ECFDF5' : '#FFFBEB',
-                color: isLiveConnected ? '#087D0D' : '#B45309',
-                border: isLiveConnected ? '1px solid #A7F3D0' : '1px solid #FDE68A',
-                cursor: 'default',
-                userSelect: 'none',
-                flexShrink: 0
-              }}
-            >
-              <Database size={12} color={isLiveConnected ? '#087D0D' : '#B45309'} />
-              <span>{isLiveConnected ? 'Dataverse Live' : 'Local Dev Mode'}</span>
-            </div>
-          </SharedTooltip>
         </div>
 
       {/* Queue Table Layout with Header Grid & Expandable Cards */}
@@ -643,35 +682,61 @@ export const AuditQueueView: React.FC = () => {
             </div>
           </div>
 
-          {/* Cards List or Empty State */}
-          {filteredJobs.length === 0 ? (
+          {/* Cards List, Loading Skeleton, or Empty State */}
+          {isInitialLoading ? (
+            <div
+              style={{
+                padding: '64px 32px',
+                textAlign: 'center',
+                backgroundColor: '#ffffff',
+                borderRadius: '8px',
+                border: '1px solid #d8d8d8',
+                color: '#000099'
+              }}
+            >
+              <RefreshCw size={26} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+              <p style={{ fontWeight: 600, fontSize: '13px', color: '#1E293B', fontFamily: '"jj-circular", Arial, sans-serif', marginBottom: '4px' }}>
+                Connecting to Microsoft Dataverse...
+              </p>
+              <p style={{ fontSize: '11px', color: '#64748B' }}>
+                Loading audit engagements, portfolio assessments, and team assignments
+              </p>
+            </div>
+          ) : filteredJobs.length === 0 ? (
             <div
               style={{
                 padding: '48px',
                 textAlign: 'center',
                 backgroundColor: '#ffffff',
                 borderRadius: '8px',
-                border: '1px solid #d8d8d8',
+                border: '1px solid #edf0f5',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
                 color: '#64748B'
               }}
             >
               <Filter size={36} color="#CBD5E1" style={{ margin: '0 auto 8px' }} />
-              <p style={{ fontWeight: 700, color: '#334155' }}>
-                {auditTab === 'my-actions' ? 'No audits currently requiring your action' : 'No reporting jobs matched your filters'}
+              <p style={{ fontWeight: 700, color: '#334155', margin: 0 }}>
+                {jobs.length === 0 && isLiveConnected
+                  ? 'No audit engagements found in Microsoft Dataverse'
+                  : auditTab === 'my-actions'
+                  ? 'No audits currently requiring your action'
+                  : 'No reporting jobs matched your filters'}
               </p>
-              <p style={{ fontSize: '11px', color: '#94A3B8' }}>
-                {auditTab === 'my-actions'
-                  ? `You are all caught up for ${currentUser.name} (${activeRole.label})! Switch to "All Associated" to view all assigned audits.`
-                  : isImpersonating
-                  ? `${currentUser.name} (${currentUser.email}) has no assigned audits in this portfolio matching your filters.`
-                  : 'Try clearing your search query or status filters.'}
-              </p>
+              {auditTab !== 'my-actions' && (
+                <p style={{ fontSize: '11px', color: '#94A3B8', marginTop: '6px' }}>
+                  {jobs.length === 0 && isLiveConnected
+                    ? 'The app is successfully connected to your Dataverse environment, but table iar_engagementses currently has 0 records. Synchronize from TeamMate or create an engagement to see records here.'
+                    : isImpersonating
+                    ? `${currentUser.name} (${currentUser.email}) has no assigned audits in this portfolio matching your filters.`
+                    : 'Try clearing your search query or status filters.'}
+                </p>
+              )}
               {auditTab === 'my-actions' && allAssociatedAuditsCount > 0 && (
                 <button
                   type="button"
                   onClick={() => setAuditTab('all-associated')}
                   style={{
-                    marginTop: '12px',
+                    marginTop: '14px',
                     padding: '6px 14px',
                     backgroundColor: '#ffffff',
                     border: '1px solid #CBD5E1',
@@ -691,7 +756,7 @@ export const AuditQueueView: React.FC = () => {
               <AuditQueueCardRow
                 key={job.id}
                 job={job}
-                userRole={userRole}
+                userRole={getUserRoleOnEngagement(job, currentUser.email, currentUser.userId) || userRole}
                 isBusinessRole={isBusinessRole}
                 auditTab={auditTab}
                 isExpanded={expandedRowId === job.id}
@@ -702,25 +767,12 @@ export const AuditQueueView: React.FC = () => {
                 setSendToDropdownIssueId={setSendToDropdownIssueId}
                 onWorkOnReport={handleWorkOnReport}
                 onOpenCreateForJob={handleOpenCreateForJob}
-                onSelectReportingJob={(jobId) => setSelectedReportingJobId(jobId)}
                 onSendToRole={handleSendToRole}
               />
             ))
           )}
         </div>
       </div>
-
-      {/* Right Reporting Detail Drawer Panel */}
-      {selectedReportingJob && (
-        <ReportingDetailDrawer
-          isOpen={!!selectedReportingJob}
-          job={selectedReportingJob}
-          userRole={userRole}
-          onClose={() => setSelectedReportingJobId(null)}
-          onWorkOnReport={handleWorkOnReport}
-          onOpenCreateIssue={handleOpenCreateForJob}
-        />
-      )}
 
       {/* Create Issue Dialog */}
       {isCreateDrawerOpen && selectedJobForIssue && (
@@ -730,9 +782,26 @@ export const AuditQueueView: React.FC = () => {
           engagementId={selectedJobForIssue.id}
           job={selectedJobForIssue}
           engagementName={selectedJobForIssue.title || selectedJobForIssue.engagementName || selectedJobForIssue.name}
+          userRole={userRole}
+          currentUser={currentUser}
           onSave={handleSaveNewIssue}
         />
       )}
+
+      {/* Confirmation Modal for Starting Summary Report Without Issues */}
+      <CreateSummaryConfirmModal
+        isOpen={Boolean(confirmSummaryJob)}
+        onClose={() => setConfirmSummaryJob(null)}
+        onConfirm={handleConfirmCreateSummary}
+        engagementName={
+          confirmSummaryJob?.fileName ||
+          confirmSummaryJob?.engagementName ||
+          confirmSummaryJob?.engagement ||
+          confirmSummaryJob?.title ||
+          confirmSummaryJob?.id ||
+          'Audit Engagement'
+        }
+      />
       </div>
     </div>
   );

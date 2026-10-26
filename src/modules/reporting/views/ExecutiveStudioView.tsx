@@ -21,6 +21,7 @@ import {
 import { useEngagement } from '../../../context/EngagementContext';
 import { useUserSession } from '../../../context/UserSessionContext';
 import { generateExecutiveSummaryData, type ExecutiveSummaryData } from '../utils/execReportData';
+import { getUserRoleOnEngagement } from '../utils/reportingWorkflowEngine';
 import {
   PageHeader,
   SharedSelectButton,
@@ -38,7 +39,15 @@ import type { IssueComment, AuditTrailLog } from '../../../types/dataverse.types
 export const ExecutiveStudioView: React.FC = () => {
   const { selectedEngagementId, setActiveReportingView, activeEngagement } = useEngagement();
   const { activeRole, currentUser } = useUserSession();
-  const userRole = activeRole?.id || 'it-manager';
+
+  // Dynamically resolve user's role on this active engagement (FRD Section 2.3)
+  const userRole = useMemo(() => {
+    if (activeEngagement) {
+      const assignedRole = getUserRoleOnEngagement(activeEngagement, currentUser.email, currentUser.userId);
+      if (assignedRole) return assignedRole;
+    }
+    return activeRole?.id || 'it-manager';
+  }, [activeEngagement, currentUser.email, currentUser.userId, activeRole?.id]);
 
   const [execData, setExecData] = useState<ExecutiveSummaryData>(() =>
     generateExecutiveSummaryData(activeEngagement || { id: selectedEngagementId || 'REP-2026-881' })
@@ -135,8 +144,28 @@ export const ExecutiveStudioView: React.FC = () => {
   const isVP = roleLower.includes('vp');
   const isDirectorOrVP = isDirector || isVP;
 
+  // Check if zero-issue mode (FRD zero-issue executive summary)
+  const isZeroIssue = useMemo(() => {
+    if (execData?.isZeroIssue) return true;
+    const engAny = activeEngagement as any;
+    if (engAny) {
+      const activeIssues = Array.isArray(engAny.issuesList)
+        ? engAny.issuesList.filter((iss: any) => iss.status !== 'Excluded' && iss.status !== 822500009)
+        : [];
+      return activeIssues.length === 0;
+    }
+    return false;
+  }, [execData, activeEngagement]);
+
+  useEffect(() => {
+    if (isZeroIssue && expandedSection === 'issues') {
+      setExpandedSection('scope');
+    }
+  }, [isZeroIssue, expandedSection]);
+
   // Check if report has even one critical issue
   const hasCriticalIssues = useMemo(() => {
+    if (isZeroIssue) return false;
     const engAny = activeEngagement as any;
     if (engAny?.issuesList && engAny.issuesList.length > 0) {
       return engAny.issuesList.some(
@@ -147,7 +176,7 @@ export const ExecutiveStudioView: React.FC = () => {
       return execData.scopeSummary.processMatrix.some((r) => (r.critical || 0) > 0);
     }
     return false;
-  }, [activeEngagement, execData]);
+  }, [isZeroIssue, activeEngagement, execData]);
 
   const isPushDisabled = isDirector && !isVP && hasCriticalIssues;
 
@@ -426,8 +455,15 @@ export const ExecutiveStudioView: React.FC = () => {
     });
   };
 
-  // Helper to format matrix values: if 0, return '-'
-  const formatMatrixVal = (val: number | string | undefined | null) => {
+  // Helper to format matrix values: if 0, return '-' (unless it is the All column of total issues row where '0' is expected)
+  const formatMatrixVal = (
+    val: number | string | undefined | null,
+    isAllColumn = false,
+    isTotalRow = false
+  ) => {
+    if (isTotalRow && isAllColumn) {
+      return val !== null && val !== undefined && val !== '' ? val : '0';
+    }
     if (val === 0 || val === '0' || val === null || val === undefined || val === '') return '-';
     return val;
   };
@@ -879,7 +915,7 @@ export const ExecutiveStudioView: React.FC = () => {
                         {renderFieldCommentTrigger('scope_assessmentPeriod', 'Assessment Period')}
                       </div>
                       <SharedTextInput
-                        value={execData.scopeSummary.assessmentPeriod}
+                        value={execData.scopeSummary.assessmentPeriod || ''}
                         onChange={(val) => handleScopeChange('assessmentPeriod', val)}
                         placeholder="e.g. Q1 2026 – Q2 2026 (Jan 1, 2026 – Jun 30, 2026)"
                         size="small"
@@ -937,7 +973,9 @@ export const ExecutiveStudioView: React.FC = () => {
                       </div>
                       <SharedTextArea
                         value={
-                          execData.scopeSummary.objectiveBullets && execData.scopeSummary.objectiveBullets.length > 0
+                          execData.scopeSummary.objectiveText !== undefined
+                            ? execData.scopeSummary.objectiveText
+                            : execData.scopeSummary.objectiveBullets && execData.scopeSummary.objectiveBullets.length > 0
                             ? execData.scopeSummary.objectiveBullets.join('\n')
                             : (execData.scopeSummary.objectiveHtml || '')
                                 .replace(/<\/li><li>/g, '\n')
@@ -945,17 +983,21 @@ export const ExecutiveStudioView: React.FC = () => {
                                 .trim()
                         }
                         onChange={(val) => {
-                          const bullets = val.split('\n').map((b) => b.trim()).filter(Boolean);
-                          const html = `<ul>${bullets.map((b) => `<li>${b}</li>`).join('')}</ul>`;
-                          handleScopeChange('objectiveHtml', html);
-                          setExecData((prev) => ({
-                            ...prev,
-                            scopeSummary: {
-                              ...prev.scopeSummary,
-                              objectiveBullets: bullets,
-                              objectiveHtml: html,
-                            },
-                          }));
+                          if (isZeroIssue || execData.scopeSummary.objectiveText !== undefined) {
+                            handleScopeChange('objectiveText', val);
+                          } else {
+                            const bullets = val.split('\n').map((b) => b.trim()).filter(Boolean);
+                            const html = `<ul>${bullets.map((b) => `<li>${b}</li>`).join('')}</ul>`;
+                            handleScopeChange('objectiveHtml', html);
+                            setExecData((prev) => ({
+                              ...prev,
+                              scopeSummary: {
+                                ...prev.scopeSummary,
+                                objectiveBullets: bullets,
+                                objectiveHtml: html,
+                              },
+                            }));
+                          }
                         }}
                         placeholder="Enter audit objective bullet points (one per line)..."
                         rows={3}
@@ -1111,12 +1153,22 @@ export const ExecutiveStudioView: React.FC = () => {
                         {renderFieldCommentTrigger('scope_background', 'Background')}
                       </div>
                       <SharedTextArea
-                        value={execData.scopeSummary.background || ''}
-                        onChange={(val) => handleScopeChange('background', val)}
+                        value={
+                          (execData.scopeSummary.background || '')
+                            .replace(/<\/p>\s*<p>/gi, '\n\n')
+                            .replace(/<br\s*\/?>/gi, '\n')
+                            .replace(/<[^>]*>/g, '')
+                            .trim()
+                        }
+                        onChange={(val) => {
+                          const paras = val.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+                          const html = paras.map((p) => `<p>${p}</p>`).join('');
+                          handleScopeChange('background', html);
+                        }}
                         placeholder="Enter background section narrative..."
-                        rows={4}
+                        rows={6}
                         showCharCount
-                        maxLength={2500}
+                        maxLength={5000}
                       />
                     </div>
                   </div>
@@ -1234,7 +1286,8 @@ export const ExecutiveStudioView: React.FC = () => {
                 )}
               </div>
 
-              {/* SECTION 3 ACCORDION: Critical Issues / Major Issues (Page 2) */}
+              {/* SECTION 3 ACCORDION: Critical Issues / Major Issues (Page 2) - Hidden for zero-issue audits */}
+              {!isZeroIssue && (
               <div
                 style={{
                   backgroundColor: '#ffffff',
@@ -1373,6 +1426,7 @@ export const ExecutiveStudioView: React.FC = () => {
                   </div>
                 )}
               </div>
+              )}
             </div>
           </div>
         )}
@@ -1749,16 +1803,18 @@ export const ExecutiveStudioView: React.FC = () => {
                     }}
                   >
                     <tbody>
+                      {execData.scopeSummary.assessmentPeriod && (
+                        <tr>
+                          <td style={{ width: '160px', padding: '5px 8px', fontWeight: 700, color: '#000000', border: '1px solid #000000', verticalAlign: 'top' }}>
+                            Assessment Period:
+                          </td>
+                          <td style={{ padding: '5px 8px', color: '#000000', border: '1px solid #000000' }}>
+                            {execData.scopeSummary.assessmentPeriod}
+                          </td>
+                        </tr>
+                      )}
                       <tr>
                         <td style={{ width: '160px', padding: '5px 8px', fontWeight: 700, color: '#000000', border: '1px solid #000000', verticalAlign: 'top' }}>
-                          Assessment Period:
-                        </td>
-                        <td style={{ padding: '5px 8px', color: '#000000', border: '1px solid #000000' }}>
-                          {execData.scopeSummary.assessmentPeriod}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style={{ padding: '5px 8px', fontWeight: 700, color: '#000000', border: '1px solid #000000', verticalAlign: 'top' }}>
                           Entity Sector:
                         </td>
                         <td style={{ padding: '5px 8px', color: '#000000', border: '1px solid #000000' }}>
@@ -1786,20 +1842,28 @@ export const ExecutiveStudioView: React.FC = () => {
                           Objective:
                         </td>
                         <td style={{ padding: '6px 8px', color: '#000000', border: '1px solid #000000', lineHeight: '1.4' }}>
-                          <div style={{ marginBottom: '3px', fontWeight: 500 }}>Examples:</div>
-                          {execData.scopeSummary.objectiveHtml ? (
-                            <div
-                              className="rich-text-preview"
-                              dangerouslySetInnerHTML={{ __html: execData.scopeSummary.objectiveHtml }}
-                            />
+                          {execData.scopeSummary.objectiveText ? (
+                            <div>{execData.scopeSummary.objectiveText}</div>
                           ) : (
-                            <ul style={{ margin: 0, paddingLeft: '18px' }}>
-                              {(execData.scopeSummary.objectiveBullets || []).map((bullet, bIdx) => (
-                                <li key={bIdx} style={{ marginBottom: bIdx === execData.scopeSummary.objectiveBullets.length - 1 ? 0 : '4px' }}>
-                                  {bullet}
-                                </li>
-                              ))}
-                            </ul>
+                            <>
+                              {execData.scopeSummary.objectivePrefix && (
+                                <div style={{ marginBottom: '3px', fontWeight: 500 }}>{execData.scopeSummary.objectivePrefix}</div>
+                              )}
+                              {execData.scopeSummary.objectiveHtml ? (
+                                <div
+                                  className="rich-text-preview"
+                                  dangerouslySetInnerHTML={{ __html: execData.scopeSummary.objectiveHtml }}
+                                />
+                              ) : (
+                                <ul style={{ margin: 0, paddingLeft: '18px' }}>
+                                  {(execData.scopeSummary.objectiveBullets || []).map((bullet, bIdx) => (
+                                    <li key={bIdx} style={{ marginBottom: bIdx === (execData.scopeSummary.objectiveBullets?.length || 0) - 1 ? 0 : '4px' }}>
+                                      {bullet}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </>
                           )}
                         </td>
                       </tr>
@@ -1819,13 +1883,13 @@ export const ExecutiveStudioView: React.FC = () => {
                   >
                     <thead>
                       <tr>
-                        {/* Process Title: Grey #8F8F8F */}
+                        {/* Process Title: In zero-issue mode, white bg, black text, left aligned */}
                         <th
                           style={{
-                            backgroundColor: '#8F8F8F',
-                            color: '#ffffff',
+                            backgroundColor: isZeroIssue ? '#ffffff' : '#8F8F8F',
+                            color: isZeroIssue ? '#000000' : '#ffffff',
                             fontWeight: 700,
-                            textAlign: 'center',
+                            textAlign: isZeroIssue ? 'left' : 'center',
                             padding: '6px 10px',
                             border: '1px solid #000000',
                             fontSize: 'var(--type-table-header-size, 12px)',
@@ -1834,10 +1898,10 @@ export const ExecutiveStudioView: React.FC = () => {
                           Process Title
                         </th>
 
-                        {/* Critical: Red #D8001D */}
+                        {/* Critical: Red #CC0000 */}
                         <th
                           style={{
-                            backgroundColor: '#D8001D',
+                            backgroundColor: '#CC0000',
                             color: '#ffffff',
                             fontWeight: 700,
                             textAlign: 'center',
@@ -1850,10 +1914,10 @@ export const ExecutiveStudioView: React.FC = () => {
                           Critical
                         </th>
 
-                        {/* Major: Yellow #F1B500 */}
+                        {/* Major: Amber #FFA500 */}
                         <th
                           style={{
-                            backgroundColor: '#F1B500',
+                            backgroundColor: '#FFA500',
                             color: '#ffffff',
                             fontWeight: 700,
                             textAlign: 'center',
@@ -1866,10 +1930,10 @@ export const ExecutiveStudioView: React.FC = () => {
                           Major
                         </th>
 
-                        {/* Minor: Green #008000 */}
+                        {/* Minor: Green #2E7D32 */}
                         <th
                           style={{
-                            backgroundColor: '#008000',
+                            backgroundColor: '#2E7D32',
                             color: '#ffffff',
                             fontWeight: 700,
                             textAlign: 'center',
@@ -1882,11 +1946,11 @@ export const ExecutiveStudioView: React.FC = () => {
                           Minor
                         </th>
 
-                        {/* ALL: Grey #8F8F8F */}
+                        {/* ALL: In zero-issue mode, white bg, black text, "All" */}
                         <th
                           style={{
-                            backgroundColor: '#8F8F8F',
-                            color: '#ffffff',
+                            backgroundColor: isZeroIssue ? '#ffffff' : '#8F8F8F',
+                            color: isZeroIssue ? '#000000' : '#ffffff',
                             fontWeight: 700,
                             textAlign: 'center',
                             padding: '6px 10px',
@@ -1895,13 +1959,16 @@ export const ExecutiveStudioView: React.FC = () => {
                             fontSize: 'var(--type-table-header-size, 12px)',
                           }}
                         >
-                          ALL
+                          {isZeroIssue ? 'All' : 'ALL'}
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {execData.scopeSummary.processMatrix.map((row, idx) => {
-                        const isGrandTotal = idx === execData.scopeSummary.processMatrix.length - 1;
+                        const isTotalRow =
+                          idx === execData.scopeSummary.processMatrix.length - 1 ||
+                          row.processTitle === 'Total Issues' ||
+                          row.processTitle === 'Grand Total';
                         return (
                           <tr key={idx}>
                             <td
@@ -1909,7 +1976,7 @@ export const ExecutiveStudioView: React.FC = () => {
                                 padding: '6px 10px',
                                 color: '#000000',
                                 border: '1px solid #000000',
-                                fontWeight: isGrandTotal ? 700 : 'normal',
+                                fontWeight: isTotalRow ? 700 : 'normal',
                                 wordBreak: 'break-word',
                               }}
                             >
@@ -1922,10 +1989,10 @@ export const ExecutiveStudioView: React.FC = () => {
                                 textAlign: 'center',
                                 color: '#000000',
                                 border: '1px solid #000000',
-                                fontWeight: isGrandTotal ? 700 : 'normal',
+                                fontWeight: isTotalRow ? 700 : 'normal',
                               }}
                             >
-                              {formatMatrixVal(row.critical)}
+                              {formatMatrixVal(row.critical, false, isTotalRow)}
                             </td>
 
                             <td
@@ -1934,10 +2001,10 @@ export const ExecutiveStudioView: React.FC = () => {
                                 textAlign: 'center',
                                 color: '#000000',
                                 border: '1px solid #000000',
-                                fontWeight: isGrandTotal ? 700 : 'normal',
+                                fontWeight: isTotalRow ? 700 : 'normal',
                               }}
                             >
-                              {formatMatrixVal(row.major)}
+                              {formatMatrixVal(row.major, false, isTotalRow)}
                             </td>
 
                             <td
@@ -1946,10 +2013,10 @@ export const ExecutiveStudioView: React.FC = () => {
                                 textAlign: 'center',
                                 color: '#000000',
                                 border: '1px solid #000000',
-                                fontWeight: isGrandTotal ? 700 : 'normal',
+                                fontWeight: isTotalRow ? 700 : 'normal',
                               }}
                             >
-                              {formatMatrixVal(row.minor)}
+                              {formatMatrixVal(row.minor, false, isTotalRow)}
                             </td>
 
                             <td
@@ -1958,10 +2025,10 @@ export const ExecutiveStudioView: React.FC = () => {
                                 textAlign: 'center',
                                 color: '#000000',
                                 border: '1px solid #000000',
-                                fontWeight: isGrandTotal ? 700 : 'normal',
+                                fontWeight: isTotalRow ? 700 : 'normal',
                               }}
                             >
-                              {formatMatrixVal(row.total)}
+                              {formatMatrixVal(row.total, true, isTotalRow)}
                             </td>
                           </tr>
                         );
@@ -1970,50 +2037,87 @@ export const ExecutiveStudioView: React.FC = () => {
                   </table>
                 </div>
 
-                {/* 3. BACKGROUND BOX */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginBottom: '24px' }}>
-                  <div
-                    className="type-section-title"
-                    style={{
-                      backgroundColor: '#8F8F8F',
-                      border: '1px solid #000000',
-                      borderBottom: 'none',
-                      color: '#ffffff',
-                      fontWeight: 700,
-                      fontSize: 'var(--type-section-title-size, 13px)',
-                      textAlign: 'center',
-                      padding: '5px 10px',
-                      letterSpacing: '0.2px',
-                    }}
-                  >
-                    Background
-                  </div>
+                {/* 3. BOTTOM BOX ON PAGE 1: Critical/Major Issues (Zero-Issue mode) OR Background (Standard mode) */}
+                {isZeroIssue ? (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginBottom: '24px' }}>
+                    <div
+                      className="type-section-title"
+                      style={{
+                        backgroundColor: '#8F8F8F',
+                        border: '1px solid #000000',
+                        borderBottom: 'none',
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        fontSize: 'var(--type-section-title-size, 13px)',
+                        textAlign: 'center',
+                        padding: '5px 10px',
+                        letterSpacing: '0.2px',
+                      }}
+                    >
+                      Critical/Major Issues
+                    </div>
 
-                  <div
-                    style={{
-                      border: '1px solid #000000',
-                      backgroundColor: '#ffffff',
-                      padding: '14px',
-                      minHeight: '200px',
-                      flex: 1,
-                      fontSize: 'var(--type-input-text-size, 11px)',
-                      lineHeight: '1.45',
-                      color: '#000000',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    {execData.scopeSummary.background ? (
-                      <div
-                        className="rich-text-preview"
-                        dangerouslySetInnerHTML={{ __html: execData.scopeSummary.background }}
-                      />
-                    ) : (
-                      <div style={{ color: '#94A3B8', fontStyle: 'italic' }}>
-                        (Background notes and operational context)
-                      </div>
-                    )}
+                    <div
+                      style={{
+                        border: '1px solid #000000',
+                        backgroundColor: '#ffffff',
+                        padding: '14px',
+                        minHeight: '80px',
+                        fontSize: 'var(--type-input-text-size, 11.5px)',
+                        lineHeight: '1.45',
+                        color: '#000000',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      {execData.criticalMajorSection?.zeroIssueNote ||
+                        'The audit review did not identify any critical or major issues.'}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginBottom: '24px' }}>
+                    <div
+                      className="type-section-title"
+                      style={{
+                        backgroundColor: '#8F8F8F',
+                        border: '1px solid #000000',
+                        borderBottom: 'none',
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        fontSize: 'var(--type-section-title-size, 13px)',
+                        textAlign: 'center',
+                        padding: '5px 10px',
+                        letterSpacing: '0.2px',
+                      }}
+                    >
+                      Background
+                    </div>
+
+                    <div
+                      style={{
+                        border: '1px solid #000000',
+                        backgroundColor: '#ffffff',
+                        padding: '14px',
+                        minHeight: '200px',
+                        flex: 1,
+                        fontSize: 'var(--type-input-text-size, 11px)',
+                        lineHeight: '1.45',
+                        color: '#000000',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      {execData.scopeSummary.background ? (
+                        <div
+                          className="rich-text-preview"
+                          dangerouslySetInnerHTML={{ __html: execData.scopeSummary.background }}
+                        />
+                      ) : (
+                        <div style={{ color: '#94A3B8', fontStyle: 'italic' }}>
+                          (Background notes and operational context)
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* PAGE 1 FOOTER: Red Johnson & Johnson script logo */}
                 <div
@@ -2069,121 +2173,224 @@ export const ExecutiveStudioView: React.FC = () => {
                   <div style={{ fontSize: 'var(--type-table-header-size, 12px)', fontWeight: 700, color: '#64748B' }}>
                     {execData.fileName}
                   </div>
-                  <div style={{ fontSize: 'var(--type-caption-size, 10.5px)', color: '#94A3B8' }}>Section 2: Insights &amp; Findings</div>
+                  <div style={{ fontSize: 'var(--type-caption-size, 10.5px)', color: '#94A3B8' }}>
+                    {isZeroIssue ? 'Section 2: Background & Insights' : 'Section 2: Insights & Findings'}
+                  </div>
                 </div>
 
-                {/* 1. AUDIT INSIGHTS BOX */}
-                <div style={{ marginBottom: '18px' }}>
-                  <div
-                    className="type-section-title"
-                    style={{
-                      backgroundColor: '#8F8F8F',
-                      border: '1px solid #000000',
-                      borderBottom: 'none',
-                      color: '#ffffff',
-                      fontWeight: 700,
-                      fontSize: 'var(--type-section-title-size, 13px)',
-                      textAlign: 'center',
-                      padding: '5px 10px',
-                      letterSpacing: '0.2px',
-                    }}
-                  >
-                    Audit Insights
-                  </div>
+                {isZeroIssue ? (
+                  <>
+                    {/* 1. BACKGROUND BOX (Page 2 in Zero-Issue Mode) */}
+                    <div style={{ marginBottom: '18px' }}>
+                      <div
+                        className="type-section-title"
+                        style={{
+                          backgroundColor: '#8F8F8F',
+                          border: '1px solid #000000',
+                          borderBottom: 'none',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          fontSize: 'var(--type-section-title-size, 13px)',
+                          textAlign: 'center',
+                          padding: '5px 10px',
+                          letterSpacing: '0.2px',
+                        }}
+                      >
+                        Background
+                      </div>
 
-                  <div
-                    style={{
-                      border: '1px solid #000000',
-                      backgroundColor: '#ffffff',
-                      padding: '12px 14px',
-                      fontSize: 'var(--type-input-text-size, 11px)',
-                      lineHeight: '1.45',
-                      color: '#000000',
-                    }}
-                  >
-                    {/* First line: Overall underlined */}
-                    <div style={{ marginBottom: '10px' }}>
-                      <span style={{ textDecoration: 'underline', fontWeight: 700 }}>Overall</span>{' '}
-                      <span>{execData.auditInsights.overallText}</span>
+                      <div
+                        style={{
+                          border: '1px solid #000000',
+                          backgroundColor: '#ffffff',
+                          padding: '12px 14px',
+                          fontSize: 'var(--type-input-text-size, 11px)',
+                          lineHeight: '1.45',
+                          color: '#000000',
+                        }}
+                      >
+                        {execData.scopeSummary.background ? (
+                          <div
+                            className="rich-text-preview"
+                            dangerouslySetInnerHTML={{ __html: execData.scopeSummary.background }}
+                          />
+                        ) : (
+                          <div style={{ color: '#94A3B8', fontStyle: 'italic' }}>
+                            (Background notes and operational context)
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Narrative paragraphs with rich text support */}
-                    {execData.auditInsights.narrativeHtml ? (
+                    {/* 2. AUDIT INSIGHTS BOX (Page 2 in Zero-Issue Mode) */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginBottom: '24px' }}>
                       <div
-                        className="rich-text-preview"
-                        dangerouslySetInnerHTML={{ __html: execData.auditInsights.narrativeHtml }}
-                      />
-                    ) : (
-                      (execData.auditInsights.paragraphs || []).map((para, pIdx) => (
-                        <p key={pIdx} style={{ margin: '0 0 10px 0', lineHeight: 1.45 }}>
-                          {para}
-                        </p>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* 2. CRITICAL ISSUES / MAJOR ISSUES BOX */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginBottom: '24px' }}>
-                  <div
-                    className="type-section-title"
-                    style={{
-                      backgroundColor: '#8F8F8F',
-                      border: '1px solid #000000',
-                      borderBottom: 'none',
-                      color: '#ffffff',
-                      fontWeight: 700,
-                      fontSize: 'var(--type-section-title-size, 13px)',
-                      textAlign: 'center',
-                      padding: '5px 10px',
-                      letterSpacing: '0.2px',
-                    }}
-                  >
-                    Critical Issues /Major Issues
-                  </div>
-
-                  <div
-                    style={{
-                      border: '1px solid #000000',
-                      backgroundColor: '#ffffff',
-                      padding: '12px 14px',
-                      fontSize: 'var(--type-input-text-size, 11px)',
-                      lineHeight: '1.45',
-                      color: '#000000',
-                      flex: 1,
-                    }}
-                  >
-                    {/* Critical Issues Subheading & Details */}
-                    {execData.criticalMajorSection.criticalIssue && (
-                      <div style={{ marginBottom: '14px' }}>
-                        <div style={{ fontWeight: 700, fontSize: 'var(--type-table-header-size, 12px)', color: '#000000', marginBottom: '4px' }}>
-                          Critical Issues
-                        </div>
-                        <div style={{ fontWeight: 400, color: '#000000', marginBottom: '3px' }}>
-                          {execData.criticalMajorSection.criticalIssue.title}
-                        </div>
-                        <div style={{ color: '#000000', lineHeight: 1.45 }}>
-                          {execData.criticalMajorSection.criticalIssue.description}
-                        </div>
+                        className="type-section-title"
+                        style={{
+                          backgroundColor: '#8F8F8F',
+                          border: '1px solid #000000',
+                          borderBottom: 'none',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          fontSize: 'var(--type-section-title-size, 13px)',
+                          textAlign: 'center',
+                          padding: '5px 10px',
+                          letterSpacing: '0.2px',
+                        }}
+                      >
+                        Audit Insights
                       </div>
-                    )}
 
-                    {/* Major Issues Subheading & Details */}
-                    {execData.criticalMajorSection.majorIssue && (
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 'var(--type-table-header-size, 12px)', color: '#000000', marginBottom: '4px' }}>
-                          Major Issues
+                      <div
+                        style={{
+                          border: '1px solid #000000',
+                          backgroundColor: '#ffffff',
+                          padding: '12px 14px',
+                          fontSize: 'var(--type-input-text-size, 11px)',
+                          lineHeight: '1.45',
+                          color: '#000000',
+                          flex: 1,
+                        }}
+                      >
+                        {/* Overall summary sentence */}
+                        <div style={{ marginBottom: '10px', color: '#000000' }}>
+                          {execData.auditInsights.overallText?.startsWith('Overall')
+                            ? execData.auditInsights.overallText
+                            : `Overall ${execData.auditInsights.overallText}`}
                         </div>
-                        <div style={{ fontWeight: 400, color: '#000000', marginBottom: '3px' }}>
-                          {execData.criticalMajorSection.majorIssue.title}
-                        </div>
-                        <div style={{ color: '#000000', lineHeight: 1.45 }}>
-                          {execData.criticalMajorSection.majorIssue.description}
-                        </div>
+
+                        {/* Narrative paragraphs */}
+                        {execData.auditInsights.narrativeHtml ? (
+                          <div
+                            className="rich-text-preview"
+                            dangerouslySetInnerHTML={{ __html: execData.auditInsights.narrativeHtml }}
+                          />
+                        ) : (
+                          (execData.auditInsights.paragraphs || []).map((para, pIdx) => (
+                            <p key={pIdx} style={{ margin: '0 0 10px 0', lineHeight: 1.45 }}>
+                              {para}
+                            </p>
+                          ))
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* 1. AUDIT INSIGHTS BOX (Standard Mode) */}
+                    <div style={{ marginBottom: '18px' }}>
+                      <div
+                        className="type-section-title"
+                        style={{
+                          backgroundColor: '#8F8F8F',
+                          border: '1px solid #000000',
+                          borderBottom: 'none',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          fontSize: 'var(--type-section-title-size, 13px)',
+                          textAlign: 'center',
+                          padding: '5px 10px',
+                          letterSpacing: '0.2px',
+                        }}
+                      >
+                        Audit Insights
+                      </div>
+
+                      <div
+                        style={{
+                          border: '1px solid #000000',
+                          backgroundColor: '#ffffff',
+                          padding: '12px 14px',
+                          fontSize: 'var(--type-input-text-size, 11px)',
+                          lineHeight: '1.45',
+                          color: '#000000',
+                        }}
+                      >
+                        {/* First line: Overall underlined */}
+                        <div style={{ marginBottom: '10px' }}>
+                          <span style={{ textDecoration: 'underline', fontWeight: 700 }}>Overall</span>{' '}
+                          <span>{execData.auditInsights.overallText}</span>
+                        </div>
+
+                        {/* Narrative paragraphs with rich text support */}
+                        {execData.auditInsights.narrativeHtml ? (
+                          <div
+                            className="rich-text-preview"
+                            dangerouslySetInnerHTML={{ __html: execData.auditInsights.narrativeHtml }}
+                          />
+                        ) : (
+                          (execData.auditInsights.paragraphs || []).map((para, pIdx) => (
+                            <p key={pIdx} style={{ margin: '0 0 10px 0', lineHeight: 1.45 }}>
+                              {para}
+                            </p>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 2. CRITICAL ISSUES / MAJOR ISSUES BOX (Standard Mode) */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginBottom: '24px' }}>
+                      <div
+                        className="type-section-title"
+                        style={{
+                          backgroundColor: '#8F8F8F',
+                          border: '1px solid #000000',
+                          borderBottom: 'none',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          fontSize: 'var(--type-section-title-size, 13px)',
+                          textAlign: 'center',
+                          padding: '5px 10px',
+                          letterSpacing: '0.2px',
+                        }}
+                      >
+                        Critical Issues /Major Issues
+                      </div>
+
+                      <div
+                        style={{
+                          border: '1px solid #000000',
+                          backgroundColor: '#ffffff',
+                          padding: '12px 14px',
+                          fontSize: 'var(--type-input-text-size, 11px)',
+                          lineHeight: '1.45',
+                          color: '#000000',
+                          flex: 1,
+                        }}
+                      >
+                        {/* Critical Issues Subheading & Details */}
+                        {execData.criticalMajorSection.criticalIssue && (
+                          <div style={{ marginBottom: '14px' }}>
+                            <div style={{ fontWeight: 700, fontSize: 'var(--type-table-header-size, 12px)', color: '#000000', marginBottom: '4px' }}>
+                              Critical Issues
+                            </div>
+                            <div style={{ fontWeight: 400, color: '#000000', marginBottom: '3px' }}>
+                              {execData.criticalMajorSection.criticalIssue.title}
+                            </div>
+                            <div style={{ color: '#000000', lineHeight: 1.45 }}>
+                              {execData.criticalMajorSection.criticalIssue.description}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Major Issues Subheading & Details */}
+                        {execData.criticalMajorSection.majorIssue && (
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 'var(--type-table-header-size, 12px)', color: '#000000', marginBottom: '4px' }}>
+                              Major Issues
+                            </div>
+                            <div style={{ fontWeight: 400, color: '#000000', marginBottom: '3px' }}>
+                              {execData.criticalMajorSection.majorIssue.title}
+                            </div>
+                            <div style={{ color: '#000000', lineHeight: 1.45 }}>
+                              {execData.criticalMajorSection.majorIssue.description}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* PAGE 2 FOOTER: Red Johnson & Johnson script logo */}
                 <div

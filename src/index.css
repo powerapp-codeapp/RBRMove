@@ -482,22 +482,22 @@ hr,
 
 .audit-queue-card {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #edf0f5;
   border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
   margin-bottom: 12px;
   transition: all 0.2s ease;
   overflow: hidden;
 }
 
 .audit-queue-card:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.03);
+  border-color: #dbe0e8;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.02);
 }
 
 .audit-queue-card.expanded {
-  border-color: #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  border-color: #edf0f5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .audit-queue-card-summary {
@@ -905,13 +905,13 @@ hr,
 .slim-light-scrollbar,
 .MuiDialogContent-root {
   scrollbar-width: thin !important;
-  scrollbar-color: #E2E8F0 transparent !important;
+  scrollbar-color: #CBD5E1 transparent !important;
 }
 
 .slim-light-scrollbar::-webkit-scrollbar,
 .MuiDialogContent-root::-webkit-scrollbar {
-  width: 4px !important;
-  height: 4px !important;
+  width: 6px !important;
+  height: 6px !important;
 }
 
 .slim-light-scrollbar::-webkit-scrollbar-track,
@@ -921,13 +921,13 @@ hr,
 
 .slim-light-scrollbar::-webkit-scrollbar-thumb,
 .MuiDialogContent-root::-webkit-scrollbar-thumb {
-  background-color: #E2E8F0 !important;
+  background-color: #CBD5E1 !important;
   border-radius: 4px !important;
 }
 
 .slim-light-scrollbar::-webkit-scrollbar-thumb:hover,
 .MuiDialogContent-root::-webkit-scrollbar-thumb:hover {
-  background-color: #CBD5E1 !important;
+  background-color: #94A3B8 !important;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1148,4 +1148,14 @@ input::-ms-reveal {
     transform: scale(1);
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
   }
+}
+
+/* Rich Text Preview Paragraph Spacing for Executive Reports */
+.rich-text-preview p {
+  margin: 0 0 10px 0;
+  line-height: 1.45;
+}
+
+.rich-text-preview p:last-child {
+  margin-bottom: 0;
 }

@@ -12,6 +12,7 @@ export interface AiCompareFieldData {
   rootCause: string;
   impact: string;
   recommendation: string;
+  nonComplianceReferences?: string;
 }
 
 export interface AiVersionCompareDialogProps {
@@ -26,6 +27,7 @@ export interface AiVersionCompareDialogProps {
     rootCause: string;
     impact: string;
     recommendation: string;
+    nonComplianceReferences?: string;
   }) => void;
   onKeepPrevious?: () => void;
 }
@@ -46,6 +48,7 @@ export const AiVersionCompareDialog: React.FC<AiVersionCompareDialogProps> = ({
     rootCause: currentIssue?.rootCause || '',
     impact: currentIssue?.impact || '',
     recommendation: currentIssue?.recommendation || '',
+    nonComplianceReferences: (currentIssue as any)?.nonComplianceReferences || '',
   };
 
   const resolvedCandidate: AiCompareFieldData = propCandidateData || {
@@ -56,9 +59,10 @@ export const AiVersionCompareDialog: React.FC<AiVersionCompareDialogProps> = ({
     rootCause: `Systemic governance and automated synchronization gaps. Root cause analysis indicates lack of scheduled exception monitoring feeds and absence of secondary verification protocols.`,
     impact: `Operational variance exposes the environment to potential compliance citations, unauthorized data modification, and SOX/GxP regulatory escalation.`,
     recommendation: `1. Implement automated real-time exception alerting and scheduled synchronization.\n2. Establish mandatory dual-custody authorization for configuration overrides.\n3. Conduct retrospective audit reconciliations on a quarterly basis.`,
+    nonComplianceReferences: 'Standard S-15: Security Architecture & Operational Governance (STD-IAPP-S15); J&J Enterprise Risk Framework.'
   };
 
-  // Field selection state: 'candidate' | 'previous' for each of the 5 fields
+  // Field selection state: 'candidate' | 'previous' for each of the 6 fields
   const [selectedVersions, setSelectedVersions] = useState<
     Record<keyof AiCompareFieldData, 'candidate' | 'previous'>
   >({
@@ -67,6 +71,7 @@ export const AiVersionCompareDialog: React.FC<AiVersionCompareDialogProps> = ({
     rootCause: 'candidate',
     impact: 'candidate',
     recommendation: 'candidate',
+    nonComplianceReferences: 'candidate',
   });
 
   // Reset selections when dialog opens
@@ -78,6 +83,7 @@ export const AiVersionCompareDialog: React.FC<AiVersionCompareDialogProps> = ({
         rootCause: 'candidate',
         impact: 'candidate',
         recommendation: 'candidate',
+        nonComplianceReferences: 'candidate',
       });
     }
   }, [open]);
@@ -89,6 +95,9 @@ export const AiVersionCompareDialog: React.FC<AiVersionCompareDialogProps> = ({
       rootCause: selectedVersions.rootCause === 'candidate' ? resolvedCandidate.rootCause : resolvedPrevious.rootCause,
       impact: selectedVersions.impact === 'candidate' ? resolvedCandidate.impact : resolvedPrevious.impact,
       recommendation: selectedVersions.recommendation === 'candidate' ? resolvedCandidate.recommendation : resolvedPrevious.recommendation,
+      nonComplianceReferences: selectedVersions.nonComplianceReferences === 'candidate'
+        ? (resolvedCandidate.nonComplianceReferences || '')
+        : (resolvedPrevious.nonComplianceReferences || ''),
     };
     onApplyMerge(merged);
     onClose();
@@ -109,6 +118,7 @@ export const AiVersionCompareDialog: React.FC<AiVersionCompareDialogProps> = ({
     { key: 'rootCause', label: 'Root Cause' },
     { key: 'impact', label: 'Impact' },
     { key: 'recommendation', label: 'Recommendations' },
+    { key: 'nonComplianceReferences', label: 'Non Compliance References' },
   ];
 
   return (

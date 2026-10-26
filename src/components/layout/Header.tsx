@@ -13,7 +13,7 @@ export const Header: React.FC = () => {
         <div className="jnj-logo-container">
           <img src={jjLogo} alt="Johnson & Johnson" className="jnj-logo-img" />
           <div className="jnj-logo-subtitle">
-            GA&A INTERNAL AUDIT REPORTING
+            Risk Based Reviews
           </div>
         </div>
 

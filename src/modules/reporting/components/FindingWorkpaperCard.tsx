@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Issue, CriticalityLevel, IssueStatus } from '../../../types/dataverse.types';
 import {
   SharedButton,
@@ -6,6 +6,8 @@ import {
   SharedTextInput,
   SharedTextArea,
   SharedSelect,
+  SharedMultiSelect,
+  SharedCheckbox,
   SharedListBoxFilter,
   AIInput,
 } from '../../../components/shared';
@@ -23,9 +25,13 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Send,
+  Upload,
+  FileText,
+  Trash2,
 } from 'lucide-react';
 import { synthesizeAiDraft } from '../utils/aiSynthesisHelper';
 import { AiVersionCompareDialog, type AiCompareFieldData } from './AiVersionCompareDialog';
+import { SystemusersService } from '../../../generated/services/SystemusersService';
 
 interface FindingWorkpaperCardProps {
   issue: Issue;
@@ -63,18 +69,24 @@ const getCriticalityColor = (crit?: string): string => {
 const CRITICALITY_OPTIONS = [
   { value: 'Critical', label: 'Critical' },
   { value: 'Major', label: 'Major' },
-  { value: 'Moderate', label: 'Moderate' },
   { value: 'Minor', label: 'Minor' },
+];
+
+const FUNCTION_OPTIONS = [
+  { value: 'IT', label: 'IT' },
+  { value: 'FinOps', label: 'FinOps' },
 ];
 
 const PROCESS_AREA_OPTIONS = [
   { value: 'Access Control & IAM', label: 'Access Control & IAM' },
-  { value: 'Cybersecurity', label: 'Cybersecurity' },
-  { value: 'Training', label: 'Training' },
-  { value: 'Third Party Technology', label: 'Third Party Technology' },
-  { value: 'Change Management', label: 'Change Management' },
-  { value: 'Supply Chain & Operations', label: 'Supply Chain & Operations' },
-  { value: 'System Configuration', label: 'System Configuration' },
+  { value: 'Cybersecurity & Infrastructure', label: 'Cybersecurity & Infrastructure' },
+  { value: 'Regulatory Compliance & GxP', label: 'Regulatory Compliance & GxP' },
+  { value: 'Supply Chain & Manufacturing', label: 'Supply Chain & Manufacturing' },
+  { value: 'Financial Controls & SOX', label: 'Financial Controls & SOX' },
+  { value: 'Change Management & DevOps', label: 'Change Management & DevOps' },
+  { value: 'Quality Assurance & Calibration', label: 'Quality Assurance & Calibration' },
+  { value: 'Catheter Line 3 Electrophysiology', label: 'Catheter Line 3 Electrophysiology' },
+  { value: 'Cleanroom HVAC Unit 4', label: 'Cleanroom HVAC Unit 4' }
 ];
 
 const TEST_PROCEDURE_OPTIONS = [
@@ -87,8 +99,8 @@ const TEST_PROCEDURE_OPTIONS = [
 ];
 
 const YES_NO_OPTIONS = [
-  { value: 'Yes', label: 'Yes' },
   { value: 'No', label: 'No' },
+  { value: 'Yes', label: 'Yes' },
 ];
 
 const ROOT_CAUSE_TYPE_OPTIONS = [
@@ -97,6 +109,88 @@ const ROOT_CAUSE_TYPE_OPTIONS = [
   { value: 'Human Oversight', label: 'Human Oversight' },
   { value: 'Third-Party Dependency', label: 'Third-Party Dependency' },
   { value: 'Resource Constraint', label: 'Resource Constraint' },
+  { value: 'Operating Effectiveness', label: 'Operating Effectiveness' },
+  { value: 'Design Effectiveness', label: 'Design Effectiveness' },
+  { value: 'Automated Sensor Calibration Drift', label: 'Automated Sensor Calibration Drift' }
+];
+
+const ISSUE_TYPE_OPTIONS = [
+  { value: 'Operational', label: 'Operational' },
+  { value: 'Compliance', label: 'Compliance' },
+  { value: 'Financial / SOX', label: 'Financial / SOX' },
+  { value: 'IT / Cybersecurity', label: 'IT / Cybersecurity' },
+  { value: 'Regulatory / GxP', label: 'Regulatory / GxP' },
+  { value: 'Reputational / Strategic', label: 'Reputational / Strategic' }
+];
+
+const ISSUE_SOURCE_OPTIONS = [
+  { value: 'Internal Audit', label: 'Internal Audit' },
+  { value: 'External Audit (PwC)', label: 'External Audit (PwC)' },
+  { value: 'Regulatory Inspection (FDA / ISO)', label: 'Regulatory Inspection (FDA / ISO)' },
+  { value: 'Management Self-Identified', label: 'Management Self-Identified' },
+  { value: 'Continuous Monitoring Feed', label: 'Continuous Monitoring Feed' }
+];
+
+const KEY_THEME_OPTIONS = [
+  { value: 'Access Governance & Authorization Matrix', label: 'Access Governance & Authorization Matrix' },
+  { value: 'Financial Close & Reporting', label: 'Financial Close & Reporting' },
+  { value: 'Manufacturing Telemetry & Calibration', label: 'Manufacturing Telemetry & Calibration' },
+  { value: 'Third-Party Vendor Risk', label: 'Third-Party Vendor Risk' },
+  { value: 'Change Management & DevOps', label: 'Change Management & DevOps' },
+  { value: 'GxP Electronic Records & Data Integrity', label: 'GxP Electronic Records & Data Integrity' }
+];
+
+const ACCOUNTABLE_FUNCTION_OPTIONS = [
+  { value: 'IT Infrastructure & Identity Access Management', label: 'IT Infrastructure & Identity Access Management' },
+  { value: 'Finance Operations & Internal Controls', label: 'Finance Operations & Internal Controls' },
+  { value: 'Global Supply Chain & Logistics', label: 'Global Supply Chain & Logistics' },
+  { value: 'Quality Assurance & Regulatory Compliance', label: 'Quality Assurance & Regulatory Compliance' },
+  { value: 'Commercial & Marketing Operations', label: 'Commercial & Marketing Operations' },
+  { value: 'Research & Development (R&D)', label: 'Research & Development (R&D)' }
+];
+
+const IT_ASSET_ACCOUNTABLE_SECTOR_OPTIONS = [
+  { value: 'MT', label: 'MT (MedTech)' },
+  { value: 'IM', label: 'IM (Innovative Medicine)' },
+  { value: 'Consumer Health', label: 'Consumer Health' },
+  { value: 'CORP', label: 'CORP (Corporate Enterprise)' },
+  { value: 'ISRM', label: 'ISRM (InfoSec Risk Management)' },
+  { value: 'TS', label: 'TS (Technology Services)' }
+];
+
+const IMPACTED_REGION_OPTIONS = [
+  { value: 'NA', label: 'NA (North America)' },
+  { value: 'EMEA', label: 'EMEA (Europe, Middle East, Africa)' },
+  { value: 'LATAM', label: 'LATAM (Latin America)' },
+  { value: 'APAC', label: 'APAC (Asia Pacific)' }
+];
+
+const IMPACTED_SECTOR_OPTIONS = [
+  { value: 'MED', label: 'MED (Medical Devices)' },
+  { value: 'PHR', label: 'PHR (Pharmaceuticals)' },
+  { value: 'CPC', label: 'CPC' },
+  { value: 'GS-NOP', label: 'GS-NOP' },
+  { value: 'NOP', label: 'NOP' },
+  { value: 'Ortho_Synthes', label: 'Ortho_Synthes' }
+];
+
+const IMPACTED_MRC_OPTIONS = [
+  { value: 'MRC-01: Global Supply Chain & Manufacturing Operations', label: 'MRC-01: Supply Chain & Manufacturing' },
+  { value: 'MRC-02: Commercial Operations & Revenue Assurance', label: 'MRC-02: Commercial Operations' },
+  { value: 'MRC-03: Research & Development', label: 'MRC-03: Research & Development' },
+  { value: 'MRC-04: Global Shared Services & Global Functions', label: 'MRC-04: Global Shared Services' },
+  { value: 'MRC-05: Treasury & Capital Management', label: 'MRC-05: Treasury & Capital' }
+];
+
+const QUARTER_IMPACTED_OPTIONS = [
+  { value: 'Q1 2026', label: 'Q1 2026' },
+  { value: 'Q2 2026', label: 'Q2 2026' },
+  { value: 'Q3 2026', label: 'Q3 2026' },
+  { value: 'Q4 2026', label: 'Q4 2026' },
+  { value: 'Q1 2025', label: 'Q1 2025' },
+  { value: 'Q2 2025', label: 'Q2 2025' },
+  { value: 'Q3 2025', label: 'Q3 2025' },
+  { value: 'Q4 2025', label: 'Q4 2025' }
 ];
 
 export type SectionTab = 'all' | 'basic' | 'ai' | 'taxonomies' | 'biz';
@@ -164,6 +258,48 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
 
   // For excluded issues, read-only issues, or locked issues (unless current user is the worker), action buttons are not applicable
   const canShowIssueButtons = !isExcluded && canEdit && (!isLocked || isLockedByCurrentUser);
+
+  const [systemUsers, setSystemUsers] = useState<{ value: string; label: string }[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let isSubscribed = true;
+    SystemusersService.getAll()
+      .then((res: any) => {
+        if (!isSubscribed) return;
+        const users = Array.isArray(res?.data) ? res.data : Array.isArray(res?.value) ? res.value : Array.isArray(res) ? res : [];
+        if (users.length > 0) {
+          const mapped = users
+            .filter((u: any) => u.fullname || u.internalemailaddress)
+            .map((u: any) => ({
+              value: u.systemuserid || u.id || u.internalemailaddress,
+              label: `${u.fullname || u.internalemailaddress}${u.internalemailaddress ? ` (${u.internalemailaddress})` : ''}`
+            }));
+          setSystemUsers(mapped);
+        } else {
+          setSystemUsers([
+            { value: 'user-01', label: 'Vinay Narasimha (Lead Business Owner)' },
+            { value: 'user-02', label: 'Rachel Green (FinOps Lead)' },
+            { value: 'user-03', label: 'Marcus Vance (Quality Audit)' },
+            { value: 'user-04', label: 'Sarah Jenkins (IT Lead)' }
+          ]);
+        }
+      })
+      .catch(() => {
+        if (isSubscribed) {
+          setSystemUsers([
+            { value: 'user-01', label: 'Vinay Narasimha (Lead Business Owner)' },
+            { value: 'user-02', label: 'Rachel Green (FinOps Lead)' },
+            { value: 'user-03', label: 'Marcus Vance (Quality Audit)' },
+            { value: 'user-04', label: 'Sarah Jenkins (IT Lead)' }
+          ]);
+        }
+      });
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, []);
 
   // Determine if function is IT or FinOps
   const isIT = (() => {
@@ -838,13 +974,24 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
             }}
           >
 
-            {/* Row 1: Test Procedure */}
-            <div>
+            {/* Row 1: Test Procedure & Function */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
               <SharedSelect
                 label="Test Procedure"
                 value={issue.testProcedureCode || 'TP-101'}
                 onChange={(val) => handleFieldChange('testProcedureCode', val)}
                 options={TEST_PROCEDURE_OPTIONS}
+                required
+                disabled={isFieldDisabled}
+              />
+              <SharedSelect
+                label="Function"
+                value={(issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')) as 'IT' | 'FinOps'}
+                onChange={(val) => {
+                  handleFieldChange('function', val);
+                  handleFieldChange('tech', val);
+                }}
+                options={FUNCTION_OPTIONS}
                 required
                 disabled={isFieldDisabled}
               />
@@ -1150,20 +1297,83 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* 3. ADDITIONAL CLASSIFICATION FIELDS (Expanded / Not Collapsed) */}
+        {/* 3. TAXONOMY & EXTENDED GOVERNANCE FIELDS                      */}
         {/* ------------------------------------------------------------- */}
         {(activeSectionTab === 'all' || activeSectionTab === 'taxonomies') && (
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: '20px',
+              gap: '16px',
               flexShrink: 0,
             }}
           >
+            {/* 1. Summary Finding Executive Summary */}
+            <SharedTextArea
+              label="Summary Finding Executive Summary"
+              value={issue.summaryFinding || ''}
+              onChange={(val) => handleFieldChange('summaryFinding', val)}
+              placeholder="Brief executive summary narrative of finding..."
+              rows={2}
+              disabled={isFieldDisabled}
+            />
 
-            {/* Row 1: Criticality & Process Area */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '18px' }}>
+            {/* 2. Auditor Response */}
+            <SharedTextArea
+              label="Auditor Response"
+              value={issue.auditorResponse || ''}
+              onChange={(val) => handleFieldChange('auditorResponse', val)}
+              placeholder="Auditor validation or initial assessment notes..."
+              rows={2}
+              disabled={isFieldDisabled}
+            />
+
+            {/* 3. Mitigating Control */}
+            <SharedTextArea
+              label="Mitigating Control"
+              value={issue.mitigatingControl || issue.mitigatingControls || ''}
+              onChange={(val) => {
+                handleFieldChange('mitigatingControl', val);
+                handleFieldChange('mitigatingControls', val);
+              }}
+              placeholder="Existing compensating controls in place..."
+              rows={2}
+              disabled={isFieldDisabled}
+            />
+
+            {/* 4. Exception Remediation Comments */}
+            <SharedTextArea
+              label="Exception Remediation Comments"
+              value={issue.exceptionRemedComments || ''}
+              onChange={(val) => handleFieldChange('exceptionRemedComments', val)}
+              placeholder="Remediation timeline comments..."
+              rows={2}
+              disabled={isFieldDisabled}
+            />
+
+            {/* 5. Issue Type & 6. Issue Cause Type */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+              <SharedSelect
+                label="Issue Type"
+                value={issue.issueType || 'Operational'}
+                onChange={(val) => handleFieldChange('issueType', val)}
+                options={ISSUE_TYPE_OPTIONS}
+                disabled={isFieldDisabled}
+              />
+              <SharedSelect
+                label="Issue Cause Type"
+                value={issue.issueCauseType || issue.rootCauseType || 'Process Gap'}
+                onChange={(val) => {
+                  handleFieldChange('issueCauseType', val);
+                  handleFieldChange('rootCauseType', val);
+                }}
+                options={ROOT_CAUSE_TYPE_OPTIONS}
+                disabled={isFieldDisabled}
+              />
+            </div>
+
+            {/* 7. Criticality & 8. SOX Reportable */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
               <SharedSelect
                 label="Criticality Severity"
                 value={issue.criticality}
@@ -1173,17 +1383,44 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 disabled={isFieldDisabled}
               />
               <SharedSelect
-                label="Process Area"
-                value={issue.processArea || issue.accountableProcessArea || 'Access Control & IAM'}
-                onChange={(val) => handleFieldChange('processArea', val)}
-                options={PROCESS_AREA_OPTIONS}
-                required
+                label="SOX Reportable"
+                value={issue.soxReportable || (issue.criticality === 'Critical' ? 'Yes' : 'No')}
+                onChange={(val) => handleFieldChange('soxReportable', val)}
+                options={YES_NO_OPTIONS}
                 disabled={isFieldDisabled}
               />
             </div>
 
-            {/* Row 2: Repeat Finding, SOX Reportable, Root Cause Type */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '18px' }}>
+            {/* 9. Issue Finding Source & 10. Key Theme */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+              <SharedSelect
+                label="Issue Finding Source"
+                value={issue.issueSource || 'Internal Audit'}
+                onChange={(val) => handleFieldChange('issueSource', val)}
+                options={ISSUE_SOURCE_OPTIONS}
+                disabled={isFieldDisabled}
+              />
+              <SharedSelect
+                label="Key Theme"
+                value={issue.keyTheme || 'Access Governance & Authorization Matrix'}
+                onChange={(val) => handleFieldChange('keyTheme', val)}
+                options={KEY_THEME_OPTIONS}
+                disabled={isFieldDisabled}
+              />
+            </div>
+
+            {/* 11. Area & 12. Repeat Finding */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+              <SharedSelect
+                label="Area"
+                value={issue.processArea || issue.accountableProcessArea || 'Access Control & IAM'}
+                onChange={(val) => {
+                  handleFieldChange('processArea', val);
+                  handleFieldChange('accountableProcessArea', val);
+                }}
+                options={PROCESS_AREA_OPTIONS}
+                disabled={isFieldDisabled}
+              />
               <SharedSelect
                 label="Repeat Finding"
                 value={issue.repeatFinding || 'No'}
@@ -1191,76 +1428,313 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 options={YES_NO_OPTIONS}
                 disabled={isFieldDisabled}
               />
+            </div>
+
+            {/* 13. IT Asset Accountable Sector & 14. Accountable Function */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
               <SharedSelect
-                label="SOX Reportable"
-                value={issue.soxReportable || (issue.criticality === 'Critical' ? 'Yes' : 'No')}
-                onChange={(val) => handleFieldChange('soxReportable', val)}
-                options={YES_NO_OPTIONS}
+                label="IT Asset Accountable Sector"
+                value={issue.itAssetAccountableSector || 'MT'}
+                onChange={(val) => handleFieldChange('itAssetAccountableSector', val)}
+                options={IT_ASSET_ACCOUNTABLE_SECTOR_OPTIONS}
                 disabled={isFieldDisabled}
               />
               <SharedSelect
-                label="Root Cause Type"
-                value={issue.rootCauseType || (issue as any).rootCauseCategory || 'Process Gap'}
-                onChange={(val) => handleFieldChange('rootCauseType', val)}
-                options={ROOT_CAUSE_TYPE_OPTIONS}
+                label="Accountable Function"
+                value={issue.accountableFunction || 'IT Infrastructure & Identity Access Management'}
+                onChange={(val) => handleFieldChange('accountableFunction', val)}
+                options={ACCOUNTABLE_FUNCTION_OPTIONS}
                 disabled={isFieldDisabled}
               />
             </div>
 
-            {/* Row 3: Accountable Contact & Function */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '18px' }}>
-              <SharedTextInput
-                label="Accountable Contact"
-                value={issue.accountableContact || issue.businessContactName || 'Narasimha, Vinay'}
-                onChange={(val) => handleFieldChange('accountableContact', val)}
+            {/* 15. Impacted Region & 16. Impacted Sector */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+              <SharedSelect
+                label="Impacted Region"
+                value={issue.impactedRegion || 'NA'}
+                onChange={(val) => handleFieldChange('impactedRegion', val)}
+                options={IMPACTED_REGION_OPTIONS}
                 disabled={isFieldDisabled}
               />
-              <SharedTextInput
-                label="Accountable Function"
-                value={issue.accountableFunction || issue.function || 'Global Assurance & IT Compliance'}
-                onChange={(val) => handleFieldChange('accountableFunction', val)}
+              <SharedSelect
+                label="Impacted Sector"
+                value={issue.impactedSector || 'MED'}
+                onChange={(val) => handleFieldChange('impactedSector', val)}
+                options={IMPACTED_SECTOR_OPTIONS}
                 disabled={isFieldDisabled}
               />
             </div>
+
+            {/* 17. Impact MRC & 18. Quarter Impacted */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+              <SharedSelect
+                label="Impact MRC"
+                value={issue.impactedMrc || 'MRC-01: Global Supply Chain & Manufacturing Operations'}
+                onChange={(val) => handleFieldChange('impactedMrc', val)}
+                options={IMPACTED_MRC_OPTIONS}
+                disabled={isFieldDisabled}
+              />
+              <SharedSelect
+                label="Quarter Impacted"
+                value={issue.quarterImpacted || 'Q1 2026'}
+                onChange={(val) => handleFieldChange('quarterImpacted', val)}
+                options={QUARTER_IMPACTED_OPTIONS}
+                disabled={isFieldDisabled}
+              />
+            </div>
+
+            {/* 19. Sales (USD) & 20. IBT (USD) */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+              <SharedTextInput
+                label="Sales (USD)"
+                value={issue.salesUsd != null ? String(issue.salesUsd) : ''}
+                onChange={(val) => handleFieldChange('salesUsd', val)}
+                placeholder="$0.00"
+                disabled={isFieldDisabled}
+              />
+              <SharedTextInput
+                label="IBT (USD)"
+                value={issue.ibtUsd != null ? String(issue.ibtUsd) : ''}
+                onChange={(val) => handleFieldChange('ibtUsd', val)}
+                placeholder="$0.00"
+                disabled={isFieldDisabled}
+              />
+            </div>
+
+            {/* 21. Net Income (USD) & 22. Total Assets (USD) */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+              <SharedTextInput
+                label="Net Income (USD)"
+                value={issue.netIncomeUsd != null ? String(issue.netIncomeUsd) : ''}
+                onChange={(val) => handleFieldChange('netIncomeUsd', val)}
+                placeholder="$0.00"
+                disabled={isFieldDisabled}
+              />
+              <SharedTextInput
+                label="Total Assets (USD)"
+                value={issue.totalAssetsUsd != null ? String(issue.totalAssetsUsd) : ''}
+                onChange={(val) => handleFieldChange('totalAssetsUsd', val)}
+                placeholder="$0.00"
+                disabled={isFieldDisabled}
+              />
+            </div>
+
+            {/* 23. Exception Remediation Date */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <SharedCheckbox
+                  checked={Boolean(issue.hasExceptionRemedDate || issue.exceptionRemedDate)}
+                  onChange={(checked) => handleFieldChange('hasExceptionRemedDate', checked)}
+                  label="Enable Exception Remediation Date"
+                  disabled={isFieldDisabled}
+                />
+              </div>
+              {(issue.hasExceptionRemedDate || issue.exceptionRemedDate) && (
+                <div style={{ maxWidth: '280px' }}>
+                  <SharedTextInput
+                    label="Exception Remediation Date"
+                    type="date"
+                    value={issue.exceptionRemedDate || ''}
+                    onChange={(val) => handleFieldChange('exceptionRemedDate', val)}
+                    disabled={isFieldDisabled}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 24. Primary Business Owner */}
+            <SharedSelect
+              label="Primary Business Owner"
+              value={issue.primaryBusinessOwnerId || issue.businessContactId || issue.accountableContact || ''}
+              onChange={(v) => {
+                const selectedOpt = systemUsers.find(u => u.value === v);
+                handleFieldChange('primaryBusinessOwnerId', v as string);
+                handleFieldChange('businessContactId', v as string);
+                if (selectedOpt) {
+                  handleFieldChange('primaryBusinessOwnerName', selectedOpt.label);
+                  handleFieldChange('accountableContact', selectedOpt.label);
+                  handleFieldChange('businessContactName', selectedOpt.label);
+                }
+              }}
+              options={systemUsers}
+              placeholder="Select Primary Business Owner..."
+              disabled={isFieldDisabled}
+            />
+
+            {/* 25. Add New Secondary Business Owner (Multi Select) */}
+            <SharedMultiSelect
+              label="Add New Secondary Business Owner"
+              value={issue.secondaryBusinessOwnerIds || []}
+              onChange={(vals) => handleFieldChange('secondaryBusinessOwnerIds', vals)}
+              options={systemUsers}
+              placeholder="Select Secondary Business Owners..."
+              disabled={isFieldDisabled}
+            />
           </div>
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* 4. MANAGEMENT RESPONSE & REMEDIATION AGREEMENT                 */}
+        {/* 4. BUSINESS MANAGEMENT RESPONSE                               */}
         {/* ------------------------------------------------------------- */}
         {(activeSectionTab === 'all' || activeSectionTab === 'biz') && (
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: '20px',
+              gap: '16px',
               flexShrink: 0,
             }}
           >
-
+            {/* 1. Business Management Reason */}
             <SharedTextArea
-              label="Official Management Response"
-              value={issue.managementResponse || issue.managementActionPlan || ''}
-              onChange={(val) => handleFieldChange('managementResponse', val)}
-              placeholder="Enter management concurrence, mitigation plan, and operational commitments."
+              label="Business Management Reason"
+              value={issue.businessManagementReason || ''}
+              onChange={(val) => handleFieldChange('businessManagementReason', val)}
+              placeholder="Provide business management rationale, root cause acceptance or disagreement rationale..."
+              rows={3}
+              disabled={isFieldDisabled}
+            />
+
+            {/* 2. Business Management Response */}
+            <SharedTextArea
+              label="Business Management Response"
+              value={issue.businessManagementResponse || issue.managementResponse || ''}
+              onChange={(val) => {
+                handleFieldChange('businessManagementResponse', val);
+                handleFieldChange('managementResponse', val);
+              }}
+              placeholder="Enter official management response, operational commitments, and corrective action plan (CAP)..."
               rows={4}
               disabled={isFieldDisabled}
             />
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '18px' }}>
+            {/* 3. Agreed Remediation Date */}
+            <div style={{ maxWidth: '320px' }}>
               <SharedTextInput
-                label="Agreed Target Remediation Date"
+                label="Agreed Remediation Date"
                 type="date"
-                value={issue.agreedRemediationDate || issue.remediationTargetDate || '2026-11-30'}
-                onChange={(val) => handleFieldChange('agreedRemediationDate', val)}
+                value={issue.agreedRemediationDate || issue.remediationTargetDate || ''}
+                onChange={(val) => {
+                  handleFieldChange('agreedRemediationDate', val);
+                  handleFieldChange('remediationTargetDate', val);
+                }}
                 disabled={isFieldDisabled}
               />
-              <SharedTextInput
-                label="Designated Remediation Owner"
-                value={issue.accountableContact || issue.businessContactName || 'Narasimha, Vinay'}
-                onChange={(val) => handleFieldChange('accountableContact', val)}
-                disabled={isFieldDisabled}
+            </div>
+
+            {/* 4. Business Management Attachment */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                Business Management Attachment
+              </label>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleFieldChange('businessManagementAttachment', file.name);
+                  }
+                }}
               />
+
+              {issue.businessManagementAttachment ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    borderRadius: '6px',
+                    backgroundColor: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    <div
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '6px',
+                        backgroundColor: '#EFF6FF',
+                        border: '1px solid #BFDBFE',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#000099',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <FileText size={16} />
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#1E293B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {issue.businessManagementAttachment}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748B' }}>
+                        Attached Evidence Document
+                      </div>
+                    </div>
+                  </div>
+
+                  {!isFieldDisabled && (
+                    <button
+                      type="button"
+                      onClick={() => handleFieldChange('businessManagementAttachment', undefined)}
+                      style={{
+                        border: 'none',
+                        background: 'none',
+                        color: '#EF4444',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '12px',
+                      }}
+                      title="Remove attachment"
+                    >
+                      <Trash2 size={14} />
+                      <span>Remove</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div
+                  onClick={() => {
+                    if (!isFieldDisabled) {
+                      fileInputRef.current?.click();
+                    }
+                  }}
+                  style={{
+                    border: '1.5px dashed #CBD5E1',
+                    borderRadius: '6px',
+                    padding: '16px',
+                    textAlign: 'center',
+                    backgroundColor: isFieldDisabled ? '#FAFAFA' : '#FFFFFF',
+                    cursor: isFieldDisabled ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'border-color 0.15s ease',
+                  }}
+                >
+                  <div style={{ color: '#000099', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Upload size={16} />
+                    <span style={{ fontSize: '12.5px', fontWeight: 600 }}>
+                      {isFieldDisabled ? 'No Attachment Provided' : 'Click to Upload Management Attachment'}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '11px', color: '#64748B' }}>
+                    PDF, DOCX, XLSX, or evidence zip package
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}

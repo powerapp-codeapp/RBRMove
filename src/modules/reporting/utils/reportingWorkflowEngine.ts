@@ -134,25 +134,66 @@ export const getEngagementWorkflowState = (job: any) => {
     status = ENGAGEMENT_STATUS.NOT_STARTED;
   }
 
-  // 2. Resolve Role Assignments for this Engagement
-  const staffUsers = getUsersByEngagementAndRole(jobId, 'it-auditor')
-    .concat(getUsersByEngagementAndRole(jobId, 'finops-auditor'));
-  const tcUsers = getUsersByEngagementAndRole(jobId, 'it-team-coordinator')
-    .concat(getUsersByEngagementAndRole(jobId, 'finops-team-coordinator'));
-  const mgrUsers = getUsersByEngagementAndRole(jobId, 'it-manager')
-    .concat(getUsersByEngagementAndRole(jobId, 'finops-manager'));
-  const dirUsers = getUsersByEngagementAndRole(jobId, 'it-director')
-    .concat(getUsersByEngagementAndRole(jobId, 'finops-director'));
-  const vpUsers = getUsersByEngagementAndRole(jobId, 'it-vp')
-    .concat(getUsersByEngagementAndRole(jobId, 'finops-vp'));
-  const bizUsers = getUsersByEngagementAndRole(jobId, 'business-contact');
+  // 2. Resolve Role Assignments for this Engagement (prefer live assignedUsers if present)
+  let staffUsers: any[] = [];
+  let tcUsers: any[] = [];
+  let mgrUsers: any[] = [];
+  let dirUsers: any[] = [];
+  let vpUsers: any[] = [];
+  let bizUsers: any[] = [];
 
-  const defaultStaff = staffUsers.length > 0 ? staffUsers.map((u: any) => u.name) : ['Marcus Vance'];
-  const defaultTC = tcUsers.length > 0 ? tcUsers.map((u: any) => u.name) : ['Kevin Zhang'];
-  const defaultMgr = mgrUsers.length > 0 ? mgrUsers.map((u: any) => u.name) : ['Amanda Palmer'];
-  const defaultDir = dirUsers.length > 0 ? dirUsers.map((u: any) => u.name) : ['Brian Cox'];
-  const defaultVP = vpUsers.length > 0 ? vpUsers.map((u: any) => u.name) : ['Robert Chen'];
-  const defaultBiz = bizUsers.length > 0 ? bizUsers.map((u: any) => u.name) : [job.leadOwner || 'Thomas Wright'];
+  if (Array.isArray(job.assignedUsers) && job.assignedUsers.length > 0) {
+    staffUsers = job.assignedUsers.filter((u: any) => {
+      const { baseRole } = getRoleDetails(u.roleId || u.roleName);
+      return baseRole === 'auditor';
+    });
+    tcUsers = job.assignedUsers.filter((u: any) => {
+      const { baseRole } = getRoleDetails(u.roleId || u.roleName);
+      return baseRole === 'team-coordinator';
+    });
+    mgrUsers = job.assignedUsers.filter((u: any) => {
+      const { baseRole } = getRoleDetails(u.roleId || u.roleName);
+      return baseRole === 'manager';
+    });
+    dirUsers = job.assignedUsers.filter((u: any) => {
+      const { baseRole } = getRoleDetails(u.roleId || u.roleName);
+      return baseRole === 'director';
+    });
+    vpUsers = job.assignedUsers.filter((u: any) => {
+      const { baseRole } = getRoleDetails(u.roleId || u.roleName);
+      return baseRole === 'vp';
+    });
+  } else if (Array.isArray(job.roster) && job.roster.length > 0) {
+    for (const r of job.roster) {
+      const { baseRole } = getRoleDetails(r.role);
+      const uList = Array.isArray(r.users) ? r.users : [];
+      if (baseRole === 'auditor') staffUsers.push(...uList);
+      else if (baseRole === 'team-coordinator') tcUsers.push(...uList);
+      else if (baseRole === 'manager') mgrUsers.push(...uList);
+      else if (baseRole === 'director') dirUsers.push(...uList);
+      else if (baseRole === 'vp') vpUsers.push(...uList);
+    }
+  }
+
+  // Fallback to static helper if still empty
+  if (staffUsers.length === 0) staffUsers = getUsersByEngagementAndRole(jobId, 'it-auditor').concat(getUsersByEngagementAndRole(jobId, 'finops-auditor'));
+  if (tcUsers.length === 0) tcUsers = getUsersByEngagementAndRole(jobId, 'it-team-coordinator').concat(getUsersByEngagementAndRole(jobId, 'finops-team-coordinator'));
+  if (mgrUsers.length === 0) mgrUsers = getUsersByEngagementAndRole(jobId, 'it-manager').concat(getUsersByEngagementAndRole(jobId, 'finops-manager'));
+  if (dirUsers.length === 0) dirUsers = getUsersByEngagementAndRole(jobId, 'it-director').concat(getUsersByEngagementAndRole(jobId, 'finops-director'));
+  if (vpUsers.length === 0) vpUsers = getUsersByEngagementAndRole(jobId, 'it-vp').concat(getUsersByEngagementAndRole(jobId, 'finops-vp'));
+  if (bizUsers.length === 0) bizUsers = getUsersByEngagementAndRole(jobId, 'business-contact');
+
+  // Assigned fallback names from real Dataverse users on the job
+  const assignedFallback = (Array.isArray(job.assignedUsers) && job.assignedUsers.length > 0)
+    ? job.assignedUsers.map((u: any) => u.displayName || u.name)
+    : (job.leadOwner && job.leadOwner !== 'Amanda Palmer' ? [job.leadOwner] : []);
+
+  const defaultStaff = staffUsers.length > 0 ? staffUsers.map((u: any) => u.displayName || u.name) : (assignedFallback.length > 0 ? assignedFallback : ['Unassigned']);
+  const defaultTC = tcUsers.length > 0 ? tcUsers.map((u: any) => u.displayName || u.name) : (assignedFallback.length > 0 ? assignedFallback : ['Unassigned']);
+  const defaultMgr = mgrUsers.length > 0 ? mgrUsers.map((u: any) => u.displayName || u.name) : (assignedFallback.length > 0 ? assignedFallback : ['Unassigned']);
+  const defaultDir = dirUsers.length > 0 ? dirUsers.map((u: any) => u.displayName || u.name) : (assignedFallback.length > 0 ? assignedFallback : ['Unassigned']);
+  const defaultVP = vpUsers.length > 0 ? vpUsers.map((u: any) => u.displayName || u.name) : (assignedFallback.length > 0 ? assignedFallback : ['Unassigned']);
+  const defaultBiz = bizUsers.length > 0 ? bizUsers.map((u: any) => u.displayName || u.name) : (assignedFallback.length > 0 ? assignedFallback : ['Business Contact']);
 
   // Rule A: Completed -> Closed / Finalized
   if (status === ENGAGEMENT_STATUS.COMPLETED) {
@@ -284,18 +325,64 @@ export const getEngagementWorkflowState = (job: any) => {
 };
 
 export const getRoleDetails = (roleId?: string) => {
-  const rLower = (roleId || '').toLowerCase();
-  const isIT = rLower.includes('it-') || rLower.startsWith('it');
-  const isFinOps = rLower.includes('finops');
+  const r = (roleId || '').trim();
+  const rUpper = r.toUpperCase();
+  const rLower = r.toLowerCase();
+
+  // 1. Direct Dataverse LogicKey & TM ID mappings (per DATAVERSE_SCHEMA_SPEC & FRD_REPORTING_MODULE)
+  // ITS / TM-2 / 1: IT Audit Staff
+  if (rUpper === 'ITS' || rUpper === 'TM-2' || rUpper === '1') {
+    return { domain: 'IT', baseRole: 'auditor' };
+  }
+  // FIS / TM-3 / 2: Financial Audit Staff
+  if (rUpper === 'FIS' || rUpper === 'TM-3' || rUpper === '2') {
+    return { domain: 'FinOps', baseRole: 'auditor' };
+  }
+  // ITT / TM-4 / 3: IT Team Coordinator
+  if (rUpper === 'ITT' || rUpper === 'TM-4' || rUpper === '3') {
+    return { domain: 'IT', baseRole: 'team-coordinator' };
+  }
+  // FIT / TM-5 / 4: Financial Team Coordinator
+  if (rUpper === 'FIT' || rUpper === 'TM-5' || rUpper === '4') {
+    return { domain: 'FinOps', baseRole: 'team-coordinator' };
+  }
+  // ITM / TM-6 / 5: IT Audit Manager
+  if (rUpper === 'ITM' || rUpper === 'TM-6' || rUpper === '5') {
+    return { domain: 'IT', baseRole: 'manager' };
+  }
+  // FIM / TM-7 / 6: Financial Audit Manager
+  if (rUpper === 'FIM' || rUpper === 'TM-7' || rUpper === '6') {
+    return { domain: 'FinOps', baseRole: 'manager' };
+  }
+  // ITD / TM-8 / 7: IT Audit Director
+  if (rUpper === 'ITD' || rUpper === 'TM-8' || rUpper === '7') {
+    return { domain: 'IT', baseRole: 'director' };
+  }
+  // FID / TM-9 / 8: Financial Audit Director
+  if (rUpper === 'FID' || rUpper === 'TM-9' || rUpper === '8') {
+    return { domain: 'FinOps', baseRole: 'director' };
+  }
+  // ITV / TM-10 / 9: IT Vice President
+  if (rUpper === 'ITV' || rUpper === 'TM-10' || rUpper === '9') {
+    return { domain: 'IT', baseRole: 'vp' };
+  }
+  // FVP / TM-12 / 10: Financial Audit VP
+  if (rUpper === 'FVP' || rUpper === 'TM-12' || rUpper === '10') {
+    return { domain: 'FinOps', baseRole: 'vp' };
+  }
+
+  // 2. String-based matching for human-readable role labels and legacy role keys
+  const isIT = rLower.includes('it-') || rLower.startsWith('it') || rLower.includes(' it');
+  const isFinOps = rLower.includes('finops') || rLower.includes('fin') || rLower.startsWith('fi');
   const domain = isIT ? 'IT' : isFinOps ? 'FinOps' : 'All';
 
   let baseRole = 'manager';
-  if (rLower.includes('auditor')) baseRole = 'auditor';
+  if (rLower.includes('auditor') || rLower.includes('staff')) baseRole = 'auditor';
   else if (rLower.includes('coordinator') || rLower.includes('team-coordinator') || rLower.includes('tc')) baseRole = 'team-coordinator';
-  else if (rLower.includes('manager')) baseRole = 'manager';
-  else if (rLower.includes('director')) baseRole = 'director';
-  else if (rLower.includes('vp')) baseRole = 'vp';
-  else if (rLower.includes('business') || rLower.includes('contact')) baseRole = 'primary-business-contact';
+  else if (rLower.includes('manager') || rLower.includes('mgr')) baseRole = 'manager';
+  else if (rLower.includes('director') || rLower.includes('dir')) baseRole = 'director';
+  else if (rLower.includes('vp') || rLower.includes('president')) baseRole = 'vp';
+  else if (rLower.includes('business') || rLower.includes('contact') || rLower.includes('owner')) baseRole = 'primary-business-contact';
 
   return { domain, baseRole };
 };
@@ -427,6 +514,28 @@ export const isUserAssignedToEngagement = (
   const targetEmail = (userEmail || '').toLowerCase().trim();
   const targetId = userId || '';
 
+  // 0. Check in live Dataverse assignedUsers on the job
+  if (Array.isArray(job.assignedUsers) && job.assignedUsers.length > 0) {
+    const inLive = job.assignedUsers.some(
+      (u: any) =>
+        (u.email && u.email.toLowerCase().trim() === targetEmail) ||
+        (u.id && u.id === targetId)
+    );
+    if (inLive) return true;
+  }
+
+  // 0b. Check in live Dataverse roster
+  if (Array.isArray(job.roster) && job.roster.length > 0) {
+    const inRoster = job.roster.some((r: any) =>
+      Array.isArray(r.users) && r.users.some(
+        (u: any) =>
+          (u.email && u.email.toLowerCase().trim() === targetEmail) ||
+          (u.id && u.id === targetId)
+      )
+    );
+    if (inRoster) return true;
+  }
+
   const engId = job.jobId || job.id || job.engagementId;
   const asgs = getAssignmentsByEngagement(engId);
 
@@ -471,6 +580,30 @@ export const getUserRoleOnEngagement = (
   const targetEmail = (userEmail || '').toLowerCase().trim();
   const targetId = userId || '';
 
+  // 0. Check in live Dataverse assignedUsers on the job
+  if (Array.isArray(job.assignedUsers) && job.assignedUsers.length > 0) {
+    const matched = job.assignedUsers.find(
+      (u: any) =>
+        (u.email && u.email.toLowerCase().trim() === targetEmail) ||
+        (u.id && u.id === targetId)
+    );
+    if (matched) return matched.roleId || matched.roleName || null;
+  }
+
+  // 0b. Check in live Dataverse roster
+  if (Array.isArray(job.roster) && job.roster.length > 0) {
+    for (const r of job.roster) {
+      if (Array.isArray(r.users)) {
+        const matched = r.users.find(
+          (u: any) =>
+            (u.email && u.email.toLowerCase().trim() === targetEmail) ||
+            (u.id && u.id === targetId)
+        );
+        if (matched) return matched.roleId || matched.roleName || null;
+      }
+    }
+  }
+
   const engId = job.jobId || job.id || job.engagementId;
   const asgs = getAssignmentsByEngagement(engId);
 
@@ -501,26 +634,113 @@ export interface EngagementAssignee {
   roleAbbr: string;
 }
 
-export const getRoleAbbreviation = (roleIdOrName?: string): string => {
+export const getRoleAbbreviation = (roleIdOrName?: any): string => {
   if (!roleIdOrName) return 'AUD';
-  const r = roleIdOrName.toLowerCase();
+  const r = String(roleIdOrName).trim();
+  const rUpper = r.toUpperCase();
+  const rLower = r.toLowerCase();
 
-  if (r.includes('vp')) return r.includes('fin') ? 'FIN VP' : 'IT VP';
-  if (r.includes('director')) return r.includes('fin') ? 'FIN DIR' : 'IT DIR';
-  if (r.includes('manager') || r.includes('mgr')) return r.includes('fin') ? 'FIN MGR' : 'IT MGR';
-  if (r.includes('coordinator') || r.includes('tc')) return r.includes('fin') ? 'FIN TC' : 'IT TC';
-  if (r.includes('auditor') || r.includes('staff')) return r.includes('fin') ? 'FIN AUD' : 'IT AUD';
-  if (r.includes('business') || r.includes('contact') || r.includes('owner')) return 'BIZ';
+  // 1. Direct Dataverse LogicKey & TM ID lookups
+  if (rUpper === 'ITS' || rUpper === 'TM-2' || rUpper === '1') return 'IT AUD';
+  if (rUpper === 'FIS' || rUpper === 'TM-3' || rUpper === '2') return 'FIN AUD';
+  if (rUpper === 'ITT' || rUpper === 'TM-4' || rUpper === '3') return 'IT TC';
+  if (rUpper === 'FIT' || rUpper === 'TM-5' || rUpper === '4') return 'FIN TC';
+  if (rUpper === 'ITM' || rUpper === 'TM-6' || rUpper === '5') return 'IT MGR';
+  if (rUpper === 'FIM' || rUpper === 'TM-7' || rUpper === '6') return 'FIN MGR';
+  if (rUpper === 'ITD' || rUpper === 'TM-8' || rUpper === '7') return 'IT DIR';
+  if (rUpper === 'FID' || rUpper === 'TM-9' || rUpper === '8') return 'FIN DIR';
+  if (rUpper === 'ITV' || rUpper === 'TM-10' || rUpper === '9') return 'IT VP';
+  if (rUpper === 'FVP' || rUpper === 'TM-12' || rUpper === '10') return 'FIN VP';
+
+  // 2. String-based matching
+  const isFin = rLower.includes('fin') || rLower.includes('financial');
+
+  if (rLower.includes('vp') || rLower.includes('president')) return isFin ? 'FIN VP' : 'IT VP';
+  if (rLower.includes('director') || rLower.includes('dir')) return isFin ? 'FIN DIR' : 'IT DIR';
+  if (rLower.includes('manager') || rLower.includes('mgr')) return isFin ? 'FIN MGR' : 'IT MGR';
+  if (rLower.includes('coordinator') || rLower.includes('tc')) return isFin ? 'FIN TC' : 'IT TC';
+  if (rLower.includes('auditor') || rLower.includes('staff')) return isFin ? 'FIN AUD' : 'IT AUD';
+  if (rLower.includes('business') || rLower.includes('contact') || rLower.includes('owner')) return 'BIZ';
 
   return 'AUD';
 };
 
 export const getEngagementAssignees = (job: any): EngagementAssignee[] => {
-  const engId = job?.jobId || job?.id || job?.engagementId;
-  const asgs = getAssignmentsByEngagement(engId);
   const seenUserIds = new Set<string>();
   const assignees: EngagementAssignee[] = [];
 
+  // 1. Live Dataverse assigned users from iar_securityassignmentses & systemusers
+  if (Array.isArray(job?.assignedUsers) && job.assignedUsers.length > 0) {
+    for (const u of job.assignedUsers) {
+      const uKey = (u.id || u.email || u.name || '').toLowerCase().trim();
+      if (uKey && !seenUserIds.has(uKey)) {
+        seenUserIds.add(uKey);
+        if (u.email) seenUserIds.add(u.email.toLowerCase().trim());
+        if (u.name) seenUserIds.add(u.name.toLowerCase().trim());
+        const roleAbbr = u.roleAbbr || getRoleAbbreviation(u.roleId || u.roleName);
+        const displayName = u.displayName || (u.name?.includes('Tamilselvan') ? 'Tamilselvan' : u.name);
+        assignees.push({
+          id: u.id || '',
+          name: u.name,
+          displayName,
+          email: u.email || '',
+          initials: u.initials || (u.name ? u.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() : 'U'),
+          roleId: u.roleId || 'it-auditor',
+          roleName: u.roleName || 'Auditor',
+          roleAbbr
+        });
+      }
+    }
+  }
+
+  // 2. Live Dataverse roster from the engagement
+  if (Array.isArray(job?.roster) && job.roster.length > 0) {
+    for (const r of job.roster) {
+      if (Array.isArray(r.users)) {
+        for (const u of r.users) {
+          const uKey = (u.id || u.email || u.name || '').toLowerCase().trim();
+          if (uKey && !seenUserIds.has(uKey)) {
+            seenUserIds.add(uKey);
+            if (u.email) seenUserIds.add(u.email.toLowerCase().trim());
+            if (u.name) seenUserIds.add(u.name.toLowerCase().trim());
+            const roleAbbr = u.roleAbbr || getRoleAbbreviation(u.roleId || u.roleName || r.role);
+            const displayName = u.displayName || (u.name?.includes('Tamilselvan') ? 'Tamilselvan' : u.name);
+            assignees.push({
+              id: u.id || '',
+              name: u.name,
+              displayName,
+              email: u.email || '',
+              initials: u.initials || (u.name ? u.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() : 'U'),
+              roleId: u.roleId || 'it-auditor',
+              roleName: u.roleName || r.role || 'Auditor',
+              roleAbbr
+            });
+          }
+        }
+      } else if (r.name) {
+        const uKey = (r.id || r.email || r.name).toLowerCase().trim();
+        if (!seenUserIds.has(uKey)) {
+          seenUserIds.add(uKey);
+          const roleAbbr = getRoleAbbreviation(r.role);
+          const displayName = r.name.includes('Tamilselvan') ? 'Tamilselvan' : r.name;
+          assignees.push({
+            id: r.id || r.name,
+            name: r.name,
+            displayName,
+            email: r.email || '',
+            initials: r.avatar || r.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+            roleId: r.role || 'it-auditor',
+            roleName: r.role || 'Auditor',
+            roleAbbr
+          });
+        }
+      }
+    }
+  }
+
+  // 3. Fallback to static assignments lookup if applicable
+  const engId = job?.jobId || job?.id || job?.engagementId;
+  const asgs = getAssignmentsByEngagement(engId);
   for (const asg of asgs) {
     const roleId = asg.roleId || 'it-auditor';
     const roleName = asg.roleName || 'Auditor';
@@ -528,10 +748,9 @@ export const getEngagementAssignees = (job: any): EngagementAssignee[] => {
 
     if (Array.isArray(asg.users)) {
       for (const u of asg.users) {
-        const uId = u.id || u.email || u.name;
-        if (!seenUserIds.has(uId)) {
-          seenUserIds.add(uId);
-          // Format short name for Tamilselvan if applicable to match spec: Tamilselvan (IT MGR)
+        const uKey = (u.id || u.email || u.name || '').toLowerCase().trim();
+        if (uKey && !seenUserIds.has(uKey)) {
+          seenUserIds.add(uKey);
           const displayName = u.name?.includes('Tamilselvan') ? 'Tamilselvan' : u.name;
           assignees.push({
             id: u.id || '',
@@ -548,27 +767,6 @@ export const getEngagementAssignees = (job: any): EngagementAssignee[] => {
     }
   }
 
-  // Also check if job has roster
-  if (Array.isArray(job?.roster)) {
-    for (const r of job.roster) {
-      if (r.name && !seenUserIds.has(r.name)) {
-        seenUserIds.add(r.name);
-        const roleAbbr = getRoleAbbreviation(r.role);
-        const displayName = r.name.includes('Tamilselvan') ? 'Tamilselvan' : r.name;
-        assignees.push({
-          id: r.id || r.name,
-          name: r.name,
-          displayName,
-          email: r.email || '',
-          initials: r.avatar || r.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
-          roleId: r.role || 'it-auditor',
-          roleName: r.role || 'Auditor',
-          roleAbbr
-        });
-      }
-    }
-  }
-
   return assignees;
 };
 
@@ -581,13 +779,21 @@ export const resolveEngagementQueueAvatars = (
   const allAssignees = getEngagementAssignees(job);
 
   if (allAssignees.length === 0) {
-    const defaultName = job?.leadOwner || 'Amanda Palmer';
+    const rawOwner = job?.leadOwner && job.leadOwner !== 'Amanda Palmer' ? job.leadOwner : '';
+    const defaultName = rawOwner || (auditTab === 'my-actions' ? (currentUser?.name || 'Unassigned') : 'Unassigned');
+    const defaultInitials = defaultName !== 'Unassigned'
+      ? defaultName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+      : 'UA';
+    const defaultRoleAbbr = rawOwner
+      ? 'MGR'
+      : (currentUser?.role ? getRoleAbbreviation(currentUser.role) : 'AUD');
+
     return {
       primaryUser: {
         name: defaultName,
-        displayName: defaultName,
-        initials: defaultName.split(' ').map((n: string) => n[0]).join('').slice(0, 2),
-        roleAbbr: 'IT MGR'
+        displayName: defaultName.includes('Tamilselvan') ? 'Tamilselvan' : defaultName,
+        initials: defaultInitials,
+        roleAbbr: defaultName !== 'Unassigned' ? defaultRoleAbbr : ''
       },
       remainingAssignees: []
     };
@@ -819,7 +1025,7 @@ export const getInitialReportingJobs = (): any[] => {
       assessmentId: eng.assessmentId || 'ASM-2026',
       assessmentName: eng.assessmentName || '2026 Internal Audit Assessments',
       assessmentStatus: eng.assessmentStatus || 'Open',
-      leadOwner: eng.leadOwner || 'Amanda Palmer',
+      leadOwner: eng.leadOwner || 'Unassigned',
       businessContactId: eng.businessContactId || 'USR-013',
       status: status,
       subStatus: subStatus,

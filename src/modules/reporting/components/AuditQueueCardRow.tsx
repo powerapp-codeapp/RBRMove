@@ -4,8 +4,7 @@ import {
   Plus,
   Minus,
   PlayCircle,
-  ExternalLink,
-  Info
+  ExternalLink
 } from 'lucide-react';
 import {
   SharedTabs,
@@ -42,7 +41,7 @@ export interface AuditQueueCardRowProps {
   setSendToDropdownIssueId: (id: string | null) => void;
   onWorkOnReport: (job: any, type: 'audit' | 'executive') => void;
   onOpenCreateForJob: (job: any) => void;
-  onSelectReportingJob: (jobId: string) => void;
+  onSelectReportingJob?: (jobId: string) => void;
   onSendToRole: (jobId: string, issueId: string, targetStageObj: any, e: React.MouseEvent) => void;
 }
 
@@ -59,7 +58,7 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
   setSendToDropdownIssueId: _setSendToDropdownIssueId,
   onWorkOnReport,
   onOpenCreateForJob,
-  onSelectReportingJob,
+  onSelectReportingJob: _onSelectReportingJob,
   onSendToRole: _onSendToRole
 }) => {
   const { currentUser } = useUserSession();
@@ -90,29 +89,40 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
   };
 
   const getIssueOwner = (iss: any, currentJob: any): string => {
-    if (iss.owner && typeof iss.owner === 'string') return iss.owner;
+    if (iss.owner && typeof iss.owner === 'string' && iss.owner !== 'Amanda Palmer') return iss.owner;
+    if (iss.currentOwner && typeof iss.currentOwner === 'string' && iss.currentOwner !== 'Amanda Palmer') return iss.currentOwner;
     const s = (iss.status || '').toLowerCase();
     const lvl = (iss.currentLevel || '').toLowerCase();
 
     if (s === 'completed' || lvl.includes('signed off') || lvl.includes('completed')) {
       return 'QA Archive';
     }
+
+    const assigned: any[] = Array.isArray(currentJob?.assignedUsers) ? currentJob.assignedUsers : [];
+    const findByRole = (roleType: string) => {
+      const match = assigned.find((u: any) => {
+        const { baseRole } = getRoleDetails(u.roleId || u.roleName);
+        return baseRole === roleType;
+      });
+      return match?.displayName || match?.name;
+    };
+
     if (s.includes('vp') || lvl.includes('vp')) {
-      return 'Robert Chen';
+      return findByRole('vp') || currentJob?.leadOwner || 'VP Reviewer';
     }
     if (s.includes('director') || lvl.includes('director')) {
-      return 'Brian Cox';
+      return findByRole('director') || currentJob?.leadOwner || 'Director Reviewer';
     }
     if (s.includes('business') || lvl.includes('business')) {
-      return iss.accountableContact || iss.primaryContact || currentJob?.leadOwner || 'Vinay Narasimha';
+      return iss.primaryContact || iss.accountableContact || 'Business Owner';
     }
     if (s.includes('manager') || lvl.includes('manager')) {
-      return iss.lastEditedBy || 'Amanda Palmer';
+      return findByRole('manager') || iss.lastEditedBy || currentJob?.leadOwner || 'Audit Manager';
     }
     if (s.includes('tc') || lvl.includes('tc') || lvl.includes('coordinator')) {
-      return 'Kevin Zhang';
+      return findByRole('team-coordinator') || 'Team Coordinator';
     }
-    return iss.createdBy || 'Marcus Vance';
+    return findByRole('auditor') || iss.createdBy || currentJob?.leadOwner || 'Staff Auditor';
   };
 
   const wf = getEngagementWorkflowState(job);
@@ -533,7 +543,7 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
         </SharedTooltip>
       )}
 
-      <SharedTooltip title="Open Executive Summary" placement="top">
+        <SharedTooltip title="Open Executive Summary" placement="top">
         <SharedButton
           variant="outline"
           size="small"
@@ -564,36 +574,6 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
           <span className="audit-queue-btn-label-compact">Executive</span>
         </SharedButton>
       </SharedTooltip>
-
-      <SharedTooltip title="View Details Drawer" placement="top">
-        <SharedButton
-          variant="secondary"
-          size="small"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelectReportingJob(job.id);
-          }}
-          className="audit-queue-action-btn"
-          style={{
-            padding: '4px 8px',
-            backgroundColor: '#f8fafc',
-            borderColor: '#cbd5e1',
-            borderRadius: '5px',
-            color: '#64748B',
-            minHeight: 'var(--control-min-height-compact, 1.625rem)',
-            minWidth: 'var(--control-min-height-compact, 1.625rem)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            whiteSpace: 'nowrap'
-          }}
-          aria-label="View Details Drawer"
-        >
-          <Info size={13} style={{ flexShrink: 0 }} />
-        </SharedButton>
-      </SharedTooltip>
-
     </div>
   );
 

@@ -79,6 +79,9 @@ export type { SharedToastProps, ToastSeverity, ToastPosition } from './feedback/
 export { AIInput } from './inputs/AIInput';
 export type { AIInputProps } from './inputs/AIInput';
 
+export { ReferenceComponent } from './inputs/ReferenceComponent';
+export type { ReferenceComponentProps, FrameworkReferenceItem } from './inputs/ReferenceComponent';
+
 // Card Components
 export { IssueNavCard, SharedIssueNavCard } from './cards/IssueNavCard';
 export type { IssueNavCardProps } from './cards/IssueNavCard';

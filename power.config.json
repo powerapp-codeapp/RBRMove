@@ -39,9 +39,19 @@
   "databaseReferences": {
     "default.cds": {
       "dataSources": {
+        "iar_tmroleses": {
+          "entitySetName": "iar_tmroleses",
+          "logicalName": "iar_tmroles",
+          "isHidden": false
+        },
         "tmroles": {
           "entitySetName": "iar_tmroleses",
           "logicalName": "iar_tmroles",
+          "isHidden": false
+        },
+        "iar_assessments": {
+          "entitySetName": "iar_assessments",
+          "logicalName": "iar_assessment",
           "isHidden": false
         },
         "assessments": {
@@ -49,9 +59,19 @@
           "logicalName": "iar_assessment",
           "isHidden": false
         },
+        "systemusers": {
+          "entitySetName": "systemusers",
+          "logicalName": "systemuser",
+          "isHidden": false
+        },
         "users": {
           "entitySetName": "systemusers",
           "logicalName": "systemuser",
+          "isHidden": false
+        },
+        "iar_engagementses": {
+          "entitySetName": "iar_engagementses",
+          "logicalName": "iar_engagements",
           "isHidden": false
         },
         "engagements": {
@@ -59,9 +79,19 @@
           "logicalName": "iar_engagements",
           "isHidden": false
         },
+        "iar_procedureses": {
+          "entitySetName": "iar_procedureses",
+          "logicalName": "iar_procedures",
+          "isHidden": false
+        },
         "procedures": {
           "entitySetName": "iar_procedureses",
           "logicalName": "iar_procedures",
+          "isHidden": false
+        },
+        "iar_taxonomiesmasters": {
+          "entitySetName": "iar_taxonomiesmasters",
+          "logicalName": "iar_taxonomiesmaster",
           "isHidden": false
         },
         "taxonomiesmasters": {
@@ -69,9 +99,19 @@
           "logicalName": "iar_taxonomiesmaster",
           "isHidden": false
         },
+        "iar_taxonomieses": {
+          "entitySetName": "iar_taxonomieses",
+          "logicalName": "iar_taxonomies",
+          "isHidden": false
+        },
         "taxonomies": {
           "entitySetName": "iar_taxonomieses",
           "logicalName": "iar_taxonomies",
+          "isHidden": false
+        },
+        "iar_securityassignmentses": {
+          "entitySetName": "iar_securityassignmentses",
+          "logicalName": "iar_securityassignments",
           "isHidden": false
         },
         "securityassignments": {
@@ -79,9 +119,19 @@
           "logicalName": "iar_securityassignments",
           "isHidden": false
         },
+        "iar_issueses": {
+          "entitySetName": "iar_issueses",
+          "logicalName": "iar_issues",
+          "isHidden": false
+        },
         "issues": {
           "entitySetName": "iar_issueses",
           "logicalName": "iar_issues",
+          "isHidden": false
+        },
+        "iar_aiformattingcontextses": {
+          "entitySetName": "iar_aiformattingcontextses",
+          "logicalName": "iar_aiformattingcontexts",
           "isHidden": false
         },
         "aiformattingcontexts": {
@@ -89,9 +139,19 @@
           "logicalName": "iar_aiformattingcontexts",
           "isHidden": false
         },
+        "iar_administratorses": {
+          "entitySetName": "iar_administratorses",
+          "logicalName": "iar_administrators",
+          "isHidden": false
+        },
         "administrators": {
           "entitySetName": "iar_administratorses",
           "logicalName": "iar_administrators",
+          "isHidden": false
+        },
+        "iar_aiissuegeneratedlogses": {
+          "entitySetName": "iar_aiissuegeneratedlogses",
+          "logicalName": "iar_aiissuegeneratedlogs",
           "isHidden": false
         },
         "aiissuegeneratedlogs": {
@@ -99,9 +159,19 @@
           "logicalName": "iar_aiissuegeneratedlogs",
           "isHidden": false
         },
+        "iar_aigeneratedfieldlogses": {
+          "entitySetName": "iar_aigeneratedfieldlogses",
+          "logicalName": "iar_aigeneratedfieldlogs",
+          "isHidden": false
+        },
         "aigeneratedfieldlogs": {
           "entitySetName": "iar_aigeneratedfieldlogses",
           "logicalName": "iar_aigeneratedfieldlogs",
+          "isHidden": false
+        },
+        "iar_aigeneratedfieldeditlogses": {
+          "entitySetName": "iar_aigeneratedfieldeditlogses",
+          "logicalName": "iar_aigeneratedfieldeditlogs",
           "isHidden": false
         },
         "aigeneratedfieldeditlogs": {
@@ -109,9 +179,19 @@
           "logicalName": "iar_aigeneratedfieldeditlogs",
           "isHidden": false
         },
+        "iar_aiformattedlogses": {
+          "entitySetName": "iar_aiformattedlogses",
+          "logicalName": "iar_aiformattedlogs",
+          "isHidden": false
+        },
         "aiformattedlogs": {
           "entitySetName": "iar_aiformattedlogses",
           "logicalName": "iar_aiformattedlogs",
+          "isHidden": false
+        },
+        "iar_issuelogses": {
+          "entitySetName": "iar_issuelogses",
+          "logicalName": "iar_issuelogs",
           "isHidden": false
         },
         "issuelogs": {
@@ -119,9 +199,19 @@
           "logicalName": "iar_issuelogs",
           "isHidden": false
         },
+        "iar_issuecommentses": {
+          "entitySetName": "iar_issuecommentses",
+          "logicalName": "iar_issuecomments",
+          "isHidden": false
+        },
         "issuecomments": {
           "entitySetName": "iar_issuecommentses",
           "logicalName": "iar_issuecomments",
+          "isHidden": false
+        },
+        "iar_issuebusinessownerses": {
+          "entitySetName": "iar_issuebusinessownerses",
+          "logicalName": "iar_issuebusinessowners",
           "isHidden": false
         },
         "issuebusinessowners": {

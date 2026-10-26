@@ -1,15 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useUserSession } from '../../context/UserSessionContext';
-import { ChevronDown, Check, User, Shield, UserCheck, LogOut } from 'lucide-react';
+import { ChevronDown, User, UserCheck, LogOut, Database } from 'lucide-react';
 import { ImpersonateUserModal } from './ImpersonateUserModal';
+import { DataverseDiagnosticsModal } from './DataverseDiagnosticsModal';
+import {
+  getCachedReportingPayload,
+  subscribeToReportingData,
+  fetchDataverseReportingData,
+  type DataverseReportingPayload
+} from '../../services/dataverseReportingService';
 
 export const UserRoleMenu: React.FC = () => {
   const {
     currentUser,
     realUser,
     activeRole,
-    setActiveRoleId,
-    availableRoles,
     isAdmin,
     isImpersonating,
     exitImpersonation
@@ -17,7 +22,33 @@ export const UserRoleMenu: React.FC = () => {
 
   const [isOpen, setIsOpen] = useState(false);
   const [isImpersonateModalOpen, setIsImpersonateModalOpen] = useState(false);
+  const [isDiagModalOpen, setIsDiagModalOpen] = useState(false);
+  const [reportingData, setReportingData] = useState<DataverseReportingPayload | null>(getCachedReportingPayload());
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToReportingData((payload) => {
+      setReportingData(payload);
+    });
+    if (!getCachedReportingPayload()) {
+      fetchDataverseReportingData().then(p => setReportingData(p)).catch(() => {});
+    }
+    return () => unsubscribe();
+  }, []);
+
+  const isLiveConnected = reportingData?.isLiveConnected ?? false;
+  const diagnostics = reportingData?.diagnostics ?? null;
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const payload = await fetchDataverseReportingData();
+      setReportingData(payload);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -29,9 +60,12 @@ export const UserRoleMenu: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const itRoles = availableRoles.filter(r => r.category === 'IT Roles');
-  const finOpsRoles = availableRoles.filter(r => r.category === 'FinOps Roles');
-  const caseRoles = availableRoles.filter(r => r.category === 'Case-Based');
+  // Display role label: If admin (and not impersonating), show Admin; otherwise show user's resolved role or active persona
+  const displayRoleTitle = isImpersonating
+    ? (currentUser.role || activeRole.label)
+    : isAdmin
+      ? 'Global Audit Administrator'
+      : (currentUser.role || activeRole.label);
 
   return (
     <>
@@ -39,37 +73,49 @@ export const UserRoleMenu: React.FC = () => {
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="jnj-user-profile-button"
-          title={isImpersonating ? `Impersonating: ${currentUser.name}` : `Active Persona: ${activeRole.label}`}
+          title={isImpersonating ? `Viewing as: ${currentUser.name}` : `${currentUser.name} (${displayRoleTitle})`}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            padding: '4px 8px',
+            padding: '4px 10px',
             borderRadius: '6px',
             backgroundColor: isImpersonating ? '#FFFBEB' : 'transparent',
             border: isImpersonating ? '1px solid #FCD34D' : '1px solid transparent',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            transition: 'background-color 0.15s ease'
           }}
         >
           <div
             style={{
-              width: '24px',
-              height: '24px',
+              width: '26px',
+              height: '26px',
               borderRadius: '50%',
-              border: isImpersonating ? '1.5px solid #D97706' : '1.5px solid #212121',
+              border: isImpersonating ? '1.5px solid #D97706' : '1.5px solid #000099',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: isImpersonating ? '#D97706' : '#212121',
-              backgroundColor: isImpersonating ? '#FEF3C7' : 'transparent',
+              color: isImpersonating ? '#D97706' : '#000099',
+              backgroundColor: isImpersonating ? '#FEF3C7' : '#EFF6FF',
+              fontWeight: 700,
+              fontSize: '11px',
               flexShrink: 0,
             }}
           >
-            {isImpersonating ? <UserCheck size={14} strokeWidth={2.5} /> : <User size={15} strokeWidth={2} />}
+            {isImpersonating ? (
+              <UserCheck size={14} strokeWidth={2.5} />
+            ) : (
+              currentUser.initials || currentUser.avatar || <User size={14} strokeWidth={2} />
+            )}
           </div>
-          <span className="jnj-user-profile-name" style={{ fontSize: 'var(--type-table-row-size, 13px)', fontWeight: 600, color: '#000000' }}>
+
+          <span
+            className="jnj-user-profile-name"
+            style={{ fontSize: 'var(--type-table-row-size, 13px)', fontWeight: 600, color: '#000000' }}
+          >
             {currentUser.name}
           </span>
+
           {isAdmin && !isImpersonating && (
             <span
               style={{
@@ -86,6 +132,7 @@ export const UserRoleMenu: React.FC = () => {
               ADMIN
             </span>
           )}
+
           {isImpersonating && (
             <span
               style={{
@@ -102,6 +149,7 @@ export const UserRoleMenu: React.FC = () => {
               VIEWING AS
             </span>
           )}
+
           <ChevronDown size={14} color="#000000" />
         </button>
 
@@ -111,55 +159,55 @@ export const UserRoleMenu: React.FC = () => {
               position: 'absolute',
               right: 0,
               top: 'calc(100% + 8px)',
-              width: '300px',
+              width: '240px',
               backgroundColor: '#ffffff',
               borderRadius: '8px',
-              boxShadow: '0 10px 28px rgba(0, 0, 0, 0.14)',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
               border: '1px solid #d8d8d8',
               zIndex: 1000,
-              overflow: 'hidden',
+              padding: '14px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
             }}
           >
-            {/* Header info */}
-            <div style={{ padding: '12px 16px', backgroundColor: '#fafafc', borderBottom: '1px solid #d8d8d8' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontSize: 'var(--type-table-row-title-size, 13px)', fontWeight: 800, color: '#212121' }}>
-                  {currentUser.name}
-                </div>
-                {isAdmin && (
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '3px',
-                      fontSize: '10px',
-                      fontWeight: 800,
-                      backgroundColor: '#EFF6FF',
-                      color: '#000099',
-                      padding: '2px 6px',
-                      borderRadius: '4px'
-                    }}
-                  >
-                    <Shield size={10} />
-                    ADMIN
-                  </span>
-                )}
-              </div>
-              <div style={{ fontSize: 'var(--type-caption-size, 11px)', color: '#63666a', marginTop: '2px' }}>
-                Active Persona: <strong style={{ color: '#000099' }}>{activeRole.label}</strong>
-              </div>
-              <div style={{ fontSize: 'var(--type-caption-size, 10px)', color: '#888b8d', marginTop: '1px' }}>
-                {currentUser.department}
-              </div>
+            {/* User Name */}
+            <div
+              style={{
+                fontSize: '14px',
+                fontWeight: 700,
+                color: '#212121',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+              title={currentUser.name}
+            >
+              {currentUser.name}
             </div>
 
-            {/* Impersonation Section for Global Administrators */}
+            {/* Email beneath Name */}
+            {currentUser.email && (
+              <div
+                style={{
+                  fontSize: '12px',
+                  color: '#63666a',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}
+                title={currentUser.email}
+              >
+                {currentUser.email}
+              </div>
+            )}
+
+            {/* Impersonation Option for Admin beneath Email */}
             {isAdmin && (
-              <div style={{ padding: '8px 12px', borderBottom: '1px solid #E2E8F0', backgroundColor: isImpersonating ? '#FFFBEB' : '#F8FAFC' }}>
+              <div style={{ marginTop: '6px', paddingTop: '8px', borderTop: '1px solid #E2E8F0' }}>
                 {isImpersonating ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ fontSize: '11px', color: '#92400E', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <UserCheck size={12} color="#D97706" />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ fontSize: '11px', color: '#92400E', fontWeight: 600 }}>
                       Logged in as: <strong>{realUser.name}</strong>
                     </div>
                     <button
@@ -168,22 +216,22 @@ export const UserRoleMenu: React.FC = () => {
                         setIsOpen(false);
                       }}
                       style={{
-                        width: '100%',
-                        padding: '6px 10px',
-                        backgroundColor: '#B45309',
-                        color: '#FFFFFF',
+                        background: 'none',
                         border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '11px',
+                        padding: '4px 0',
+                        color: '#B45309',
+                        fontSize: '12.5px',
                         fontWeight: 700,
                         cursor: 'pointer',
-                        display: 'flex',
+                        display: 'inline-flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px'
+                        gap: '6px',
+                        textAlign: 'left'
                       }}
+                      onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
                     >
-                      <LogOut size={12} />
+                      <LogOut size={13} />
                       Exit Impersonation
                     </button>
                   </div>
@@ -194,124 +242,72 @@ export const UserRoleMenu: React.FC = () => {
                       setIsImpersonateModalOpen(true);
                     }}
                     style={{
-                      width: '100%',
-                      padding: '7px 12px',
-                      backgroundColor: '#000099',
-                      color: '#FFFFFF',
+                      background: 'none',
                       border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '11px',
+                      padding: '4px 0',
+                      color: '#000099',
+                      fontSize: '12.5px',
                       fontWeight: 700,
                       cursor: 'pointer',
-                      display: 'flex',
+                      display: 'inline-flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
                       gap: '6px',
-                      transition: 'background-color 0.15s ease'
+                      textAlign: 'left'
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#000077'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#000099'; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
                   >
-                    <UserCheck size={13} />
-                    Impersonate User...
+                    <UserCheck size={14} />
+                    Impersonate User
                   </button>
                 )}
               </div>
             )}
 
-            <div style={{ maxHeight: '320px', overflowY: 'auto', padding: '6px 0' }}>
-              {/* IT Roles */}
-              <div style={{ padding: '6px 14px 2px', fontSize: 'var(--type-caption-size, 10px)', fontWeight: 800, color: '#000099', textTransform: 'uppercase' }}>
-                IT Governance Roles
-              </div>
-              {itRoles.map(role => (
-                <button
-                  key={role.id}
-                  onClick={() => {
-                    setActiveRoleId(role.id);
-                    setIsOpen(false);
-                  }}
+            {/* Dataverse Sync / Connection Status at bottom of user menu */}
+            <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #E2E8F0' }}>
+              <div
+                onClick={() => {
+                  setIsOpen(false);
+                  setIsDiagModalOpen(true);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '6px 8px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  backgroundColor: isLiveConnected ? '#ECFDF5' : '#FFFBEB',
+                  border: `1px solid ${isLiveConnected ? '#A7F3D0' : '#FDE68A'}`,
+                  transition: 'background-color 0.15s ease'
+                }}
+                title="Click to view Dataverse synchronization diagnostics"
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Database size={13} color={isLiveConnected ? '#087D0D' : '#B45309'} />
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: isLiveConnected ? '#087D0D' : '#B45309',
+                      fontFamily: '"jj-circular", Arial, Helvetica, sans-serif'
+                    }}
+                  >
+                    {isLiveConnected ? 'Dataverse Live' : 'Local Dev Mode'}
+                  </span>
+                </div>
+                <span
                   style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '7px 14px',
-                    border: 'none',
-                    backgroundColor: activeRole.id === role.id ? '#f1f4ff' : 'transparent',
-                    color: activeRole.id === role.id ? '#000099' : '#212121',
-                    fontSize: 'var(--type-caption-size, 12px)',
-                    fontWeight: activeRole.id === role.id ? 700 : 500,
-                    cursor: 'pointer',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    color: isLiveConnected ? '#047857' : '#92400E',
+                    textDecoration: 'underline'
                   }}
                 >
-                  <span>{role.label}</span>
-                  {activeRole.id === role.id && <Check size={14} color="#000099" />}
-                </button>
-              ))}
-
-              {/* FinOps Roles */}
-              <div style={{ padding: '8px 14px 2px', fontSize: 'var(--type-caption-size, 10px)', fontWeight: 800, color: '#eb1700', textTransform: 'uppercase' }}>
-                FinOps Governance Roles
+                  Diagnostics
+                </span>
               </div>
-              {finOpsRoles.map(role => (
-                <button
-                  key={role.id}
-                  onClick={() => {
-                    setActiveRoleId(role.id);
-                    setIsOpen(false);
-                  }}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '7px 14px',
-                    border: 'none',
-                    backgroundColor: activeRole.id === role.id ? '#f1f4ff' : 'transparent',
-                    color: activeRole.id === role.id ? '#000099' : '#212121',
-                    fontSize: 'var(--type-caption-size, 12px)',
-                    fontWeight: activeRole.id === role.id ? 700 : 500,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <span>{role.label}</span>
-                  {activeRole.id === role.id && <Check size={14} color="#000099" />}
-                </button>
-              ))}
-
-              {/* Case-Based Roles */}
-              <div style={{ padding: '8px 14px 2px', fontSize: 'var(--type-caption-size, 10px)', fontWeight: 800, color: '#63666a', textTransform: 'uppercase' }}>
-                Business Contact Roles
-              </div>
-              {caseRoles.map(role => (
-                <button
-                  key={role.id}
-                  onClick={() => {
-                    setActiveRoleId(role.id);
-                    setIsOpen(false);
-                  }}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '7px 14px',
-                    border: 'none',
-                    backgroundColor: activeRole.id === role.id ? '#f1f4ff' : 'transparent',
-                    color: activeRole.id === role.id ? '#000099' : '#212121',
-                    fontSize: 'var(--type-caption-size, 12px)',
-                    fontWeight: activeRole.id === role.id ? 700 : 500,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <span>{role.label}</span>
-                  {activeRole.id === role.id && <Check size={14} color="#000099" />}
-                </button>
-              ))}
             </div>
           </div>
         )}
@@ -321,6 +317,16 @@ export const UserRoleMenu: React.FC = () => {
       <ImpersonateUserModal
         isOpen={isImpersonateModalOpen}
         onClose={() => setIsImpersonateModalOpen(false)}
+      />
+
+      {/* Dataverse Diagnostics Modal */}
+      <DataverseDiagnosticsModal
+        isOpen={isDiagModalOpen}
+        onClose={() => setIsDiagModalOpen(false)}
+        isLiveConnected={isLiveConnected}
+        diagnostics={diagnostics}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
       />
     </>
   );

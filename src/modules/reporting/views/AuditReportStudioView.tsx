@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useEngagement } from '../../../context/EngagementContext';
 import { useUserSession } from '../../../context/UserSessionContext';
+import { getUserRoleOnEngagement } from '../utils/reportingWorkflowEngine';
 import { dataverseService } from '../../../services/dataverseService';
+import { createDataverseIssue, fetchIssuesForEngagement } from '../../../services/dataverseReportingService';
 import type { Issue, IssueStatus, IssueComment, AuditTrailLog } from '../../../types/dataverse.types';
-import { getIssuesByEngagement } from '../utils/reportingWorkflowEngine';
 import { FindingNavigator } from '../components/FindingNavigator';
 import { FindingWorkpaperCard } from '../components/FindingWorkpaperCard';
 import { AuditReportPreviewPane } from '../components/AuditReportPreviewPane';
@@ -24,9 +25,17 @@ import {
 } from 'lucide-react';
 
 export const AuditReportStudioView: React.FC = () => {
-  const { selectedEngagementId, setActiveReportingView, activeEngagement } = useEngagement();
+  const { selectedEngagementId, setActiveReportingView, activeEngagement, setActiveEngagement } = useEngagement();
   const { currentUser, activeRole } = useUserSession();
-  const currentRole = activeRole?.id || 'it-manager';
+
+  // Dynamically resolve user's role on this active engagement (FRD Section 2.3)
+  const currentRole = useMemo(() => {
+    if (activeEngagement) {
+      const assignedRole = getUserRoleOnEngagement(activeEngagement, currentUser.email, currentUser.userId);
+      if (assignedRole) return assignedRole;
+    }
+    return activeRole?.id || 'it-manager';
+  }, [activeEngagement, currentUser.email, currentUser.userId, activeRole?.id]);
 
   const [issues, setIssues] = useState<Issue[]>([]);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
@@ -102,9 +111,10 @@ export const AuditReportStudioView: React.FC = () => {
     };
   }, [isDraggingSplitter2, isPane1Collapsed]);
 
-  // Load issues seamlessly from active engagement or fallback dataset
+  // Load issues seamlessly from active engagement or Dataverse
   useEffect(() => {
-    const engId = selectedEngagementId || activeEngagement?.id || 'REP-2026-001';
+    const engId = selectedEngagementId || activeEngagement?.id;
+    if (!engId) return;
 
     // 1. If activeEngagement has issuesList in memory, seed immediately
     const engAny = activeEngagement as any;
@@ -118,19 +128,8 @@ export const AuditReportStudioView: React.FC = () => {
       return;
     }
 
-    // 2. Otherwise load from local JSON engine first for immediate rendering
-    const localIssues = getIssuesByEngagement(engId);
-    if (localIssues && localIssues.length > 0) {
-      const sequenced = localIssues.map((item: Issue, idx: number) => ({
-        ...item,
-        reportRef: item.reportRef || idx + 1,
-      }));
-      setIssues(sequenced);
-      setSelectedIssueId(sequenced[0].id);
-    }
-
-    // 3. And fetch from Dataverse Service
-    dataverseService.getIssuesByEngagementId(engId).then((data) => {
+    // 2. Fetch live issues from Dataverse Reporting Service
+    fetchIssuesForEngagement(engId).then((data) => {
       if (data && data.length > 0) {
         const sequenced = data.map((item: Issue, idx: number) => ({
           ...item,
@@ -140,6 +139,21 @@ export const AuditReportStudioView: React.FC = () => {
         if (!selectedIssueId) {
           setSelectedIssueId(sequenced[0].id);
         }
+      } else {
+        dataverseService.getIssuesByEngagementId(engId).then((fallbackData) => {
+          if (fallbackData && fallbackData.length > 0) {
+            const sequenced = fallbackData.map((item: Issue, idx: number) => ({
+              ...item,
+              reportRef: item.reportRef || idx + 1,
+            }));
+            setIssues(sequenced);
+            if (!selectedIssueId) {
+              setSelectedIssueId(sequenced[0].id);
+            }
+          } else {
+            setIssues([]);
+          }
+        });
       }
     });
   }, [selectedEngagementId, activeEngagement]);
@@ -409,39 +423,73 @@ export const AuditReportStudioView: React.FC = () => {
     setToastMessage({ message: `Adopted AI synthesis (v${updated.activeAiVersionNumber})`, severity: 'success' });
   };
 
-  const handleCreateNewIssue = async (newIssueData: Partial<Issue>) => {
-    const newId = `ISSUE-${Date.now().toString().slice(-4)}`;
-    const created: any = {
-      id: newId,
-      engagementId: selectedEngagementId || 'REP-2026-001',
-      title: newIssueData.title || 'New Audit Finding',
-      testProcedureCode: newIssueData.testProcedureCode || 'TP-101',
-      criticality: newIssueData.criticality || 'Major',
-      status: 'Pending Staff',
-      issueNarrative:
-        (newIssueData as any).issueNarrative || 'Initial observations documented during field testing.',
-      rootCause: (newIssueData as any).rootCause || 'Under investigation.',
-      impact: (newIssueData as any).impact || 'Under assessment.',
-      recommendation: (newIssueData as any).recommendation || 'Standardize monitoring controls.',
-      accountableContact: (newIssueData as any).accountableContact || 'Business Owner',
-      agreedRemediationDate:
-        (newIssueData as any).agreedRemediationDate ||
-        new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      activeAiVersionNumber: 1,
-      reportRef: issues.length + 1,
-      ...newIssueData,
-    };
+  const handleCreateNewIssue = async (newIssueData: Partial<Issue>, statusAction?: 'draft' | 'submit') => {
+    try {
+      const engId = selectedEngagementId || (activeEngagement as any)?.id || 'REP-2026-001';
+      const created = await createDataverseIssue(
+        {
+          engagementId: engId,
+          ...newIssueData,
+          function: (newIssueData.function === 'FinOps' ? 'FinOps' : 'IT') as 'IT' | 'FinOps'
+        } as any,
+        currentUser
+      );
 
-    const newIssues = [...issues, created];
-    updateIssuesAndSync(newIssues);
-    setSelectedIssueId(created.id);
-    setToastMessage({
-      title: 'Finding Created Successfully',
-      message: `Finding #${created.id} (${created.title}) added to report.`,
-      severity: 'success',
-    });
+      const issueToAdd: Issue = created?.issue || {
+        id: created?.iar_issuesid || `ISSUE-${Date.now().toString().slice(-4)}`,
+        jobId: engId,
+        engagementId: engId,
+        title: newIssueData.title || 'New Audit Finding',
+        testProcedureCode: newIssueData.testProcedureCode || 'TP-101',
+        criticality: newIssueData.criticality || 'Major',
+        status: (newIssueData.status as any) || (statusAction === 'submit' ? 'Pending TC' : 'Pending Staff'),
+        currentLevel: (newIssueData.status as any) || (statusAction === 'submit' ? 'Pending TC' : 'Pending Staff'),
+        issueNarrative:
+          (newIssueData as any).issueNarrative || 'Initial observations documented during field testing.',
+        rootCause: (newIssueData as any).rootCause || 'Under investigation.',
+        impact: (newIssueData as any).impact || 'Under assessment.',
+        recommendation: (newIssueData as any).recommendation || 'Standardize monitoring controls.',
+        accountableContact: (newIssueData as any).accountableContact || 'Business Owner',
+        agreedRemediationDate:
+          (newIssueData as any).agreedRemediationDate ||
+          new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        activeAiVersionNumber: newIssueData.activeAiVersionNumber || 1,
+        reportRef: issues.length + 1,
+        ...newIssueData,
+      };
+
+      const newIssues = [...issues, issueToAdd];
+      updateIssuesAndSync(newIssues);
+      setSelectedIssueId(issueToAdd.id);
+
+      if (activeEngagement) {
+        setActiveEngagement({
+          ...activeEngagement,
+          issuesList: newIssues,
+          status: (activeEngagement as any).status === 'Not Started' ? 'In Progress' : (activeEngagement as any).status,
+          subStatus: 'Audit Report In Progress',
+          workflowStatus: 'Audit Report In Progress'
+        } as any);
+      }
+
+      const isSubmitted = statusAction === 'submit' || (issueToAdd.status && !issueToAdd.status.includes('Draft') && !issueToAdd.status.includes('Staff'));
+      setToastMessage({
+        title: isSubmitted ? 'Finding Submitted Successfully' : 'Finding Saved as Draft',
+        message: `Finding #${issueToAdd.id} (${issueToAdd.title}) recorded in Dataverse report.`,
+        severity: 'success',
+      });
+    } catch (err: any) {
+      console.error('[AuditReportStudioView] Error creating finding in Dataverse:', err);
+      setToastMessage({
+        title: 'Error Saving Finding',
+        message: err?.message || 'Could not persist finding to Dataverse.',
+        severity: 'error',
+      });
+    } finally {
+      setIsCreateOpen(false);
+    }
   };
 
   const handleAddComment = async (content: string, taggedUserId?: string, taggedUserName?: string) => {
@@ -801,6 +849,8 @@ export const AuditReportStudioView: React.FC = () => {
           (activeEngagement as any)?.fileName
         }
         job={activeEngagement}
+        userRole={currentRole}
+        currentUser={currentUser}
         onSave={handleCreateNewIssue}
       />
 

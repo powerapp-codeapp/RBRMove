@@ -163,13 +163,32 @@ export function SharedAutocomplete<T>({
             const htmlInputProps = params.slotProps.htmlInput;
 
             return (
-              <div ref={ref} className="w-full flex items-center px-3 h-full">
+              <div
+                ref={ref}
+                className="w-full flex items-center px-3 h-full"
+                style={{ width: '100%', display: 'flex', alignItems: 'center', height: '100%', padding: '0 10px' }}
+              >
                 {startAdornment}
                 <input
                   {...htmlInputProps}
                   name={name}
                   placeholder={placeholder}
                   className="grow bg-transparent text-sm text-slate-800 placeholder:text-slate-400 outline-none font-normal w-full"
+                  style={{
+                    border: 'none',
+                    outline: 'none',
+                    boxShadow: 'none',
+                    background: 'transparent',
+                    backgroundColor: 'transparent',
+                    fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+                    fontSize: '13px',
+                    color: '#1E293B',
+                    flexGrow: 1,
+                    width: '100%',
+                    padding: '4px 0',
+                    margin: 0,
+                    lineHeight: '1.5',
+                  }}
                   aria-invalid={error}
                   aria-describedby={errorMessage || helperText ? helperId : undefined}
                   aria-required={required}
@@ -189,6 +208,12 @@ export function SharedAutocomplete<T>({
               alignItems: 'center',
               gap: '2px',
               paddingRight: '4px',
+            },
+            '& input': {
+              border: 'none !important',
+              outline: 'none !important',
+              boxShadow: 'none !important',
+              background: 'transparent !important',
             },
           }}
           slotProps={{

@@ -430,7 +430,7 @@ export const AIInput: React.FC<AIInputProps> = ({
           {extraHeaderActions}
           {remark ? (
             <SharedTooltip
-              title={`Remark: "${remark}"${disabled ? '' : ' (Click to edit)'}`}
+              title={`Feedback: "${remark}"${disabled ? '' : ' (Click to edit)'}`}
               placement="top"
             >
               <button
@@ -454,12 +454,12 @@ export const AIInput: React.FC<AIInputProps> = ({
                 }}
               >
                 <Plus size={11} style={{ color: '#1D4ED8' }} />
-                <span>Remark Added</span>
+                <span>Feedback Added</span>
               </button>
             </SharedTooltip>
           ) : !disabled ? (
             <SharedTooltip
-              title={isRemarkOpen ? "Hide remark" : "Add remark for AI"}
+              title={isRemarkOpen ? "Hide feedback" : "Add feedback for AI"}
               placement="top"
             >
               <button
@@ -483,7 +483,7 @@ export const AIInput: React.FC<AIInputProps> = ({
                 }}
               >
                 <Plus size={11} style={{ color: isRemarkOpen ? '#000099' : '#64748B' }} />
-                <span>{isRemarkOpen ? 'Hide Remark' : 'Add Remark'}</span>
+                <span>{isRemarkOpen ? 'Hide Feedback' : 'Add Feedback'}</span>
               </button>
             </SharedTooltip>
           ) : null}
@@ -928,7 +928,7 @@ export const AIInput: React.FC<AIInputProps> = ({
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '11px', fontWeight: 700, color: '#334155' }}>
-              Remark for AI
+              Feedback to AI
             </span>
             <button
               type="button"
@@ -942,6 +942,7 @@ export const AIInput: React.FC<AIInputProps> = ({
             type="text"
             value={localRemark}
             onChange={(e) => setLocalRemark(e.target.value)}
+            placeholder="Enter feedback or fine-tuning instructions for AI..."
             style={{
               width: '100%',
               boxSizing: 'border-box',
@@ -1001,7 +1002,7 @@ export const AIInput: React.FC<AIInputProps> = ({
                 e.currentTarget.style.backgroundColor = '#475569';
               }}
             >
-              Save Remark
+              Save Feedback
             </button>
           </div>
         </div>

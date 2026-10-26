@@ -99,6 +99,12 @@ export function SharedMultiSelect<T extends string | number>({
         style={{
           backgroundColor: disabled ? '#FAFAFA' : readOnly ? '#FAFAFA' : '#FFFFFF',
           borderColor: error ? '#ef4444' : '#CBD5E1',
+          minHeight: size === 'small' ? 'var(--control-min-height-sm, 2.25rem)' : 'var(--control-min-height-md, 2.5rem)',
+          fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+          fontSize: 'var(--type-input-text-size, 13px)',
+          borderRadius: '4px',
+          boxSizing: 'border-box',
+          width: '100%',
         }}
       >
         <Autocomplete<SelectOption<T>, true, false, false>
@@ -161,33 +167,101 @@ export function SharedMultiSelect<T extends string | number>({
             const htmlInputProps = params.slotProps.htmlInput;
 
             return (
-              <div ref={ref} className="w-full flex items-center flex-wrap gap-1 px-2.5 py-1">
-                {startAdornment}
-                <input
-                  {...htmlInputProps}
-                  placeholder={selectedOptions.length === 0 ? placeholder : ''}
-                  className="grow bg-transparent text-sm text-slate-800 placeholder:text-slate-400 outline-none font-normal min-w-[60px]"
-                  aria-invalid={error}
-                  aria-describedby={errorMessage || helperText ? helperId : undefined}
-                  aria-required={required}
-                />
+              <div
+                ref={ref}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  flexWrap: 'nowrap',
+                  padding: '2px 8px',
+                  boxSizing: 'border-box',
+                  minHeight: size === 'small' ? '34px' : '38px',
+                }}
+              >
+                {/* Chip tags and search text input area */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '4px',
+                    flex: '1 1 auto',
+                    minWidth: 0,
+                  }}
+                >
+                  {startAdornment}
+                  <input
+                    {...htmlInputProps}
+                    placeholder={selectedOptions.length === 0 ? placeholder : ''}
+                    className="grow bg-transparent text-sm text-slate-800 placeholder:text-slate-400 outline-none font-normal"
+                    style={{
+                      border: 'none',
+                      outline: 'none',
+                      boxShadow: 'none',
+                      background: 'transparent',
+                      backgroundColor: 'transparent',
+                      fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+                      fontSize: '13px',
+                      color: '#1E293B',
+                      flex: '1 1 120px',
+                      minWidth: '60px',
+                      padding: '4px 0',
+                      margin: 0,
+                      lineHeight: '1.5',
+                    }}
+                    aria-invalid={error}
+                    aria-describedby={errorMessage || helperText ? helperId : undefined}
+                    aria-required={required}
+                  />
+                </div>
+
                 {loading && <CircularProgress size={16} className="text-slate-400 shrink-0 mr-1" />}
-                {endAdornment}
+
+                {/* Arrow / End Adornment pinned to right on the same line */}
+                <div
+                  style={{
+                    flexShrink: 0,
+                    marginLeft: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  {endAdornment}
+                </div>
               </div>
             );
           }}
           className="w-full"
           sx={{
+            width: '100%',
+            '& .MuiChip-root': {
+              height: '22px',
+              fontSize: '11px',
+              backgroundColor: '#F1F5F9',
+              color: '#334155',
+              fontWeight: 500,
+              borderRadius: '4px',
+              border: '1px solid #E2E8F0',
+            },
             '& .MuiAutocomplete-endAdornment': {
               position: 'relative',
               right: 0,
+              top: 'auto',
+              transform: 'none',
               display: 'flex',
               alignItems: 'center',
               gap: '2px',
-              paddingRight: '6px',
+              paddingRight: 0,
             },
             '& .MuiAutocomplete-tag': {
               margin: '2px',
+            },
+            '& input': {
+              border: 'none !important',
+              outline: 'none !important',
+              boxShadow: 'none !important',
+              background: 'transparent !important',
             },
           }}
           {...slotProps?.autocomplete}

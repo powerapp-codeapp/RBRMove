@@ -13,7 +13,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import Box from '@mui/material/Box';
 import { SharedTabs } from '../../../components/shared';
-import { getIssuesByEngagement, getUsersByEngagementAndRole } from '../utils/reportingWorkflowEngine';
+import { getIssuesByEngagement, getUsersByEngagementAndRole, getRoleDetails } from '../utils/reportingWorkflowEngine';
 
 export interface WorkflowModalProps {
   isOpen: boolean;
@@ -104,15 +104,24 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
   });
 
   // Team members
+  const assignedUsers: any[] = Array.isArray(currentJob.assignedUsers) ? currentJob.assignedUsers : [];
+  const findByRole = (rType: string) => {
+    const found = assignedUsers.find((u: any) => {
+      const { baseRole } = getRoleDetails(u.roleId || u.roleName);
+      return baseRole === rType;
+    });
+    return found?.displayName || found?.name;
+  };
+
   const tcUsers = getUsersByEngagementAndRole(jobId, 'it-team-coordinator').concat(getUsersByEngagementAndRole(jobId, 'finops-team-coordinator'));
   const mgrUsers = getUsersByEngagementAndRole(jobId, 'it-manager').concat(getUsersByEngagementAndRole(jobId, 'finops-manager'));
   const dirUsers = getUsersByEngagementAndRole(jobId, 'it-director').concat(getUsersByEngagementAndRole(jobId, 'finops-director'));
   const vpUsers = getUsersByEngagementAndRole(jobId, 'it-vp').concat(getUsersByEngagementAndRole(jobId, 'finops-vp'));
 
-  const leadTC = tcUsers[0]?.name || 'Kevin Zhang';
-  const leadMgr = mgrUsers[0]?.name || 'Amanda Palmer';
-  const leadDir = dirUsers[0]?.name || 'Brian Cox';
-  const leadVP = vpUsers[0]?.name || 'Robert Chen';
+  const leadTC = findByRole('team-coordinator') || tcUsers[0]?.name || 'Team Coordinator';
+  const leadMgr = findByRole('manager') || mgrUsers[0]?.name || currentJob.leadOwner || 'Audit Manager';
+  const leadDir = findByRole('director') || dirUsers[0]?.name || 'Audit Director';
+  const leadVP = findByRole('vp') || vpUsers[0]?.name || 'Vice President';
 
   const computeDomainMetrics = (issueArray: any[]) => {
     const total = issueArray.length;

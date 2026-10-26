@@ -9,6 +9,7 @@ export interface AiSynthesizedFields {
   rootCause: string;
   impact: string;
   recommendation: string;
+  nonComplianceReferences: string;
 }
 
 export const synthesizeAiDraft = (
@@ -75,5 +76,6 @@ export const synthesizeAiDraft = (
     rootCause: `Systemic governance and automated synchronization gaps in ${processArea}. Root cause analysis indicates lack of scheduled exception monitoring feeds and absence of secondary verification protocols under the ${func} operating model.${rootRemark}`,
     impact: `Criticality rated as ${criticality}. Uncontrolled variance exposes the operational environment to potential compliance citations, unauthorized data modification, and SOX/GxP regulatory escalation.${impactRemark}`,
     recommendation: `1. Implement automated real-time exception alerting and scheduled synchronization for ${procTitle}.\n2. Establish mandatory dual-custody authorization for configuration overrides within ${func} operations.\n3. Conduct retrospective audit reconciliations on a quarterly basis.${recRemark}`,
+    nonComplianceReferences: `${citation} (${stdCode}); Johnson & Johnson Worldwide Policy on Enterprise Operational Resilience & Data Integrity.`
   };
 };

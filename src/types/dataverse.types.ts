@@ -79,11 +79,13 @@ export interface IssueLock {
 
 export interface Issue {
   id: string;
+  jobId?: string;
   engagementId: string;
   testProcedureCode: string;
   testProcedureId?: string;
   testProcedureTitle?: string;
   title: string;
+  header?: string;
   criticality: CriticalityLevel;
   status: IssueStatus;
   reportRef?: number;
@@ -115,6 +117,9 @@ export interface Issue {
   remediationTargetDate?: string;
   agreedRemediationDate?: string;
   managementActionPlan?: string;
+  businessManagementReason?: string;
+  businessManagementResponse?: string;
+  businessManagementAttachment?: string;
 
   // Active AI Version Tracking
   activeAiVersionId?: string;
@@ -131,6 +136,43 @@ export interface Issue {
   previousStatus?: string | null;
   callbackReason?: string | null;
   callbackTimestamp?: string | null;
+
+  // Additional Finding Narrative & Governance Fields
+  nonComplianceReferences?: string;
+  summaryFinding?: string;
+  auditorResponse?: string;
+  mitigatingControl?: string;
+  exceptionRemedComments?: string;
+  exceptionRemedDate?: string;
+  hasExceptionRemedDate?: boolean;
+  issueType?: string;
+  issueSource?: string;
+  keyTheme?: string;
+  itAssetAccountableSector?: string;
+  impactedRegion?: string;
+  impactedSector?: string;
+  impactedMrc?: string;
+  quarterImpacted?: string;
+  primaryBusinessOwnerId?: string;
+  primaryBusinessOwnerName?: string;
+  secondaryBusinessOwnerIds?: string[];
+  secondaryBusinessOwnerNames?: string;
+  salesUsd?: number | string;
+  ibtUsd?: number | string;
+  netIncomeUsd?: number | string;
+  totalAssetsUsd?: number | string;
+  workflowRemarks?: string;
+  currentLevel?: string;
+  tech?: 'IT' | 'FinOps' | string;
+  reportReference?: number;
+  lockStatus?: boolean;
+  primaryContact?: string;
+  owner?: string;
+  currentOwner?: string;
+  createdBy?: string;
+  lastEditedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
 
   unresolvedCommentsCount?: number;
 }
