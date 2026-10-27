@@ -20,6 +20,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { GuidelinesDrawer } from './GuidelinesDrawer';
+import { getRoleDetails } from '../utils/reportingWorkflowEngine';
 import type { CriticalityLevel, Issue } from '../../../types/dataverse.types';
 import {
   SharedTextArea,
@@ -885,10 +886,10 @@ export const CreateIssueDialog: React.FC<CreateIssueDialogProps> = ({
 
   // Resolve creator-driven initial review status per FRD Section 3.2
   const resolveTargetStatus = (action: 'draft' | 'submit'): string => {
-    const r = (userRole || '').toLowerCase();
-    const isTC = r.includes('coordinator') || r.includes('tc');
-    const isManager = r.includes('manager') && !r.includes('director');
-    const isDirector = r.includes('director');
+    const { baseRole } = getRoleDetails(userRole);
+    const isTC = baseRole === 'team-coordinator';
+    const isManager = baseRole === 'manager';
+    const isDirector = baseRole === 'director';
 
     if (action === 'draft') {
       if (isTC) return 'Pending TC';
@@ -1241,22 +1242,22 @@ export const CreateIssueDialog: React.FC<CreateIssueDialogProps> = ({
         )}
       </div>
 
-      {/* 24. Primary Business Owner */}
+      {/* 24. Accountable Contact */}
       <SharedSelect
-        label="Primary Business Owner"
+        label="Accountable Contact"
         value={primaryBusinessOwner}
         onChange={(v) => setPrimaryBusinessOwner(v as string)}
         options={systemUsers}
-        placeholder="Select Primary Business Owner..."
+        placeholder="Select Accountable Contact..."
       />
 
-      {/* 25. Add New Secondary Business Owner (Multi Select) */}
+      {/* 25. Supporting Business Contact(s) (Multi Select) */}
       <SharedMultiSelect
-        label="Add New Secondary Business Owner"
+        label="Supporting Business Contact(s)"
         value={secondaryBusinessOwners}
         onChange={(vals) => setSecondaryBusinessOwners(vals)}
         options={systemUsers}
-        placeholder="Select Secondary Business Owners..."
+        placeholder="Select Supporting Business Contact(s)..."
       />
     </div>
   );
@@ -2007,7 +2008,7 @@ export const CreateIssueDialog: React.FC<CreateIssueDialogProps> = ({
                 fontWeight: 600
               }}
             >
-              Show Guidelines
+              AI POV
             </SharedButton>
           </span>
         </SharedTooltip>

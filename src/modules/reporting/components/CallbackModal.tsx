@@ -1,41 +1,58 @@
 import React, { useState, useEffect } from 'react';
-import { RotateCcw, X } from 'lucide-react';
+import { RotateCcw, X, ArrowRight, UserCheck } from 'lucide-react';
 import type { Issue } from '../../../types/dataverse.types';
 import { SharedButton } from '../../../components/shared/buttons/SharedButton';
 import { SharedTextArea } from '../../../components/shared/inputs/SharedTextArea';
+import { deriveTargetStatusForRole } from '../../../services/dataverseReportingService';
 
 interface CallbackModalProps {
   isOpen: boolean;
   onClose: () => void;
   issue: Issue | null;
-  onConfirmCallback: (issueId: string, reason: string) => void;
+  currentUser?: { name?: string; role?: string; email?: string; userId?: string };
+  userRole?: string;
+  onConfirmCallback: (issueId: string, reason: string, targetStatus: string) => Promise<void> | void;
 }
 
 export const CallbackModal: React.FC<CallbackModalProps> = ({
   isOpen,
   onClose,
   issue,
+  currentUser,
+  userRole,
   onConfirmCallback,
 }) => {
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setReason('');
       setError('');
+      setIsSubmitting(false);
     }
   }, [isOpen]);
 
   if (!isOpen || !issue) return null;
 
-  const handleConfirm = () => {
+  const effectiveRole = userRole || currentUser?.role || 'Staff Auditor';
+  const targetInfo = deriveTargetStatusForRole(effectiveRole);
+
+  const handleConfirm = async () => {
     if (!reason.trim()) {
-      setError('Please provide a reason for calling back this issue.');
+      setError('Please provide a mandatory justification explaining why this finding is being called back.');
       return;
     }
-    onConfirmCallback(issue.id, reason.trim());
-    onClose();
+    try {
+      setIsSubmitting(true);
+      await onConfirmCallback(issue.id, reason.trim(), targetInfo.statusText);
+      onClose();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to call back issue. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -59,7 +76,7 @@ export const CallbackModal: React.FC<CallbackModalProps> = ({
         style={{
           backgroundColor: '#FFFFFF',
           borderRadius: '8px',
-          maxWidth: '520px',
+          maxWidth: '540px',
           width: '100%',
           boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
           overflow: 'hidden',
@@ -110,7 +127,7 @@ export const CallbackModal: React.FC<CallbackModalProps> = ({
                   gap: '8px',
                 }}
               >
-                Call Back Issue
+                Call Back Finding
                 <span
                   className="type-badge"
                   style={{
@@ -127,7 +144,7 @@ export const CallbackModal: React.FC<CallbackModalProps> = ({
                 </span>
               </h3>
               <p className="type-caption" style={{ margin: '2px 0 0', fontSize: 'var(--type-caption-size, 11.5px)', color: '#64748B' }}>
-                {issue.title || 'Specify the reason for calling back this audit issue.'}
+                {issue.title || 'Pull this audit finding back into your active review stage.'}
               </p>
             </div>
           </div>
@@ -165,22 +182,83 @@ export const CallbackModal: React.FC<CallbackModalProps> = ({
 
         {/* Modal Body */}
         <div style={{ padding: '20px' }}>
-          <p className="type-caption" style={{ margin: '0 0 12px', fontSize: 'var(--type-caption-size, 12px)', color: '#64748B', lineHeight: '1.4' }}>
-            Please provide details explaining why this issue is being recalled or returned to the previous review stage.
-          </p>
+          {/* Review Stage Transition Preview Card */}
+          <div
+            style={{
+              backgroundColor: '#F8FAFC',
+              borderRadius: '6px',
+              border: '1px solid #E2E8F0',
+              padding: '12px 14px',
+              marginBottom: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <span>Stage Transition</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#000099', textTransform: 'none', fontWeight: 600 }}>
+                <UserCheck size={12} />
+                {currentUser?.name || 'Reviewer'} ({effectiveRole})
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span style={{ fontSize: '10px', color: '#64748B' }}>Current Stage</span>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#92400E',
+                    backgroundColor: '#FEF3C7',
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    border: '1px solid #FDE68A',
+                  }}
+                >
+                  {issue.status || 'In Review'}
+                </span>
+              </div>
+
+              <ArrowRight size={14} color="#94A3B8" style={{ marginTop: '12px' }} />
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span style={{ fontSize: '10px', color: '#000099', fontWeight: 600 }}>Pulling Down To</span>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#000099',
+                    backgroundColor: '#EFF6FF',
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    border: '1px solid #BFDBFE',
+                  }}
+                >
+                  {targetInfo.statusText}
+                </span>
+              </div>
+            </div>
+
+            <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#64748B', lineHeight: '1.4' }}>
+              This action recalls the observation from higher-level review. It re-assigns active ownership to you and logs a regulatory audit trail entry.
+            </p>
+          </div>
 
           <SharedTextArea
-            label="Reason for Call Back"
+            label="Mandatory Reason for Call Back"
             required
             value={reason}
             onChange={(val) => {
               setReason(val);
               if (error) setError('');
             }}
-            placeholder="Enter justification for recall / return to previous stage..."
+            placeholder="Specify why this finding requires further fieldwork, revisions, or clarification..."
             rows={4}
             error={Boolean(error)}
             errorMessage={error || undefined}
+            disabled={isSubmitting}
           />
         </div>
 
@@ -200,6 +278,7 @@ export const CallbackModal: React.FC<CallbackModalProps> = ({
             variant="outline"
             size="small"
             onClick={onClose}
+            disabled={isSubmitting}
           >
             Cancel
           </SharedButton>
@@ -208,11 +287,13 @@ export const CallbackModal: React.FC<CallbackModalProps> = ({
             size="small"
             startIcon={<RotateCcw size={13} />}
             onClick={handleConfirm}
+            disabled={isSubmitting}
           >
-            Confirm Call Back
+            {isSubmitting ? 'Calling Back...' : 'Confirm Call Back'}
           </SharedButton>
         </div>
       </div>
     </div>
   );
 };
+

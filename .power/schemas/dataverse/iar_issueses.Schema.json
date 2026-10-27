@@ -430,7 +430,8 @@
             "Pending Director",
             "Pending Business",
             "Pending VP",
-            "Completed"
+            "Completed",
+            "Excluded"
           ],
           "x-ms-enum-values": [
             822500000,
@@ -441,9 +442,11 @@
             822500005,
             822500006,
             822500007,
-            822500008
+            822500008,
+            822500009
           ],
           "Color": [
+            null,
             null,
             null,
             null,

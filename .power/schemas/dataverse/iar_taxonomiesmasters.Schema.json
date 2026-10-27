@@ -82,6 +82,15 @@
           "required": true,
           "maxLength": 100
         },
+        "iar_logickey": {
+          "type": "string",
+          "title": "Logic Key",
+          "x-ms-dataverse-attribute": "iar_logickey",
+          "x-ms-dataverse-type": "StringType",
+          "x-ms-schema-name": "iar_LogicKey",
+          "required": true,
+          "maxLength": 100
+        },
         "iar_masterid": {
           "type": "string",
           "title": "Master ID",
@@ -371,6 +380,7 @@
       "required": [
         "createdbyyominame",
         "createdonbehalfbyyominame",
+        "iar_logickey",
         "iar_masterid",
         "iar_name",
         "iar_taxonomiesmasterid",

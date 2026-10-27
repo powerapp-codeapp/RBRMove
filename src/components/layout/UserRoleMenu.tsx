@@ -15,6 +15,7 @@ export const UserRoleMenu: React.FC = () => {
     currentUser,
     realUser,
     activeRole,
+    setActiveRoleId,
     isAdmin,
     isImpersonating,
     exitImpersonation
@@ -201,6 +202,54 @@ export const UserRoleMenu: React.FC = () => {
                 {currentUser.email}
               </div>
             )}
+
+            {/* Active Review Persona Switcher (For rapid testing across all review tiers) */}
+            <div style={{ marginTop: '6px', paddingTop: '8px', borderTop: '1px solid #E2E8F0' }}>
+              <div
+                style={{
+                  fontSize: '10.5px',
+                  fontWeight: 700,
+                  color: '#475569',
+                  marginBottom: '4px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.4px',
+                }}
+              >
+                Review Persona
+              </div>
+              <select
+                value={activeRole?.id || 'assigned'}
+                onChange={(e) => setActiveRoleId(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '5px 8px',
+                  fontSize: '11.5px',
+                  borderRadius: '5px',
+                  border: '1px solid #CBD5E1',
+                  backgroundColor: activeRole?.id !== 'assigned' ? '#EFF6FF' : '#F8FAFC',
+                  color: activeRole?.id !== 'assigned' ? '#000099' : '#1E293B',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  outline: 'none',
+                }}
+              >
+                <option value="assigned">⚡ Assigned Role on Engagement</option>
+                <optgroup label="IT Audit Roles">
+                  <option value="it-auditor">IT Auditor (Staff)</option>
+                  <option value="it-team-coordinator">IT Team Coordinator (TC)</option>
+                  <option value="it-manager">IT Manager</option>
+                  <option value="it-director">IT Director</option>
+                  <option value="it-vp">IT Vice President (VP)</option>
+                </optgroup>
+                <optgroup label="FinOps Audit Roles">
+                  <option value="finops-auditor">FinOps Auditor (Staff)</option>
+                  <option value="finops-team-coordinator">FinOps Team Coordinator (TC)</option>
+                  <option value="finops-manager">FinOps Manager</option>
+                  <option value="finops-director">FinOps Director</option>
+                  <option value="finops-vp">FinOps Vice President (VP)</option>
+                </optgroup>
+              </select>
+            </div>
 
             {/* Impersonation Option for Admin beneath Email */}
             {isAdmin && (

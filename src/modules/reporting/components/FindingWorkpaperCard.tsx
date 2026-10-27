@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import type { Issue, CriticalityLevel, IssueStatus } from '../../../types/dataverse.types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import type { Issue, CriticalityLevel, IssueStatus, IssueComment } from '../../../types/dataverse.types';
+import { FieldCommentPopover, type CommentUser } from './FieldCommentPopover';
 import {
   SharedButton,
   SharedSelectButton,
@@ -10,6 +11,7 @@ import {
   SharedCheckbox,
   SharedListBoxFilter,
   AIInput,
+  ReferenceComponent,
 } from '../../../components/shared';
 import type { ListBoxFilterOption } from '../../../components/shared';
 import {
@@ -28,9 +30,21 @@ import {
   Upload,
   FileText,
   Trash2,
+  BookOpen,
+  Sparkles,
+  Clock,
+  Shield,
 } from 'lucide-react';
 import { synthesizeAiDraft } from '../utils/aiSynthesisHelper';
+import { getRoleDetails } from '../utils/reportingWorkflowEngine';
 import { AiVersionCompareDialog, type AiCompareFieldData } from './AiVersionCompareDialog';
+import { GuidelinesDrawer } from './GuidelinesDrawer';
+import {
+  BusinessOwnerCommentsDrawer,
+  type BusinessOwnerCommentItem,
+} from './BusinessOwnerCommentsDrawer';
+import { WorkflowSubmitButton } from './WorkflowSubmitButton';
+import { WorkflowRemarksModal } from './WorkflowRemarksModal';
 import { SystemusersService } from '../../../generated/services/SystemusersService';
 
 interface FindingWorkpaperCardProps {
@@ -38,8 +52,11 @@ interface FindingWorkpaperCardProps {
   onUpdateIssue: (updated: Issue) => void;
   onOpenAiCompare?: () => void;
   onOpenLogs: () => void;
-  onOpenComments: (fieldKey: string, fieldLabel: string) => void;
-  commentCounts: Record<string, number>;
+  onOpenComments?: (fieldKey: string, fieldLabel: string) => void;
+  commentCounts?: Record<string, number>;
+  comments?: IssueComment[];
+  onAddComment?: (fieldKey: string, fieldLabel: string, content: string, taggedUser?: CommentUser) => void;
+  onResolveComment?: (commentId: string) => void;
   isAiSynthesizing?: boolean;
   onTriggerAiSynthesis?: () => void;
   canEdit: boolean;
@@ -47,12 +64,15 @@ interface FindingWorkpaperCardProps {
   onExcludeIssue?: (issueId: string) => void;
   onIncludeIssue?: (issueId: string) => void;
   onToggleLock?: (issueId: string) => void;
+  onAcquireLock?: (issueId: string) => void;
   onOpenCallback?: (issueId: string) => void;
+  onOpenSendTo?: (issueId: string) => void;
   onMarkNotAnIssue?: (issueId: string) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: (collapsed: boolean) => void;
-  currentUser?: { name?: string; role?: string; avatar?: string };
-  onAdvanceWorkflow?: (targetStatus: IssueStatus) => void;
+  currentUser?: { name?: string; role?: string; avatar?: string; userId?: string; email?: string; isAdmin?: boolean };
+  isAdmin?: boolean;
+  onAdvanceWorkflow?: (targetStatus: IssueStatus, remarks?: string) => void;
   userRole?: string;
   hasCriticalFinding?: boolean;
 }
@@ -72,10 +92,6 @@ const CRITICALITY_OPTIONS = [
   { value: 'Minor', label: 'Minor' },
 ];
 
-const FUNCTION_OPTIONS = [
-  { value: 'IT', label: 'IT' },
-  { value: 'FinOps', label: 'FinOps' },
-];
 
 const PROCESS_AREA_OPTIONS = [
   { value: 'Access Control & IAM', label: 'Access Control & IAM' },
@@ -208,8 +224,11 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
   onUpdateIssue,
   onOpenAiCompare: _onOpenAiCompare,
   onOpenLogs,
-  onOpenComments,
-  commentCounts,
+  onOpenComments: _onOpenComments,
+  commentCounts: _commentCounts = {},
+  comments = [],
+  onAddComment,
+  onResolveComment,
   isAiSynthesizing: _isAiSynthesizing,
   onTriggerAiSynthesis: _onTriggerAiSynthesis,
   canEdit,
@@ -217,23 +236,82 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
   onExcludeIssue,
   onIncludeIssue,
   onToggleLock,
+  onAcquireLock,
   onOpenCallback,
+  onOpenSendTo,
   onMarkNotAnIssue,
   isCollapsed = false,
   onToggleCollapse,
   currentUser,
+  isAdmin = false,
   onAdvanceWorkflow,
   userRole = 'Manager',
-  hasCriticalFinding = false,
+  hasCriticalFinding: _hasCriticalFinding = false,
 }) => {
+  void _hasCriticalFinding;
   const [activeSectionTab, setActiveSectionTab] = useState<SectionTab>('all');
+  const [activeCommentField, setActiveCommentField] = useState<string | null>(null);
+  const [popoverPlacement, setPopoverPlacement] = useState<'up' | 'down'>('down');
+  const [remarksModalConfig, setRemarksModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    actionLabel: string;
+    targetStatus: IssueStatus;
+  } | null>(null);
+
+  const isUserAdmin = Boolean(isAdmin);
+
+  // User Tier Calculation based on userRole on the active engagement (supports TeamMate LogicKeys & role titles)
+  const userTier = useMemo(() => {
+    const r = (userRole || '').toLowerCase();
+    if (r.includes('admin') || isUserAdmin) return 99;
+    const { baseRole } = getRoleDetails(userRole);
+    if (baseRole === 'auditor') return 1;
+    if (baseRole === 'team-coordinator') return 2;
+    if (baseRole === 'manager') return 3;
+    if (baseRole === 'director') return 4;
+    if (baseRole === 'vp') return 5;
+    if (baseRole === 'primary-business-contact') return 4.5;
+    return 1;
+  }, [userRole, isUserAdmin]);
+
+  // Finding Stage Tier Calculation
+  const issueTier = useMemo(() => {
+    const s = (issue.status || '').trim().toLowerCase();
+    if (s.includes('exclude')) return -1;
+    if (s.includes('complete') || s.includes('signed off')) return 6;
+    if (s.includes('vp')) return 5;
+    if (s.includes('business')) return 4.5;
+    if (s.includes('ready for director')) return 3.8;
+    if (s.includes('director')) return 4;
+    if (s.includes('manager completed') || s.includes('waiting for other')) return 3.5;
+    if (s.includes('manager') || s.includes('mgr')) return 3;
+    if (s.includes('tc') || s.includes('coordinator')) return 2;
+    if (s.includes('staff') || s.includes('draft') || s.includes('auditor') || !s) return 1;
+    return 1;
+  }, [issue.status]);
+
+  // If finding is at a further review stage than the logged-in user's role
+  const isFurtherStage = useMemo(() => {
+    if (issue.isExcluded) return false;
+    if (userTier === 99) return false;
+    return issueTier > userTier && issueTier > 0;
+  }, [issue.isExcluded, issueTier, userTier]);
+
+  const { baseRole: parsedBaseRole } = getRoleDetails(userRole);
   const roleStr = (userRole || '').toLowerCase();
-  const isAuditor = roleStr.includes('auditor');
-  const isTC = roleStr.includes('coordinator') || roleStr.includes('tc');
-  const isDirector = roleStr.includes('director');
-  const isVP = roleStr.includes('vp');
-  const isBusiness = roleStr.includes('business') || roleStr.includes('contact');
-  const isManager = roleStr.includes('manager') && !isDirector;
+  const isAuditor = parsedBaseRole === 'auditor';
+  const isTC = parsedBaseRole === 'team-coordinator';
+  const isDirector = parsedBaseRole === 'director';
+  const isVP = parsedBaseRole === 'vp';
+  const isBusiness = parsedBaseRole === 'primary-business-contact' || roleStr.includes('business') || roleStr.includes('contact');
+  const isManager = parsedBaseRole === 'manager';
+  void isAuditor;
+  void isTC;
+  void isDirector;
+  void isVP;
+  void isBusiness;
+  void isManager;
 
   // Compute read-only state
   const isExcluded = !!issue.isExcluded;
@@ -241,23 +319,66 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
 
   // Check if locked and whether the current user is the one working on it
   const currentUserName = (currentUser?.name || '').trim().toLowerCase();
+  const currentUserId = (currentUser?.userId || (currentUser as any)?.id || '').trim().toLowerCase();
+  const currentUserEmail = (currentUser?.email || '').trim().toLowerCase();
+
   const lockedByName = (
     issue.lockedBy?.name ||
     (typeof (issue as any).lockedBy === 'string' ? (issue as any).lockedBy : '')
   ).trim().toLowerCase();
+  const lockedById = (issue.lockedBy?.userId || '').trim().toLowerCase();
+  const lockedByEmail = (issue.lockedBy?.email || '').trim().toLowerCase();
 
   const isLockedByCurrentUser = Boolean(
-    isLocked &&
-    currentUserName &&
-    lockedByName &&
-    currentUserName === lockedByName
+    isLocked && (
+      (currentUserId && lockedById && currentUserId === lockedById) ||
+      (currentUserEmail && lockedByEmail && currentUserEmail === lockedByEmail) ||
+      (currentUserName && lockedByName && currentUserName === lockedByName)
+    )
   );
 
-  // If issue is locked, only the person working on it can edit
-  const isFieldDisabled = !canEdit || isExcluded || (isLocked && !isLockedByCurrentUser);
+  // Compute Call Back eligibility based on FRD Section 3.2.1 and role hierarchy
+  // Call Back is ONLY valid when an issue has progressed past the user's review tier (issueTier > userTier).
+  // E.g., for Manager (Tier 3): an issue in Pending TC (Tier 2) or Pending Staff (Tier 1) CANNOT be called back!
+  const canCallBack = useMemo(() => {
+    if (isExcluded) return false;
+    const status = (issue.status || '').trim();
+    if (status === 'Completed' || status === 'Signed Off' || status === 'Excluded') return false;
 
-  // For excluded issues, read-only issues, or locked issues (unless current user is the worker), action buttons are not applicable
-  const canShowIssueButtons = !isExcluded && canEdit && (!isLocked || isLockedByCurrentUser);
+    // Director can call back from Pending Business or Pending VP
+    if (userTier === 4) {
+      const s = status.toLowerCase();
+      return s.includes('business') || s === 'pending vp';
+    }
+
+    // For Staff (1), TC (2), Manager (3):
+    // Call back is valid ONLY IF the finding is at a higher review stage than the user's tier
+    // If issueTier <= userTier, the finding has not passed the user's tier, so Call Back is invalid.
+    if (userTier < 4) {
+      return issueTier > userTier;
+    }
+
+    // For pure Admin (userTier 99), allow calling back if issue has moved past draft/staff
+    if (userTier === 99) {
+      return status !== 'Pending Staff' && status !== 'Draft';
+    }
+
+    return false;
+  }, [isExcluded, issue.status, issueTier, userTier]);
+
+  // Peer handover is available inside Issue Actions dropdown for active editable/preemptable findings
+  const canSendTo =
+    !isExcluded &&
+    issue.status !== 'Completed' &&
+    issue.status !== 'Signed Off' &&
+    (!isLocked || isLockedByCurrentUser) &&
+    (!isFurtherStage || isUserAdmin);
+
+  // If issue is at a further review stage than the user's role, or locked by another user, or domain restricted, it is non-editable (Read-Only)
+  const isFieldDisabled = !canEdit || isExcluded || isFurtherStage || (isLocked && !isLockedByCurrentUser);
+
+  // For excluded issues, action buttons are not applicable
+  const canShowIssueButtons = !isExcluded;
 
   const [systemUsers, setSystemUsers] = useState<{ value: string; label: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -301,6 +422,69 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
     };
   }, []);
 
+  // Close active comment popover on click outside (unless popped out to side drawer)
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      // If drawer mode is active, do not dismiss on click outside so user can work in center pane
+      if (document.querySelector('[data-field-comment-drawer="true"]')) {
+        return;
+      }
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-field-comment-container]')) {
+        setActiveCommentField(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Available users for tagging in comments
+  const availableUsers: CommentUser[] = useMemo(() => {
+    if (systemUsers.length > 0) {
+      return systemUsers.map((u, idx) => {
+        const cleanName = u.label.split('(')[0].trim();
+        const initials = cleanName
+          .split(' ')
+          .map((p) => p[0])
+          .filter(Boolean)
+          .join('')
+          .slice(0, 2)
+          .toUpperCase() || 'U';
+        const colors = ['#000099', '#eb1700', '#059669', '#0D9488', '#D97706', '#7C3AED'];
+        return {
+          userId: u.value,
+          name: cleanName,
+          role: u.label.includes('(') ? u.label.substring(u.label.indexOf('(') + 1, u.label.indexOf(')')) : 'Auditor',
+          avatar: initials,
+          avatarBg: colors[idx % colors.length],
+        };
+      });
+    }
+    return [
+      { userId: 'USR-001', name: currentUser?.name || 'Current Auditor', role: userRole || 'Auditor', avatar: 'CA', avatarBg: '#000099' },
+      { userId: 'USR-002', name: 'Sarah Jenkins', role: 'IT Audit Manager', avatar: 'SJ', avatarBg: '#eb1700' },
+      { userId: 'USR-003', name: 'Brian Cox', role: 'IT Audit Director', avatar: 'BC', avatarBg: '#059669' },
+      { userId: 'USR-004', name: 'Elena Rostova', role: 'VP Global Audit', avatar: 'ER', avatarBg: '#0D9488' },
+    ];
+  }, [systemUsers, currentUser, userRole]);
+
+  const currentCommentUser: CommentUser = useMemo(
+    () => ({
+      userId: currentUser?.userId || 'USR-001',
+      name: currentUser?.name || 'Current Auditor',
+      role: userRole || 'Internal Audit',
+      avatar: (currentUser?.name || 'CA')
+        .split(' ')
+        .map((n) => n[0])
+        .filter(Boolean)
+        .join('')
+        .slice(0, 2)
+        .toUpperCase() || 'CA',
+      avatarBg: '#000099',
+    }),
+    [currentUser, userRole]
+  );
+
   // Determine if function is IT or FinOps
   const isIT = (() => {
     const clean = (issue.function || (issue as any).functionType || issue.testProcedureCode || '')
@@ -327,6 +511,114 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
   const [isAiLoadingLocal, setIsAiLoadingLocal] = useState(false);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
+  const [isGuidelinesDrawerOpen, setIsGuidelinesDrawerOpen] = useState(false);
+  const [isBizCommentsDrawerOpen, setIsBizCommentsDrawerOpen] = useState(false);
+  const [bizCommentsByIssue, setBizCommentsByIssue] = useState<Record<string, BusinessOwnerCommentItem[]>>({});
+
+  // Build or retrieve demo mock Business Owner comments for the current issue
+  const currentBizComments: BusinessOwnerCommentItem[] = useMemo(() => {
+    const issueKey = issue.id || 'default-issue';
+    if (bizCommentsByIssue[issueKey]) {
+      return bizCommentsByIssue[issueKey];
+    }
+    const primaryOwnerName =
+      issue.primaryBusinessOwnerName ||
+      issue.accountableContact ||
+      issue.businessContactName ||
+      'Thomas Wright';
+    const primaryInitials = primaryOwnerName
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || '')
+      .join('') || 'TW';
+
+    return [
+      {
+        id: `${issueKey}-biz-1`,
+        authorName: primaryOwnerName,
+        authorInitials: primaryInitials,
+        authorRole: 'Accountable Contact',
+        authorTitle: 'VP, Global Operations & Process Governance',
+        commentText:
+          'We have reviewed the observation and agree with the overall control gap identified. However, please note in the Impact section that compensating manual monthly reconciliations were performed for Q3, so no financial misstatement occurred.',
+        commentedAt: 'Oct 27, 2026 • 11:45 AM',
+        isDone: false,
+      },
+      {
+        id: `${issueKey}-biz-2`,
+        authorName: 'Elena Rostova',
+        authorInitials: 'ER',
+        authorRole: 'Supporting Business Contact',
+        authorTitle: 'Director, Quality Assurance & Compliance',
+        commentText:
+          'For Recommendation #2 regarding automated role recertification, our IT release calendar schedules the ERP patch deployment for Q1 2027. Requesting the target remediation date be aligned to March 31, 2027.',
+        commentedAt: 'Oct 26, 2026 • 04:20 PM',
+        isDone: false,
+      },
+      {
+        id: `${issueKey}-biz-3`,
+        authorName: primaryOwnerName,
+        authorInitials: primaryInitials,
+        authorRole: 'Accountable Contact',
+        authorTitle: 'VP, Global Operations & Process Governance',
+        commentText:
+          'Confirmed that the SOP reference number in the finding description should cite SOP-QA-408 Rev 4 rather than Rev 3.',
+        commentedAt: 'Oct 25, 2026 • 02:15 PM',
+        isDone: true,
+        doneBy: currentUser?.name || 'Audit Manager',
+        doneAt: 'Oct 26, 2026 • 09:30 AM',
+      },
+    ];
+  }, [
+    bizCommentsByIssue,
+    issue.id,
+    issue.primaryBusinessOwnerName,
+    issue.accountableContact,
+    issue.businessContactName,
+    currentUser?.name,
+  ]);
+
+  const openBizCommentsCount = useMemo(
+    () => currentBizComments.filter((c) => !c.isDone).length,
+    [currentBizComments]
+  );
+
+  const handleToggleBizCommentDone = (commentId: string) => {
+    const issueKey = issue.id || 'default-issue';
+    const updated = currentBizComments.map((c) => {
+      if (c.id !== commentId) return c;
+      const nextDone = !c.isDone;
+      return {
+        ...c,
+        isDone: nextDone,
+        doneBy: nextDone ? currentUser?.name || 'Reviewer' : undefined,
+        doneAt: nextDone ? 'Just now' : undefined,
+      };
+    });
+    setBizCommentsByIssue((prev) => ({
+      ...prev,
+      [issueKey]: updated,
+    }));
+  };
+
+  const handleMarkAllBizCommentsDone = () => {
+    const issueKey = issue.id || 'default-issue';
+    const updated = currentBizComments.map((c) =>
+      c.isDone
+        ? c
+        : {
+            ...c,
+            isDone: true,
+            doneBy: currentUser?.name || 'Reviewer',
+            doneAt: 'Just now',
+          }
+    );
+    setBizCommentsByIssue((prev) => ({
+      ...prev,
+      [issueKey]: updated,
+    }));
+  };
   const [previousAiData, setPreviousAiData] = useState<AiCompareFieldData | null>(null);
   const [candidateAiData, setCandidateAiData] = useState<AiCompareFieldData | null>(null);
   const [fieldRemarks, setFieldRemarks] = useState({
@@ -367,7 +659,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
     )
   );
 
-  const showRegenerateBanner = !isExcluded && canEdit && hasParamsChanged && !isBannerDismissed;
+  const isRegenerateActive = !isExcluded && canEdit && !isFurtherStage && hasParamsChanged && !isBannerDismissed;
 
   const handleFieldRemarkChange = (field: keyof typeof fieldRemarks, remark: string) => {
     setFieldRemarks((prev) => ({
@@ -386,6 +678,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
       rootCause: issue.rootCause || '',
       impact: issue.impact || '',
       recommendation: issue.recommendation || '',
+      nonComplianceReferences: issue.nonComplianceReferences || '',
     };
     setPreviousAiData(prev);
 
@@ -413,6 +706,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
       rootCause: synthesized.rootCause,
       impact: synthesized.impact,
       recommendation: synthesized.recommendation,
+      nonComplianceReferences: synthesized.nonComplianceReferences || issue.nonComplianceReferences || '',
     };
     setCandidateAiData(candidate);
 
@@ -429,6 +723,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
       rootCause: merged.rootCause,
       impact: merged.impact,
       recommendation: merged.recommendation,
+      nonComplianceReferences: merged.nonComplianceReferences ?? issue.nonComplianceReferences,
       activeAiVersionNumber: (issue.activeAiVersionNumber || 1) + 1,
     });
     setLastGeneratedParams({
@@ -452,6 +747,9 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
 
   const handleFieldChange = (field: keyof Issue, value: any) => {
     if (isFieldDisabled) return;
+    if (!isLocked && canEdit && !isExcluded && onAcquireLock) {
+      onAcquireLock(issue.id);
+    }
     if (field === 'function' || field === 'originalIssue' || field === 'testProcedureCode') {
       setIsBannerDismissed(false);
     }
@@ -461,27 +759,175 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
     });
   };
 
-  const getCommentBadge = (fieldKey: string) => {
-    const count = commentCounts[fieldKey] || 0;
-    return count > 0 ? (
-      <span
+  const renderCommentTrigger = (fieldKey: string, fieldLabel: string, isRowLevel = false) => {
+    const commentsList = (comments || []).filter((c) => c.fieldKey === fieldKey);
+    const isOpen = activeCommentField === fieldKey;
+    const unresolvedCount = commentsList.filter((c) => !c.isResolved).length;
+    const isAllResolved = commentsList.length > 0 && unresolvedCount === 0;
+    const latestComment = commentsList.length > 0 ? commentsList[commentsList.length - 1] : null;
+
+    const handleToggleComment = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (isOpen) {
+        setActiveCommentField(null);
+      } else {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        const placement = spaceBelow < 340 && spaceAbove > spaceBelow ? 'up' : 'down';
+        setPopoverPlacement(placement);
+        setActiveCommentField(fieldKey);
+      }
+    };
+
+    return (
+      <div
+        data-field-comment-container="true"
         style={{
+          position: 'relative',
           display: 'inline-flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#eb1700',
-          color: '#ffffff',
-          fontSize: '10px',
-          fontWeight: 800,
-          borderRadius: '50%',
-          width: '16px',
-          height: '16px',
-          marginLeft: '4px',
+          zIndex: isOpen ? 600 : 1,
         }}
       >
-        {count}
-      </span>
-    ) : null;
+        {commentsList.length > 0 ? (
+          <button
+            type="button"
+            onClick={handleToggleComment}
+            aria-label={`Comments on ${fieldLabel}: ${commentsList.length} comment(s), ${unresolvedCount} open`}
+            title={`Comments on ${fieldLabel}\n${commentsList.length} comment(s) (${unresolvedCount} open). Click to view thread & reply.`}
+            style={{
+              padding: isRowLevel ? '2px 6px' : '2px 8px',
+              fontSize: isRowLevel ? 'var(--type-caption-size, 9.5px)' : 'var(--type-caption-size, 10px)',
+              fontWeight: 700,
+              borderRadius: '12px',
+              border: isAllResolved
+                ? isOpen
+                  ? '1.5px solid #16A34A'
+                  : '1px solid #BBF7D0'
+                : isOpen
+                ? '1.5px solid #000099'
+                : '1px solid #BFDBFE',
+              backgroundColor: isAllResolved
+                ? isOpen
+                  ? '#DCFCE7'
+                  : '#F0FDF4'
+                : isOpen
+                ? '#DBEAFE'
+                : '#EFF6FF',
+              color: isAllResolved ? '#166534' : '#000099',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              boxShadow: isAllResolved ? '0 1px 2px rgba(22,163,74,0.08)' : '0 1px 2px rgba(0,0,153,0.08)',
+              transition: 'all 0.15s ease',
+              maxWidth: isRowLevel ? '70px' : '220px',
+            }}
+          >
+            {isAllResolved ? (
+              <>
+                <CheckCircle2 style={{ width: '11px', height: '11px', color: '#16A34A' }} />
+                <span style={{ fontSize: 'var(--type-caption-size, 9.5px)', fontWeight: 800 }}>
+                  ✓ {isRowLevel ? commentsList.length : `Resolved (${commentsList.length})`}
+                </span>
+              </>
+            ) : (
+              <>
+                <span
+                  style={{
+                    width: '14px',
+                    height: '14px',
+                    borderRadius: '50%',
+                    backgroundColor: '#000099',
+                    color: '#ffffff',
+                    fontSize: 'var(--type-caption-size, 8px)',
+                    fontWeight: 800,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  {latestComment?.authorName ? latestComment.authorName.charAt(0).toUpperCase() : 'U'}
+                </span>
+
+                {!isRowLevel && (
+                  <span
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      maxWidth: '110px',
+                      fontSize: 'var(--type-caption-size, 9.5px)',
+                      color: '#1E3A8A',
+                    }}
+                  >
+                    <strong>{latestComment?.authorName ? latestComment.authorName.split(' ')[0] : 'Note'}:</strong> &ldquo;{latestComment?.content || ''}&rdquo;
+                  </span>
+                )}
+
+                <span
+                  style={{
+                    backgroundColor: unresolvedCount > 0 ? '#000099' : '#16A34A',
+                    color: '#ffffff',
+                    borderRadius: '8px',
+                    padding: '0 4px',
+                    fontSize: 'var(--type-caption-size, 9px)',
+                    fontWeight: 800,
+                    lineHeight: '12px',
+                  }}
+                >
+                  {unresolvedCount}
+                </span>
+              </>
+            )}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleToggleComment}
+            aria-label={`Add comment on ${fieldLabel}`}
+            title={`Add a comment on ${fieldLabel}`}
+            style={{
+              padding: isRowLevel ? '2px 5px' : '1px 6px',
+              fontSize: 'var(--type-caption-size, 9.5px)',
+              fontWeight: 600,
+              borderRadius: '10px',
+              border: isOpen ? '1px solid #000099' : '1px dashed #CBD5E1',
+              backgroundColor: isOpen ? '#EFF6FF' : '#F8FAFC',
+              color: isOpen ? '#000099' : '#64748B',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <MessageSquare style={{ width: '9px', height: '9px', color: isOpen ? '#000099' : '#94A3B8' }} />
+            <span>{isRowLevel ? '' : '+ Comment'}</span>
+          </button>
+        )}
+
+        <FieldCommentPopover
+          isOpen={isOpen}
+          onClose={() => setActiveCommentField(null)}
+          engagementId={issue.engagementId || issue.id}
+          fieldKey={fieldKey}
+          fieldLabel={fieldLabel}
+          comments={commentsList}
+          currentUser={currentCommentUser}
+          availableUsers={availableUsers}
+          placement={popoverPlacement}
+          onAddComment={(text, taggedUser) => {
+            onAddComment?.(fieldKey, fieldLabel, text, taggedUser);
+          }}
+          onResolveComment={(commentId) => {
+            onResolveComment?.(commentId);
+          }}
+        />
+      </div>
+    );
   };
 
   // If collapsed, render 36px vertical rail
@@ -628,34 +1074,165 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
           >
             {issue.title}
           </span>
+
+          {/* Business Owner Issue-Level Comments Icon Trigger (Near Issue Title) */}
+          {currentBizComments.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsBizCommentsDrawerOpen(true)}
+              title={
+                openBizCommentsCount > 0
+                  ? `Business Owner Comments (${openBizCommentsCount} open of ${currentBizComments.length}) — Click to view in right drawer`
+                  : `All ${currentBizComments.length} Business Owner comments marked as done — Click to view`
+              }
+              aria-label="Open Business Owner Comments Drawer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '3px 9px',
+                borderRadius: '999px',
+                border:
+                  openBizCommentsCount > 0
+                    ? '1px solid #BFDBFE'
+                    : '1px solid #BBF7D0',
+                backgroundColor:
+                  openBizCommentsCount > 0 ? '#EFF6FF' : '#F0FDF4',
+                color: openBizCommentsCount > 0 ? '#000099' : '#166534',
+                fontSize: '11.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                flexShrink: 0,
+                transition: 'all 0.15s ease',
+                boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor =
+                  openBizCommentsCount > 0 ? '#DBEAFE' : '#DCFCE7';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor =
+                  openBizCommentsCount > 0 ? '#EFF6FF' : '#F0FDF4';
+              }}
+            >
+              <MessageSquare
+                size={13}
+                style={{
+                  color: openBizCommentsCount > 0 ? '#000099' : '#16A34A',
+                  flexShrink: 0,
+                }}
+              />
+              <span>Business Comments</span>
+              <span
+                style={{
+                  backgroundColor:
+                    openBizCommentsCount > 0 ? '#000099' : '#16A34A',
+                  color: '#FFFFFF',
+                  borderRadius: '999px',
+                  padding: '0 5px',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  lineHeight: '15px',
+                  minWidth: '15px',
+                  textAlign: 'center',
+                }}
+              >
+                {openBizCommentsCount > 0
+                  ? openBizCommentsCount
+                  : `✓ ${currentBizComments.length}`}
+              </span>
+            </button>
+          )}
         </div>
 
-        {/* Row 2: One-liner Locked Alert Container (if locked) */}
+        {/* Row 2: Concurrency Lock Banner (if locked) */}
         {!isExcluded && isLocked && (
           <div
             style={{
-              padding: '6px 12px',
+              padding: '7px 14px',
               borderRadius: '6px',
-              backgroundColor: '#FEF3C7',
-              border: '1px solid #FDE68A',
+              backgroundColor: isLockedByCurrentUser ? '#EFF6FF' : '#FEF3C7',
+              border: `1px solid ${isLockedByCurrentUser ? '#BFDBFE' : '#FDE68A'}`,
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              justifyContent: 'space-between',
+              gap: '10px',
               fontSize: 'var(--type-table-header-size, 12px)',
-              color: '#92400E',
+              color: isLockedByCurrentUser ? '#1E40AF' : '#92400E',
               lineHeight: '1.4',
             }}
           >
-            <span className="lock-icon-blink" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-              <Lock style={{ width: '13px', height: '13px', color: '#D97706', flexShrink: 0 }} />
-              <strong>Issue Locked:</strong>
-            </span>
-            <span>
-              {issue.lockedBy?.name ||
-                (typeof (issue as any).lockedBy === 'string' ? (issue as any).lockedBy : '') ||
-                'Another auditor'}{' '}
-              is currently working on the issue, so it&apos;s available only in read mode.
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+              <span className="lock-icon-blink" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+                <Lock style={{ width: '13px', height: '13px', color: isLockedByCurrentUser ? '#2563EB' : '#D97706', flexShrink: 0 }} />
+                <strong>{isLockedByCurrentUser ? 'Editing Session Active:' : 'Issue Locked:'}</strong>
+              </span>
+              <span>
+                {isLockedByCurrentUser ? (
+                  <>You are currently editing this finding. Changes are locked for other users. Auto-unlocks after 1 hour of inactivity.</>
+                ) : (
+                  <>
+                    Currently being edited by{' '}
+                    <strong>
+                      {issue.lockedBy?.name ||
+                        (typeof (issue as any).lockedBy === 'string' ? (issue as any).lockedBy : '') ||
+                        'another auditor'}
+                    </strong>{' '}
+                    — changes are locked for other users. Auto-unlocks after 1 hour of inactivity.
+                  </>
+                )}
+              </span>
+            </div>
+
+            {/* Quick action button on banner */}
+            {isLockedByCurrentUser && onToggleLock && (
+              <button
+                type="button"
+                onClick={() => onToggleLock(issue.id)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#2563EB',
+                  fontWeight: 700,
+                  fontSize: '11.5px',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '2px 4px',
+                  flexShrink: 0,
+                }}
+              >
+                <Unlock size={12} />
+                Unlock Now
+              </button>
+            )}
+
+            {!isLockedByCurrentUser && isUserAdmin && onToggleLock && (
+              <button
+                type="button"
+                onClick={() => onToggleLock(issue.id)}
+                style={{
+                  background: '#DC2626',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  flexShrink: 0,
+                }}
+                title="Super-user administrative unlock override"
+              >
+                <Unlock size={11} />
+                Force Unlock (Admin)
+              </button>
+            )}
           </div>
         )}
 
@@ -682,6 +1259,35 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
             <span>
               {editRestrictionReason}
             </span>
+          </div>
+        )}
+
+        {/* Row 2: Higher Review Stage / Read-Only Alert */}
+        {!isExcluded && !isLocked && canEdit && isFurtherStage && (
+          <div
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              backgroundColor: '#EFF6FF',
+              border: '1px solid #BFDBFE',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              fontSize: 'var(--type-table-header-size, 12px)',
+              color: '#1E40AF',
+              lineHeight: '1.4',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+                <Lock style={{ width: '13px', height: '13px', color: '#2563EB', flexShrink: 0 }} />
+                <strong>Read Only:</strong>
+              </span>
+              <span>
+                Finding is in <strong>{issue.status}</strong> (further review stage). You cannot edit or submit until you call it back via <strong>Issue Actions &gt; Call Back Issue</strong>.
+              </span>
+            </div>
           </div>
         )}
 
@@ -761,110 +1367,169 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 flexWrap: 'wrap',
               }}
             >
-              {/* Workflow Advance Action Buttons (Role-based: Send to Business, Submit to Director, etc.) */}
-              {onAdvanceWorkflow && (
-                <>
-                  {isAuditor && (
-                    <SharedButton
-                      variant="primary"
-                      size="small"
-                      startIcon={<Send size={12} />}
-                      onClick={() => onAdvanceWorkflow('Pending TC')}
-                      style={{ minHeight: 'var(--control-min-height-compact, 1.75rem)', fontSize: 'var(--type-caption-size, 11px)', padding: '0 10px' }}
-                    >
-                      Submit to TC
-                    </SharedButton>
-                  )}
+              {/* Primary Submit Button: ONLY shown if NOT in further stage */}
+              {!isFurtherStage && onAdvanceWorkflow && (() => {
+                const statusNorm = (issue.status || '').trim().toLowerCase();
+                const isPendingStaff = !statusNorm || statusNorm.includes('staff') || statusNorm.includes('draft') || statusNorm.includes('auditor');
+                const isPendingTC = (statusNorm.includes('tc') || statusNorm.includes('coordinator')) && !statusNorm.includes('manager');
+                const isPendingManager = (statusNorm.includes('manager') || statusNorm.includes('mgr')) && !statusNorm.includes('completed') && !statusNorm.includes('waiting');
+                const isPendingBusiness = statusNorm.includes('business');
 
-                  {isTC && (
-                    <SharedButton
-                      variant="primary"
-                      size="small"
-                      startIcon={<Send size={12} />}
-                      onClick={() => onAdvanceWorkflow('Pending Manager')}
-                      style={{ minHeight: 'var(--control-min-height-compact, 1.75rem)', fontSize: 'var(--type-caption-size, 11px)', padding: '0 10px' }}
-                    >
-                      Submit to Manager
-                    </SharedButton>
-                  )}
+                // Manager Submitting (Tier 3): Takes up lower-stage or Pending Manager
+                if (userTier === 3 && (isPendingStaff || isPendingTC || isPendingManager)) {
+                  return (
+                    <WorkflowSubmitButton
+                      label="Submit Issue"
+                      onClickDirect={() => onAdvanceWorkflow('Ready for Director Submission' as any)}
+                      onOpenRemarks={() =>
+                        setRemarksModalConfig({
+                          isOpen: true,
+                          title: 'Submit Issue for Manager Review Completion',
+                          actionLabel: 'Submit Issue',
+                          targetStatus: 'Ready for Director Submission' as any,
+                        })
+                      }
+                    />
+                  );
+                }
 
-                  {isManager && (
-                    <SharedButton
-                      variant="primary"
-                      size="small"
-                      startIcon={<Send size={12} />}
-                      onClick={() => onAdvanceWorkflow('Pending Director')}
-                      style={{ minHeight: 'var(--control-min-height-compact, 1.75rem)', fontSize: 'var(--type-caption-size, 11px)', padding: '0 10px' }}
-                    >
-                      Submit to Director
-                    </SharedButton>
-                  )}
+                // TC Submitting (Tier 2): Takes up Pending Staff or Pending TC, and submits to Manager
+                if (userTier === 2 && (isPendingStaff || isPendingTC)) {
+                  return (
+                    <WorkflowSubmitButton
+                      label="Submit to Manager"
+                      onClickDirect={() => onAdvanceWorkflow('Pending Manager')}
+                      onOpenRemarks={() =>
+                        setRemarksModalConfig({
+                          isOpen: true,
+                          title: 'Submit Finding to Audit Manager',
+                          actionLabel: 'Submit to Manager',
+                          targetStatus: 'Pending Manager',
+                        })
+                      }
+                    />
+                  );
+                }
 
-                  {isBusiness && (
-                    <SharedButton
-                      variant="primary"
-                      size="small"
-                      startIcon={<Send size={12} />}
-                      onClick={() => onAdvanceWorkflow('Pending Director')}
-                      style={{ minHeight: 'var(--control-min-height-compact, 1.75rem)', fontSize: 'var(--type-caption-size, 11px)', padding: '0 10px' }}
-                    >
-                      Submit Response to Director
-                    </SharedButton>
-                  )}
+                // Staff Submitting (Tier 1): Submits Pending Staff to TC (CANNOT submit Pending TC!)
+                if (userTier === 1 && isPendingStaff) {
+                  return (
+                    <WorkflowSubmitButton
+                      label="Submit to TC"
+                      onClickDirect={() => onAdvanceWorkflow('Pending TC')}
+                      onOpenRemarks={() =>
+                        setRemarksModalConfig({
+                          isOpen: true,
+                          title: 'Submit Finding to Team Coordinator',
+                          actionLabel: 'Submit to TC',
+                          targetStatus: 'Pending TC',
+                        })
+                      }
+                    />
+                  );
+                }
 
-                  {isDirector && (
-                    hasCriticalFinding ? (
-                      <SharedButton
-                        variant="primary"
-                        size="small"
-                        startIcon={<Send size={12} />}
-                        onClick={() => onAdvanceWorkflow('Pending VP')}
-                        style={{ minHeight: 'var(--control-min-height-compact, 1.75rem)', fontSize: 'var(--type-caption-size, 11px)', padding: '0 10px' }}
-                        title="Mandatory VP Sign-Off Rule (contains Critical issue)"
-                      >
-                        Submit to VP
-                      </SharedButton>
-                    ) : (
-                      <SharedButton
-                        variant="success"
-                        size="small"
-                        startIcon={<CheckCircle2 size={12} />}
-                        onClick={() => onAdvanceWorkflow('Signed Off')}
-                        style={{ minHeight: 'var(--control-min-height-compact, 1.75rem)', fontSize: 'var(--type-caption-size, 11px)', padding: '0 10px' }}
-                      >
-                        Executive Sign-Off
-                      </SharedButton>
-                    )
-                  )}
+                // Business Management Submitting
+                if (isPendingBusiness) {
+                  return (
+                    <WorkflowSubmitButton
+                      label="Submit Response"
+                      onClickDirect={() => onAdvanceWorkflow('Pending Manager')}
+                      onOpenRemarks={() =>
+                        setRemarksModalConfig({
+                          isOpen: true,
+                          title: 'Submit Management Response to Audit Team',
+                          actionLabel: 'Submit Response',
+                          targetStatus: 'Pending Manager',
+                        })
+                      }
+                    />
+                  );
+                }
 
-                  {isVP && (
-                    <SharedButton
-                      variant="success"
-                      size="small"
-                      startIcon={<CheckCircle2 size={12} />}
-                      onClick={() => onAdvanceWorkflow('Signed Off')}
-                      style={{ minHeight: 'var(--control-min-height-compact, 1.75rem)', fontSize: 'var(--type-caption-size, 11px)', padding: '0 10px' }}
-                    >
-                      Executive Sign-Off &amp; Seal
-                    </SharedButton>
-                  )}
-                </>
-              )}
+                // Admin super-user actions (acting as pure admin tier 99)
+                if (userTier === 99) {
+                  if (isPendingStaff) {
+                    return (
+                      <WorkflowSubmitButton
+                        label="Submit to TC"
+                        onClickDirect={() => onAdvanceWorkflow('Pending TC')}
+                        onOpenRemarks={() =>
+                          setRemarksModalConfig({
+                            isOpen: true,
+                            title: 'Submit Finding to Team Coordinator',
+                            actionLabel: 'Submit to TC',
+                            targetStatus: 'Pending TC',
+                          })
+                        }
+                      />
+                    );
+                  }
+                  if (isPendingTC) {
+                    return (
+                      <WorkflowSubmitButton
+                        label="Submit to Manager"
+                        onClickDirect={() => onAdvanceWorkflow('Pending Manager')}
+                        onOpenRemarks={() =>
+                          setRemarksModalConfig({
+                            isOpen: true,
+                            title: 'Submit Finding to Audit Manager',
+                            actionLabel: 'Submit to Manager',
+                            targetStatus: 'Pending Manager',
+                          })
+                        }
+                      />
+                    );
+                  }
+                  if (isPendingManager) {
+                    return (
+                      <WorkflowSubmitButton
+                        label="Submit Issue"
+                        onClickDirect={() => onAdvanceWorkflow('Ready for Director Submission' as any)}
+                        onOpenRemarks={() =>
+                          setRemarksModalConfig({
+                            isOpen: true,
+                            title: 'Submit Issue for Manager Review Completion',
+                            actionLabel: 'Submit Issue',
+                            targetStatus: 'Ready for Director Submission' as any,
+                          })
+                        }
+                      />
+                    );
+                  }
+                }
+
+                return null;
+              })()}
 
               {/* Issue Actions Dropdown */}
               <SharedSelectButton
                 label="Issue Actions"
                 size="small"
                 menuWidth={240}
-                title="Issue actions (Call Back, Lock/Unlock, Track Changes, Functional Scope, Exclusion)"
+                title="Issue actions (Send To, Call Back, Lock/Unlock, Track Changes, Functional Scope, Exclusion)"
                 items={[
-                  ...(onAdvanceWorkflow && isManager
+                  ...(onOpenSendTo
                     ? [
                       {
-                        key: 'send-to-business',
-                        label: 'Send to Business',
-                        icon: <Send style={{ width: '13px', height: '13px', color: '#000099' }} />,
-                        onClick: () => onAdvanceWorkflow('Pending with Business'),
+                        key: 'send-to-peer',
+                        label: 'Send To Peer Reviewer',
+                        icon: (
+                          <Send
+                            style={{
+                              width: '13px',
+                              height: '13px',
+                              color: canSendTo ? '#000099' : '#94A3B8',
+                            }}
+                          />
+                        ),
+                        onClick: () => {
+                          if (canSendTo) onOpenSendTo(issue.id);
+                        },
+                        disabled: !canSendTo,
+                        title: !canSendTo
+                          ? 'Send To is not available for this finding in its current state.'
+                          : 'Hand over this finding to another assigned team member on this engagement',
                       },
                     ]
                     : []),
@@ -873,8 +1538,22 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                       {
                         key: 'call-back',
                         label: 'Call Back Issue',
-                        icon: <RotateCcw style={{ width: '13px', height: '13px', color: '#7C3AED' }} />,
-                        onClick: () => onOpenCallback(issue.id),
+                        icon: (
+                          <RotateCcw
+                            style={{
+                              width: '13px',
+                              height: '13px',
+                              color: canCallBack ? '#7C3AED' : '#94A3B8',
+                            }}
+                          />
+                        ),
+                        onClick: () => {
+                          if (canCallBack) onOpenCallback(issue.id);
+                        },
+                        disabled: !canCallBack,
+                        title: !canCallBack
+                          ? `Call Back is not valid: this finding is currently in ${issue.status || 'current stage'}, which has not progressed past your review tier (${userRole || 'Reviewer'}).`
+                          : 'Call back this finding from higher review stage to your review bucket',
                       },
                     ]
                     : []),
@@ -882,13 +1561,34 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                     ? [
                       {
                         key: 'lock-unlock',
-                        label: isLocked ? 'Unlock Issue' : 'Lock Issue',
+                        label: isLocked
+                          ? isLockedByCurrentUser
+                            ? 'Unlock Issue'
+                            : isUserAdmin
+                            ? 'Force Unlock (Admin)'
+                            : `Locked by ${issue.lockedBy?.name || 'Auditor'}`
+                          : 'Lock Issue',
                         icon: isLocked ? (
-                          <Unlock style={{ width: '13px', height: '13px', color: '#047857' }} />
+                          <Unlock
+                            style={{
+                              width: '13px',
+                              height: '13px',
+                              color: isLockedByCurrentUser
+                                ? '#047857'
+                                : isUserAdmin
+                                ? '#DC2626'
+                                : '#94A3B8',
+                            }}
+                          />
                         ) : (
                           <Lock style={{ width: '13px', height: '13px', color: '#D97706' }} />
                         ),
-                        onClick: () => onToggleLock(issue.id),
+                        onClick: () => {
+                          if (!isLocked || isLockedByCurrentUser || isUserAdmin) {
+                            onToggleLock(issue.id);
+                          }
+                        },
+                        disabled: isLocked && !isLockedByCurrentUser && !isUserAdmin,
                         dividerAfter: true,
                       },
                     ]
@@ -902,7 +1602,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                   },
                   {
                     key: 'not-my-function',
-                    label: 'Mark Not my Function Issue',
+                    label: `Mark Not my Function Issue (Switch to ${(issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')) === 'IT' ? 'FinOps' : 'IT'})`,
                     icon: (
                       <CheckCircle2
                         style={{
@@ -913,6 +1613,9 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                       />
                     ),
                     disabled: isFieldDisabled,
+                    title: isFieldDisabled
+                      ? 'Function re-assignment is not available while this finding is in a higher review stage or locked.'
+                      : `Re-assign finding function from ${issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')} to ${(issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')) === 'IT' ? 'FinOps' : 'IT'}`,
                     onClick: () => onMarkNotAnIssue?.(issue.id),
                   },
                   {
@@ -937,11 +1640,263 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
             </div>
           )}
         </div>
+
+        {/* Row 4: Dedicated Review Stage Status Bar (Beneath Section Filter & Actions Row) */}
+        {(() => {
+          const status = issue.status || '';
+          const sNorm = status.trim().toLowerCase();
+          if (sNorm.includes('ready for director')) {
+            return (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '7px 12px',
+                  borderRadius: '6px',
+                  backgroundColor: '#EEF2FF',
+                  border: '1px solid #C7D2FE',
+                  color: '#3730A3',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  marginTop: '6px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle2 size={14} style={{ color: '#4F46E5', flexShrink: 0 }} />
+                  <span>
+                    All issues completed by Manager &mdash; <strong>Ready for Director Submission</strong>
+                  </span>
+                </div>
+                <span
+                  style={{
+                    backgroundColor: '#4338CA',
+                    color: '#ffffff',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    letterSpacing: '0.3px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Report-Level Submission Pending
+                </span>
+              </div>
+            );
+          }
+          if (sNorm.includes('waiting for other')) {
+            return (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '7px 12px',
+                  borderRadius: '6px',
+                  backgroundColor: '#FFFBEB',
+                  border: '1px solid #FDE68A',
+                  color: '#92400E',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  marginTop: '6px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Clock size={14} style={{ color: '#D97706', flexShrink: 0 }} />
+                  <span>
+                    Manager Review Complete on this issue &mdash; <strong>Waiting for other issues in engagement</strong>
+                  </span>
+                </div>
+                <span
+                  style={{
+                    backgroundColor: '#D97706',
+                    color: '#ffffff',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    letterSpacing: '0.3px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Waiting For Sibling Issues
+                </span>
+              </div>
+            );
+          }
+          if (sNorm.includes('director') && !sNorm.includes('ready')) {
+            return (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '7px 12px',
+                  borderRadius: '6px',
+                  backgroundColor: '#F5F3FF',
+                  border: '1px solid #DDD6FE',
+                  color: '#5B21B6',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  marginTop: '6px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Shield size={14} style={{ color: '#7C3AED', flexShrink: 0 }} />
+                  <span>
+                    Under Executive Review by Audit Director &mdash; <strong>Pending Director</strong>
+                  </span>
+                </div>
+                <span
+                  style={{
+                    backgroundColor: '#6D28D9',
+                    color: '#ffffff',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    letterSpacing: '0.3px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Director Review Tier
+                </span>
+              </div>
+            );
+          }
+          if (sNorm.includes('business')) {
+            return (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '7px 12px',
+                  borderRadius: '6px',
+                  backgroundColor: '#ECFDF5',
+                  border: '1px solid #A7F3D0',
+                  color: '#065F46',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  marginTop: '6px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <MessageSquare size={14} style={{ color: '#059669', flexShrink: 0 }} />
+                  <span>
+                    Transmitted to Business Owner &mdash; <strong>Awaiting Formal Management Response</strong>
+                  </span>
+                </div>
+                <span
+                  style={{
+                    backgroundColor: '#059669',
+                    color: '#ffffff',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    letterSpacing: '0.3px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Pending Business
+                </span>
+              </div>
+            );
+          }
+          if (sNorm.includes('vp')) {
+            return (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '7px 12px',
+                  borderRadius: '6px',
+                  backgroundColor: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                  color: '#991B1B',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  marginTop: '6px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertTriangle size={14} style={{ color: '#DC2626', flexShrink: 0 }} />
+                  <span>
+                    Critical Observation Escalation &mdash; <strong>Pending VP Executive Clearance</strong>
+                  </span>
+                </div>
+                <span
+                  style={{
+                    backgroundColor: '#DC2626',
+                    color: '#ffffff',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    letterSpacing: '0.3px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  VP Review Tier
+                </span>
+              </div>
+            );
+          }
+          if (sNorm.includes('complete') || sNorm.includes('signed off')) {
+            return (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '7px 12px',
+                  borderRadius: '6px',
+                  backgroundColor: '#F0FDF4',
+                  border: '1px solid #BBF7D0',
+                  color: '#166534',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  marginTop: '6px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle2 size={14} style={{ color: '#16A34A', flexShrink: 0 }} />
+                  <span>
+                    Audit Finding Finalized &mdash; <strong>Completed &amp; Signed Off</strong>
+                  </span>
+                </div>
+                <span
+                  style={{
+                    backgroundColor: '#15803D',
+                    color: '#ffffff',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    letterSpacing: '0.3px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Finalized
+                </span>
+              </div>
+            );
+          }
+          return null;
+        })()}
       </div>
 
       {/* Pane 2 Main Body */}
       <div
         className="no-scrollbar"
+        onFocusCapture={() => {
+          if (!isLocked && canEdit && !isExcluded && onAcquireLock) {
+            onAcquireLock(issue.id);
+          }
+        }}
         style={{
           flex: 1,
           minHeight: 0,
@@ -983,18 +1938,54 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 options={TEST_PROCEDURE_OPTIONS}
                 required
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('testProcedureCode', 'Test Procedure')}
               />
-              <SharedSelect
-                label="Function"
-                value={(issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')) as 'IT' | 'FinOps'}
-                onChange={(val) => {
-                  handleFieldChange('function', val);
-                  handleFieldChange('tech', val);
-                }}
-                options={FUNCTION_OPTIONS}
-                required
-                disabled={isFieldDisabled}
-              />
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ fontSize: 'var(--type-table-header-size, 12px)', fontWeight: 700, color: '#212121' }}>
+                    Function <span style={{ color: '#eb1700' }}>*</span>
+                  </span>
+                  {renderCommentTrigger('function', 'Function')}
+                </div>
+                <div
+                  style={{
+                    minHeight: '38px',
+                    padding: '0 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor: '#F8FAFC',
+                    border: '1px solid #D8D8D8',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    color: '#212121',
+                    cursor: 'default',
+                  }}
+                  title="Function track is updated exclusively via Issue Actions > Mark Not my Function Issue"
+                >
+                  <span style={{ fontWeight: 600 }}>
+                    {((issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')) === 'FinOps')
+                      ? 'FinOps (Finance & Operations)'
+                      : 'IT (Information Technology)'}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      backgroundColor: ((issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')) === 'FinOps') ? '#FEF3C7' : '#EFF6FF',
+                      color: ((issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')) === 'FinOps') ? '#B45309' : '#000099',
+                      border: `1px solid ${((issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')) === 'FinOps') ? '#FDE68A' : '#BFDBFE'}`,
+                    }}
+                  >
+                    {issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')}
+                  </span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '3px' }}>
+                  Updated exclusively via <strong>Issue Actions &gt; Mark Not my Function Issue</strong>
+                </div>
+              </div>
             </div>
 
             {/* Row 2: Original Issue / Initial Observation */}
@@ -1007,6 +1998,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 rows={4}
                 required
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('originalIssue', 'Original Issue / Auditor Observation')}
               />
             </div>
           </div>
@@ -1021,7 +2013,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               backgroundColor: '#FAFAFA',
               borderRadius: '8px',
               boxShadow: '0 1px 4px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.03)',
-              overflow: 'hidden',
+              overflow: 'visible',
               display: 'flex',
               flexDirection: 'column',
               flexShrink: 0,
@@ -1029,74 +2021,149 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               gap: '16px',
             }}
           >
-            {/* Conditional Regeneration Notice (only shown when original issue or function changed) */}
-            {showRegenerateBanner && (
-              <div
-                style={{
-                  backgroundColor: '#EFF6FF',
-                  border: '1px solid #BFDBFE',
-                  borderRadius: '8px',
-                  padding: '14px 16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '14px',
-                  boxShadow: '0 1px 3px rgba(0, 0, 153, 0.08)',
-                }}
-              >
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flex: 1 }}>
-                  <div
-                    style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '50%',
-                      backgroundColor: '#DBEAFE',
-                      border: '1px solid #93C5FD',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#000099',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <AlertTriangle size={15} />
+            {/* AI Section Top Header Toolbar: Title & Show Guidelines button */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                flexWrap: 'wrap',
+                paddingBottom: '2px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '6px',
+                    backgroundColor: '#EFF6FF',
+                    border: '1px solid #BFDBFE',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#000099',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Sparkles size={15} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#1E293B', lineHeight: 1.3 }}>
+                    AI Synthesized Finding Statement &amp; Citations
                   </div>
-                  <div>
-                    <div style={{ fontSize: 'var(--type-table-header-size, 12.5px)', color: '#1E3A8A', lineHeight: 1.45, fontWeight: 500 }}>
-                      Changed the issue or function, so generated AI might not be valid, please click on Regenerate AI if needed.
-                    </div>
+                  <div style={{ fontSize: '11px', color: '#64748B' }}>
+                    Review, refine, or regenerate synthesized finding fields and citations
                   </div>
                 </div>
+              </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              <SharedButton
+                variant="outline"
+                size="small"
+                startIcon={<BookOpen size={13} />}
+                onClick={() => setIsGuidelinesDrawerOpen(true)}
+                style={{
+                  borderColor: '#000099',
+                  color: '#000099',
+                  fontWeight: 600,
+                  backgroundColor: '#FFFFFF',
+                  minHeight: '1.75rem',
+                  fontSize: '11.5px',
+                  padding: '0 12px',
+                }}
+              >
+                AI POV
+              </SharedButton>
+            </div>
+
+            {/* Always-Visible Regeneration Container (matches Create Issue style) */}
+            <div
+              style={{
+                backgroundColor: isRegenerateActive ? '#EFF6FF' : '#F8FAFC',
+                border: isRegenerateActive ? '1px solid #BFDBFE' : '1px solid #E2E8F0',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '14px',
+                boxShadow: isRegenerateActive ? '0 1px 3px rgba(0, 0, 153, 0.08)' : 'none',
+                transition: 'all 0.2s ease',
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flex: 1 }}>
+                <div
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    backgroundColor: isRegenerateActive ? '#DBEAFE' : '#F1F5F9',
+                    border: isRegenerateActive ? '1px solid #93C5FD' : '1px solid #CBD5E1',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: isRegenerateActive ? '#000099' : '#94A3B8',
+                    flexShrink: 0,
+                  }}
+                >
+                  {isRegenerateActive ? <AlertTriangle size={15} /> : <RotateCcw size={14} />}
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: '12.5px',
+                      color: isRegenerateActive ? '#1E3A8A' : '#64748B',
+                      lineHeight: 1.45,
+                      fontWeight: isRegenerateActive ? 600 : 400,
+                    }}
+                  >
+                    {isRegenerateActive
+                      ? 'Changed the original issue or function, so generated AI might not be aligned. Please click Regenerate AI if needed.'
+                      : 'Change the function or issue to regenerate'}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                {isRegenerateActive && (
                   <SharedButton
                     variant="outline"
                     size="small"
                     onClick={() => setIsBannerDismissed(true)}
-                    style={{
-                      minHeight: 'var(--control-min-height-compact, 1.625rem)',
-                      fontSize: 'var(--type-caption-size, 11.5px)',
-                      padding: '0 12px',
-                    }}
+                    style={{ minHeight: '1.75rem', fontSize: '11.5px', padding: '0 12px' }}
                   >
                     Cancel
                   </SharedButton>
+                )}
 
-                  <SharedButton
-                    variant="primary"
-                    size="small"
-                    startIcon={<RotateCcw size={12} />}
-                    onClick={handleRegenerateAi}
-                    disabled={isAiLoadingLocal || isFieldDisabled}
-                    loading={isAiLoadingLocal}
-                  >
-                    {isAiLoadingLocal ? 'Regenerating...' : 'Regenerate AI'}
-                  </SharedButton>
-                </div>
+                <SharedButton
+                  variant={isRegenerateActive ? 'primary' : 'outline'}
+                  size="small"
+                  startIcon={<RotateCcw size={12} />}
+                  onClick={handleRegenerateAi}
+                  disabled={!isRegenerateActive || isAiLoadingLocal || isFieldDisabled}
+                  loading={isAiLoadingLocal}
+                  style={
+                    !isRegenerateActive
+                      ? {
+                          opacity: 0.6,
+                          borderColor: '#CBD5E1',
+                          color: '#94A3B8',
+                          cursor: 'not-allowed',
+                          backgroundColor: '#F8FAFC',
+                        }
+                      : undefined
+                  }
+                >
+                  {isAiLoadingLocal ? 'Regenerating...' : 'Regenerate AI'}
+                </SharedButton>
               </div>
-            )}
+            </div>
 
-            {/* Standard AI Fields (Always visible in edit mode) */}
+            {/* Standard 6 AI Fields */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* 1. Issue Title */}
               <AIInput
@@ -1111,6 +2178,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 isAiLoading={isAiLoadingLocal}
                 placeholder="AI generated finding title..."
                 inputBackgroundColor="#FFFFFF"
+                extraHeaderActions={renderCommentTrigger('title', 'Issue Title')}
               />
 
               {/* 2. Condition Narrative & Observed Exceptions */}
@@ -1126,36 +2194,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 isAiLoading={isAiLoadingLocal}
                 placeholder="AI synthesized condition narrative & standard citations..."
                 inputBackgroundColor="#FFFFFF"
-                extraHeaderActions={
-                  <button
-                    type="button"
-                    onClick={() => onOpenComments('issueNarrative', 'Condition Narrative')}
-                    aria-label="Open comments for Condition Narrative"
-                    className="type-caption"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: '#64748B',
-                      fontSize: 'var(--type-caption-size, 11px)',
-                      fontWeight: 700,
-                      padding: '0 4px',
-                      height: '18px',
-                      lineHeight: '18px',
-                      borderRadius: '3px',
-                      transition: 'color 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = '#000099')}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = '#64748B')}
-                  >
-                    <MessageSquare size={12} />
-                    <span>Comments</span>
-                    {getCommentBadge('issueNarrative')}
-                  </button>
-                }
+                extraHeaderActions={renderCommentTrigger('issueNarrative', 'Condition Narrative & Observed Exceptions')}
               />
 
               {/* 3. Root Cause */}
@@ -1171,36 +2210,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 isAiLoading={isAiLoadingLocal}
                 placeholder="Underlying operational or technical root cause gap..."
                 inputBackgroundColor="#FFFFFF"
-                extraHeaderActions={
-                  <button
-                    type="button"
-                    onClick={() => onOpenComments('rootCause', 'Root Cause')}
-                    aria-label="Open comments for Root Cause"
-                    className="type-caption"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: '#64748B',
-                      fontSize: 'var(--type-caption-size, 11px)',
-                      fontWeight: 700,
-                      padding: '0 4px',
-                      height: '18px',
-                      lineHeight: '18px',
-                      borderRadius: '3px',
-                      transition: 'color 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = '#000099')}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = '#64748B')}
-                  >
-                    <MessageSquare size={12} />
-                    <span>Comments</span>
-                    {getCommentBadge('rootCause')}
-                  </button>
-                }
+                extraHeaderActions={renderCommentTrigger('rootCause', 'Root Cause Analysis')}
               />
 
               {/* 4. Impact */}
@@ -1216,36 +2226,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 isAiLoading={isAiLoadingLocal}
                 placeholder="Compliance, financial, or data integrity impact..."
                 inputBackgroundColor="#FFFFFF"
-                extraHeaderActions={
-                  <button
-                    type="button"
-                    onClick={() => onOpenComments('impact', 'Impact')}
-                    aria-label="Open comments for Impact"
-                    className="type-caption"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: '#64748B',
-                      fontSize: 'var(--type-caption-size, 11px)',
-                      fontWeight: 700,
-                      padding: '0 4px',
-                      height: '18px',
-                      lineHeight: '18px',
-                      borderRadius: '3px',
-                      transition: 'color 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = '#000099')}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = '#64748B')}
-                  >
-                    <MessageSquare size={12} />
-                    <span>Comments</span>
-                    {getCommentBadge('impact')}
-                  </button>
-                }
+                extraHeaderActions={renderCommentTrigger('impact', 'Impact & Business Risk Exposure')}
               />
 
               {/* 5. Recommendations */}
@@ -1261,37 +2242,27 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 isAiLoading={isAiLoadingLocal}
                 placeholder="Numbered corrective actions and recommendations..."
                 inputBackgroundColor="#FFFFFF"
-                extraHeaderActions={
-                  <button
-                    type="button"
-                    onClick={() => onOpenComments('recommendation', 'Recommendation')}
-                    aria-label="Open comments for Recommendation"
-                    className="type-caption"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: '#64748B',
-                      fontSize: 'var(--type-caption-size, 11px)',
-                      fontWeight: 700,
-                      padding: '0 4px',
-                      height: '18px',
-                      lineHeight: '18px',
-                      borderRadius: '3px',
-                      transition: 'color 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = '#000099')}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = '#64748B')}
-                  >
-                    <MessageSquare size={12} />
-                    <span>Comments</span>
-                    {getCommentBadge('recommendation')}
-                  </button>
-                }
+                extraHeaderActions={renderCommentTrigger('recommendation', 'Recommendations & Remediation Criteria')}
               />
+
+              {/* 6. References / Non-Compliance Standards */}
+              <div
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  padding: '14px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid #E2E8F0',
+                }}
+              >
+                <ReferenceComponent
+                  label="References / Non-Compliance Standards"
+                  value={issue.nonComplianceReferences || ''}
+                  onChange={(val) => handleFieldChange('nonComplianceReferences', val)}
+                  disabled={isFieldDisabled}
+                  isAiLoading={isAiLoadingLocal}
+                  extraHeaderActions={renderCommentTrigger('nonComplianceReferences', 'References')}
+                />
+              </div>
             </div>
           </div>
         )}
@@ -1316,6 +2287,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               placeholder="Brief executive summary narrative of finding..."
               rows={2}
               disabled={isFieldDisabled}
+              extraHeaderActions={renderCommentTrigger('summaryFinding', 'Summary Finding Executive Summary')}
             />
 
             {/* 2. Auditor Response */}
@@ -1326,6 +2298,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               placeholder="Auditor validation or initial assessment notes..."
               rows={2}
               disabled={isFieldDisabled}
+              extraHeaderActions={renderCommentTrigger('auditorResponse', 'Auditor Response')}
             />
 
             {/* 3. Mitigating Control */}
@@ -1339,6 +2312,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               placeholder="Existing compensating controls in place..."
               rows={2}
               disabled={isFieldDisabled}
+              extraHeaderActions={renderCommentTrigger('mitigatingControl', 'Mitigating Control')}
             />
 
             {/* 4. Exception Remediation Comments */}
@@ -1349,6 +2323,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               placeholder="Remediation timeline comments..."
               rows={2}
               disabled={isFieldDisabled}
+              extraHeaderActions={renderCommentTrigger('exceptionRemedComments', 'Exception Remediation Comments')}
             />
 
             {/* 5. Issue Type & 6. Issue Cause Type */}
@@ -1359,6 +2334,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('issueType', val)}
                 options={ISSUE_TYPE_OPTIONS}
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('issueType', 'Issue Type')}
               />
               <SharedSelect
                 label="Issue Cause Type"
@@ -1369,6 +2345,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 }}
                 options={ROOT_CAUSE_TYPE_OPTIONS}
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('issueCauseType', 'Issue Cause Type')}
               />
             </div>
 
@@ -1376,11 +2353,16 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
               <SharedSelect
                 label="Criticality Severity"
-                value={issue.criticality}
+                value={issue.criticality || ''}
                 onChange={(val) => handleFieldChange('criticality', val as CriticalityLevel)}
-                options={CRITICALITY_OPTIONS}
+                options={
+                  issue.criticality && !CRITICALITY_OPTIONS.some((o) => o.value === issue.criticality)
+                    ? [{ value: issue.criticality, label: issue.criticality }, ...CRITICALITY_OPTIONS]
+                    : CRITICALITY_OPTIONS
+                }
                 required
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('criticality', 'Criticality Severity')}
               />
               <SharedSelect
                 label="SOX Reportable"
@@ -1388,6 +2370,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('soxReportable', val)}
                 options={YES_NO_OPTIONS}
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('soxReportable', 'SOX Reportable')}
               />
             </div>
 
@@ -1399,6 +2382,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('issueSource', val)}
                 options={ISSUE_SOURCE_OPTIONS}
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('issueSource', 'Issue Finding Source')}
               />
               <SharedSelect
                 label="Key Theme"
@@ -1406,6 +2390,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('keyTheme', val)}
                 options={KEY_THEME_OPTIONS}
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('keyTheme', 'Key Theme')}
               />
             </div>
 
@@ -1420,6 +2405,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 }}
                 options={PROCESS_AREA_OPTIONS}
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('processArea', 'Area')}
               />
               <SharedSelect
                 label="Repeat Finding"
@@ -1427,6 +2413,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('repeatFinding', val)}
                 options={YES_NO_OPTIONS}
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('repeatFinding', 'Repeat Finding')}
               />
             </div>
 
@@ -1438,6 +2425,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('itAssetAccountableSector', val)}
                 options={IT_ASSET_ACCOUNTABLE_SECTOR_OPTIONS}
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('itAssetAccountableSector', 'IT Asset Accountable Sector')}
               />
               <SharedSelect
                 label="Accountable Function"
@@ -1445,6 +2433,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('accountableFunction', val)}
                 options={ACCOUNTABLE_FUNCTION_OPTIONS}
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('accountableFunction', 'Accountable Function')}
               />
             </div>
 
@@ -1456,6 +2445,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('impactedRegion', val)}
                 options={IMPACTED_REGION_OPTIONS}
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('impactedRegion', 'Impacted Region')}
               />
               <SharedSelect
                 label="Impacted Sector"
@@ -1463,6 +2453,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('impactedSector', val)}
                 options={IMPACTED_SECTOR_OPTIONS}
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('impactedSector', 'Impacted Sector')}
               />
             </div>
 
@@ -1474,6 +2465,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('impactedMrc', val)}
                 options={IMPACTED_MRC_OPTIONS}
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('impactedMrc', 'Impact MRC')}
               />
               <SharedSelect
                 label="Quarter Impacted"
@@ -1481,6 +2473,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('quarterImpacted', val)}
                 options={QUARTER_IMPACTED_OPTIONS}
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('quarterImpacted', 'Quarter Impacted')}
               />
             </div>
 
@@ -1492,6 +2485,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('salesUsd', val)}
                 placeholder="$0.00"
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('salesUsd', 'Sales (USD)')}
               />
               <SharedTextInput
                 label="IBT (USD)"
@@ -1499,6 +2493,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('ibtUsd', val)}
                 placeholder="$0.00"
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('ibtUsd', 'IBT (USD)')}
               />
             </div>
 
@@ -1510,6 +2505,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('netIncomeUsd', val)}
                 placeholder="$0.00"
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('netIncomeUsd', 'Net Income (USD)')}
               />
               <SharedTextInput
                 label="Total Assets (USD)"
@@ -1517,6 +2513,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(val) => handleFieldChange('totalAssetsUsd', val)}
                 placeholder="$0.00"
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('totalAssetsUsd', 'Total Assets (USD)')}
               />
             </div>
 
@@ -1538,14 +2535,15 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                     value={issue.exceptionRemedDate || ''}
                     onChange={(val) => handleFieldChange('exceptionRemedDate', val)}
                     disabled={isFieldDisabled}
+                    extraHeaderActions={renderCommentTrigger('exceptionRemedDate', 'Exception Remediation Date')}
                   />
                 </div>
               )}
             </div>
 
-            {/* 24. Primary Business Owner */}
+            {/* 24. Accountable Contact */}
             <SharedSelect
-              label="Primary Business Owner"
+              label="Accountable Contact"
               value={issue.primaryBusinessOwnerId || issue.businessContactId || issue.accountableContact || ''}
               onChange={(v) => {
                 const selectedOpt = systemUsers.find(u => u.value === v);
@@ -1558,18 +2556,20 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 }
               }}
               options={systemUsers}
-              placeholder="Select Primary Business Owner..."
+              placeholder="Select Accountable Contact..."
               disabled={isFieldDisabled}
+              extraHeaderActions={renderCommentTrigger('primaryBusinessOwnerId', 'Accountable Contact')}
             />
 
-            {/* 25. Add New Secondary Business Owner (Multi Select) */}
+            {/* 25. Supporting Business Contact(s) (Multi Select) */}
             <SharedMultiSelect
-              label="Add New Secondary Business Owner"
+              label="Supporting Business Contact(s)"
               value={issue.secondaryBusinessOwnerIds || []}
               onChange={(vals) => handleFieldChange('secondaryBusinessOwnerIds', vals)}
               options={systemUsers}
-              placeholder="Select Secondary Business Owners..."
+              placeholder="Select Supporting Business Contact(s)..."
               disabled={isFieldDisabled}
+              extraHeaderActions={renderCommentTrigger('secondaryBusinessOwnerIds', 'Supporting Business Contact(s)')}
             />
           </div>
         )}
@@ -1594,6 +2594,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               placeholder="Provide business management rationale, root cause acceptance or disagreement rationale..."
               rows={3}
               disabled={isFieldDisabled}
+              extraHeaderActions={renderCommentTrigger('businessManagementReason', 'Business Management Reason')}
             />
 
             {/* 2. Business Management Response */}
@@ -1607,6 +2608,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               placeholder="Enter official management response, operational commitments, and corrective action plan (CAP)..."
               rows={4}
               disabled={isFieldDisabled}
+              extraHeaderActions={renderCommentTrigger('businessManagementResponse', 'Business Management Response')}
             />
 
             {/* 3. Agreed Remediation Date */}
@@ -1620,14 +2622,18 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                   handleFieldChange('remediationTargetDate', val);
                 }}
                 disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('agreedRemediationDate', 'Agreed Remediation Date')}
               />
             </div>
 
             {/* 4. Business Management Attachment */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
-                Business Management Attachment
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+                <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Business Management Attachment
+                </label>
+                {renderCommentTrigger('businessManagementAttachment', 'Business Management Attachment')}
+              </div>
 
               <input
                 ref={fileInputRef}
@@ -1749,6 +2755,38 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
         currentIssue={issue}
         onApplyMerge={handleApplyAiMerge}
         onKeepPrevious={handleKeepPrevious}
+      />
+
+      {/* Workflow Transition with Remarks Modal */}
+      <WorkflowRemarksModal
+        isOpen={Boolean(remarksModalConfig?.isOpen)}
+        onClose={() => setRemarksModalConfig(null)}
+        title={remarksModalConfig?.title || 'Submit Finding'}
+        actionLabel={remarksModalConfig?.actionLabel || 'Submit'}
+        itemTitle={issue.title || issue.testProcedureCode || issue.id || 'Finding'}
+        targetStatusText={remarksModalConfig?.targetStatus}
+        onConfirm={async (remarks) => {
+          if (onAdvanceWorkflow && remarksModalConfig?.targetStatus) {
+            onAdvanceWorkflow(remarksModalConfig.targetStatus, remarks);
+          }
+        }}
+      />
+
+      {/* Field-by-Field Quality Guidelines Drawer */}
+      <GuidelinesDrawer
+        open={isGuidelinesDrawerOpen}
+        onClose={() => setIsGuidelinesDrawerOpen(false)}
+      />
+
+      {/* Issue-Level Business Owner Comments Slide-Over Drawer */}
+      <BusinessOwnerCommentsDrawer
+        open={isBizCommentsDrawerOpen}
+        onClose={() => setIsBizCommentsDrawerOpen(false)}
+        issueTitle={issue.title}
+        issueRef={issue.testProcedureCode || issue.id}
+        comments={currentBizComments}
+        onToggleDone={handleToggleBizCommentDone}
+        onMarkAllDone={handleMarkAllBizCommentsDone}
       />
     </div>
   );

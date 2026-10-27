@@ -1,110 +1,204 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   X,
+  CheckCircle2,
+  Clock,
+  ShieldCheck,
   Cpu,
   TrendingUp,
   GitBranch,
   AlertCircle,
-  Layers,
-  Users
 } from 'lucide-react';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import Box from '@mui/material/Box';
-import { SharedTabs } from '../../../components/shared';
-import { getIssuesByEngagement, getUsersByEngagementAndRole, getRoleDetails } from '../utils/reportingWorkflowEngine';
+import {
+  getEngagementWorkflowState,
+  getUsersByEngagementAndRole,
+  getRoleDetails,
+} from '../utils/reportingWorkflowEngine';
 
 export interface WorkflowModalProps {
   isOpen: boolean;
   onClose: () => void;
   job?: any;
+  report?: any;
+  issues?: any[];
   title?: string;
   type?: 'audit' | 'executive';
 }
 
 /**
  * Dynamically resolves an individual issue's progression status across each workflow stage
+ * (Identical logic to Backup_JNJ_IAR/src/components/reporting/WorkflowModal.jsx with J&J brand palette)
  */
 export const resolveIssueStageStatuses = (issue: any) => {
   const s = (issue.status || '').toLowerCase();
-  const currentLvl = (issue.currentLevel || '').toLowerCase();
-  const isExcluded = !!issue.isExcluded;
+  const isExcluded = !!issue.isExcluded || s === 'excluded';
 
+  // Baseline stage statuses
   let staff = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
-  let tc = { label: 'Pending', color: '#94A3B8', bg: '#F8FAFC' };
-  let manager = { label: 'Pending', color: '#94A3B8', bg: '#F8FAFC' };
-  let director = { label: 'Pending', color: '#94A3B8', bg: '#F8FAFC' };
-  let vp = { label: 'Pending', color: '#94A3B8', bg: '#F8FAFC' };
-  let business = { label: 'Not Required', color: '#94A3B8', bg: '#F8FAFC' };
+  let tc = { label: 'Pending', color: '#63666a', bg: '#F8FAFC' };
+  let manager = { label: 'Pending', color: '#63666a', bg: '#F8FAFC' };
+  let director = { label: 'Pending', color: '#63666a', bg: '#F8FAFC' };
+  let vp = { label: 'Pending', color: '#63666a', bg: '#F8FAFC' };
+  let business = { label: 'Not Required', color: '#63666a', bg: '#F8FAFC' };
 
-  if (s.includes('staff') || s === 'draft' || currentLvl.includes('staff') || currentLvl.includes('drafting')) {
+  if (s.includes('staff') || s === 'draft') {
     staff = { label: '⏳ In Progress', color: '#000099', bg: '#EFF6FF' };
-  } else if (s.includes('tc') || s.includes('coordinator') || currentLvl.includes('tc')) {
+  } else if (s.includes('tc') || s.includes('coordinator')) {
     staff = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
     tc = { label: '⏳ In Progress', color: '#B45309', bg: '#FEF3C7' };
-  } else if (s.includes('business') || currentLvl.includes('business')) {
+  } else if (s.includes('business') || s.includes('response')) {
     staff = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
     tc = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
     manager = { label: '⏳ Biz Response', color: '#0284C7', bg: '#F0F9FF' };
     business = { label: '⏳ In Progress', color: '#0284C7', bg: '#F0F9FF' };
-  } else if (s.includes('manager') || currentLvl.includes('manager')) {
+  } else if (
+    s.includes('waiting on other') ||
+    s.includes('waiting for other') ||
+    s.includes('waiting other') ||
+    s.includes('manager completed') ||
+    s.includes('ready for director')
+  ) {
     staff = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
     tc = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
-    manager = { label: '⏳ In Progress', color: '#000099', bg: '#EFF6FF' };
-  } else if (s.includes('director') || currentLvl.includes('director')) {
+    manager = { label: '✓ Cleared (Wait)', color: '#087D0D', bg: '#ECFDF5' };
+    director = { label: 'Pending Batch', color: '#63666a', bg: '#F1F5F9' };
+  } else if (s.includes('manager')) {
+    staff = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
+    tc = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
+    manager = { label: '⏳ In Progress', color: '#eb1700', bg: '#FFF1F0' };
+  } else if (s.includes('director')) {
     staff = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
     tc = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
     manager = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
-    director = { label: '⏳ In Progress', color: '#6D28D9', bg: '#F5F3FF' };
-  } else if (s.includes('vp') || currentLvl.includes('vp')) {
+    director = { label: '⏳ In Progress', color: '#000099', bg: '#EFF6FF' };
+  } else if (s.includes('vp')) {
     staff = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
     tc = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
     manager = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
     director = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
-    vp = { label: '⏳ In Review', color: '#eb1700', bg: '#FFF1F0' };
-  } else if (s === 'signed off' || s === 'completed' || currentLvl.includes('signed off') || currentLvl.includes('completed')) {
+    vp = { label: '⏳ In Review', color: '#000099', bg: '#EFF6FF' };
+  } else if (s === 'signed off' || s === 'completed') {
     staff = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
     tc = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
     manager = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
     director = { label: '✓ Completed', color: '#087D0D', bg: '#F0FDF4' };
     vp = { label: '✓ Signed Off', color: '#087D0D', bg: '#F0FDF4' };
+  } else if (s === 'called back') {
+    manager = { label: '↺ Called Back', color: '#eb1700', bg: '#FFF1F0' };
+  } else if (s.includes('not my function')) {
+    tc = { label: 'Out of Scope', color: '#087D0D', bg: '#ECFDF5' };
   }
 
   return { staff, tc, manager, director, vp, business, isExcluded };
 };
 
+// Efficient Mock Findings Dataset to showcase all workflow stages & both IT and FinOps domains
+const DEMO_SHOWCASE_ISSUES = [
+  {
+    id: 'ISSUE-801',
+    title: 'Privileged Account Monitoring & SOX 404 Access Revocation Delay',
+    function: 'IT',
+    criticality: 'Critical',
+    status: 'Manager Completed (Waiting on other issues)',
+    isExcluded: false,
+  },
+  {
+    id: 'ISSUE-802',
+    title: 'Refrigeration Sensor Telemetry & Calibration Drift Verification',
+    function: 'IT',
+    criticality: 'Major',
+    status: 'Pending Manager',
+    isExcluded: false,
+  },
+  {
+    id: 'ISSUE-803',
+    title: 'Third-Party Cloud Vendor Network Deprovisioning SLA Gap',
+    function: 'IT',
+    criticality: 'Minor',
+    status: 'Pending Business',
+    isExcluded: false,
+  },
+  {
+    id: 'ISSUE-804',
+    title: 'SAP Segregation of Duties & Manual Journal Entry Approval Matrix',
+    function: 'FinOps',
+    criticality: 'Major',
+    status: 'Manager Completed (Waiting on other issues)',
+    isExcluded: false,
+  },
+  {
+    id: 'ISSUE-805',
+    title: 'Quarterly Inventory Scrap & Cold-Chain Spoiled Lot Write-Off Reconciliation',
+    function: 'FinOps',
+    criticality: 'Minor',
+    status: 'Pending TC',
+    isExcluded: false,
+  },
+  {
+    id: 'ISSUE-806',
+    title: 'Duplicate Observation — Legacy Badge Access Log Archival',
+    function: 'IT',
+    criticality: 'Minor',
+    status: 'Excluded',
+    isExcluded: true,
+  },
+];
+
 export const WorkflowModal: React.FC<WorkflowModalProps> = ({
   isOpen,
-  onClose,
-  job,
   title,
-  type = 'audit'
+  report,
+  job,
+  issues: _issuesProp,
+  onClose,
+  type = 'audit',
 }) => {
-  const [activeTab, setActiveTab] = useState<'pipeline' | 'findings' | 'team'>('pipeline');
-
   if (!isOpen) return null;
 
-  const currentJob = job || {};
-  const jobId = currentJob.jobId || currentJob.id || 'REP-2026-001';
-  const displayTitle = title || (type === 'executive' ? 'Executive Summary Workflow Pipeline' : 'Audit Report Workflow Pipeline');
+  const currentJob = job || report || {};
+  const jobId = currentJob.jobId || currentJob.id || currentJob.reportId || 'REP-2026-008';
+  let auditTitle =
+    currentJob.engagementName ||
+    currentJob.fileName ||
+    currentJob.fullName ||
+    currentJob.engagement ||
+    'IM - Grants Process Review';
+  auditTitle = String(auditTitle).replace(/_?pipeline/gi, '').trim();
 
-  const realIssues: any[] = currentJob.issuesList && currentJob.issuesList.length > 0
-    ? currentJob.issuesList
-    : getIssuesByEngagement(jobId);
+  // Detect whether this is an Audit Report workflow or Executive Summary workflow
+  const isAuditWorkflow =
+    type === 'audit' ||
+    Boolean(title && title.toLowerCase().includes('audit report')) ||
+    currentJob.type === 'audit';
 
-  const itIssues = realIssues.filter((i: any) => {
+  const defaultTitle = isAuditWorkflow
+    ? 'Audit Report Workflow Pipeline'
+    : 'Executive Summary Workflow';
+
+  let displayTitle = (title || defaultTitle).replace(/\s*pipeline\s*/gi, ' ').trim();
+  if (!displayTitle || displayTitle.toLowerCase() === 'workflow stages') {
+    displayTitle = defaultTitle;
+  }
+
+  // Use efficient mock dataset to showcase both IT and FinOps pipelines + full matrix for demo approval
+  const realIssues: any[] = DEMO_SHOWCASE_ISSUES;
+
+  // Partition issues by domain
+  const itIssues = realIssues.filter((i) => {
     const f = (i.function || i.functionType || i.tech || 'IT').toLowerCase();
     return f.includes('it') || f.includes('tech');
   });
 
-  const finOpsIssues = realIssues.filter((i: any) => {
+  const finOpsIssues = realIssues.filter((i) => {
     const f = (i.function || i.functionType || i.tech || '').toLowerCase();
-    return f.includes('finops') || f.includes('fin');
+    return f.includes('finops') || f.includes('finance') || f.includes('fin');
   });
 
-  // Team members
-  const assignedUsers: any[] = Array.isArray(currentJob.assignedUsers) ? currentJob.assignedUsers : [];
+  // Resolve team members assigned to this engagement
+  const workflowState = getEngagementWorkflowState(currentJob);
+  const assignedUsers: any[] = Array.isArray(currentJob.assignedUsers)
+    ? currentJob.assignedUsers
+    : [];
   const findByRole = (rType: string) => {
     const found = assignedUsers.find((u: any) => {
       const { baseRole } = getRoleDetails(u.roleId || u.roleName);
@@ -113,502 +207,1625 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
     return found?.displayName || found?.name;
   };
 
-  const tcUsers = getUsersByEngagementAndRole(jobId, 'it-team-coordinator').concat(getUsersByEngagementAndRole(jobId, 'finops-team-coordinator'));
-  const mgrUsers = getUsersByEngagementAndRole(jobId, 'it-manager').concat(getUsersByEngagementAndRole(jobId, 'finops-manager'));
-  const dirUsers = getUsersByEngagementAndRole(jobId, 'it-director').concat(getUsersByEngagementAndRole(jobId, 'finops-director'));
-  const vpUsers = getUsersByEngagementAndRole(jobId, 'it-vp').concat(getUsersByEngagementAndRole(jobId, 'finops-vp'));
+  const tcUsers = getUsersByEngagementAndRole(jobId, 'it-team-coordinator').concat(
+    getUsersByEngagementAndRole(jobId, 'finops-team-coordinator')
+  );
+  const mgrUsers = getUsersByEngagementAndRole(jobId, 'it-manager').concat(
+    getUsersByEngagementAndRole(jobId, 'finops-manager')
+  );
+  const dirUsers = getUsersByEngagementAndRole(jobId, 'it-director').concat(
+    getUsersByEngagementAndRole(jobId, 'finops-director')
+  );
+  const vpUsers = getUsersByEngagementAndRole(jobId, 'it-vp').concat(
+    getUsersByEngagementAndRole(jobId, 'finops-vp')
+  );
 
-  const leadTC = findByRole('team-coordinator') || tcUsers[0]?.name || 'Team Coordinator';
-  const leadMgr = findByRole('manager') || mgrUsers[0]?.name || currentJob.leadOwner || 'Audit Manager';
-  const leadDir = findByRole('director') || dirUsers[0]?.name || 'Audit Director';
-  const leadVP = findByRole('vp') || vpUsers[0]?.name || 'Vice President';
+  const leadTC = findByRole('team-coordinator') || tcUsers[0]?.name || 'Gowri P';
+  const leadMgr = findByRole('manager') || mgrUsers[0]?.name || 'Amanda Palmer';
+  const leadDir = findByRole('director') || dirUsers[0]?.name || 'Marcus Vance';
+  const leadVP = findByRole('vp') || vpUsers[0]?.name || 'Robert Chen';
 
+  // Helper to compute domain metrics
   const computeDomainMetrics = (issueArray: any[]) => {
-    const total = issueArray.length;
-    if (total === 0) return { total: 0, tcCompleted: 0, tcActive: 0, mgrCompleted: 0, mgrActive: 0, bizActive: 0, dirActive: 0, vpActive: 0 };
-    let tcCompleted = 0, tcActive = 0, mgrCompleted = 0, mgrActive = 0, bizActive = 0, dirActive = 0, vpActive = 0;
+    const activeIssueArray = issueArray.filter((iss) => !iss.isExcluded && iss.status !== 'Excluded');
+    const total = activeIssueArray.length;
+    if (total === 0) {
+      return {
+        total: 0,
+        tcCompleted: 0,
+        tcActive: 0,
+        mgrCompleted: 0,
+        mgrActive: 0,
+        bizActive: 0,
+        dirActive: 0,
+        vpActive: 0,
+        isAllCleared: false,
+      };
+    }
+    let tcCompleted = 0;
+    let tcActive = 0;
+    let mgrCompleted = 0;
+    let mgrActive = 0;
+    let bizActive = 0;
+    let dirActive = 0;
+    let vpActive = 0;
 
-    issueArray.forEach(iss => {
+    activeIssueArray.forEach((iss) => {
       const stage = resolveIssueStageStatuses(iss);
       if (stage.tc.label.includes('Completed')) tcCompleted++;
       if (stage.tc.label.includes('In Progress')) tcActive++;
-      if (stage.manager.label.includes('Completed')) mgrCompleted++;
+      if (stage.manager.label.includes('Completed') || stage.manager.label.includes('Cleared'))
+        mgrCompleted++;
       if (stage.manager.label.includes('In Progress')) mgrActive++;
       if (stage.business.label.includes('In Progress')) bizActive++;
       if (stage.director.label.includes('In Progress')) dirActive++;
       if (stage.vp.label.includes('In Review') || stage.vp.label.includes('Signed Off')) vpActive++;
     });
 
-    return { total, tcCompleted, tcActive, mgrCompleted, mgrActive, bizActive, dirActive, vpActive };
+    const isAllCleared = mgrCompleted === total && total > 0;
+
+    return {
+      total,
+      tcCompleted,
+      tcActive,
+      mgrCompleted,
+      mgrActive,
+      bizActive,
+      dirActive,
+      vpActive,
+      isAllCleared,
+    };
   };
 
   const itMetrics = computeDomainMetrics(itIssues);
   const finOpsMetrics = computeDomainMetrics(finOpsIssues);
 
-  const getCritDot = (crit?: string) => {
-    const c = (crit || 'Minor').toLowerCase();
-    let bg = '#087D0D';
-    if (c === 'critical') bg = '#eb1700';
-    else if (c === 'major') bg = '#ff8200';
-    return (
-      <span
-        style={{
-          display: 'inline-block',
-          width: '8px',
-          height: '8px',
-          borderRadius: '50%',
-          backgroundColor: bg,
-          marginRight: '6px'
-        }}
-      />
-    );
-  };
+  // Pipeline diagram renderer component for a domain category (Exact layout & SVG nodes from Backup_JNJ_IAR/src/components/reporting/WorkflowModal.jsx)
+  const renderPipelineDiagram = ({
+    domainLabel,
+    metrics,
+    themeColor,
+    themeBg,
+    themeBorder,
+    icon: DomainIcon,
+  }: {
+    domainLabel: string;
+    metrics: ReturnType<typeof computeDomainMetrics>;
+    themeColor: string;
+    themeBg: string;
+    themeBorder: string;
+    icon: React.ComponentType<any>;
+  }) => {
+    const {
+      total,
+      tcCompleted,
+      tcActive,
+      mgrCompleted,
+      mgrActive,
+      bizActive,
+      dirActive,
+      vpActive,
+      isAllCleared,
+    } = metrics;
 
-  return (
-    <Dialog
-      open={isOpen}
-      onClose={onClose}
-      maxWidth="lg"
-      fullWidth
-      slotProps={{
-        paper: {
-          style: {
-            borderRadius: '12px',
-            overflow: 'hidden',
-            backgroundColor: '#ffffff'
-          }
-        }
-      }}
-    >
-      {/* Header */}
-      <DialogTitle
-        sx={{
-          p: '18px 24px',
-          borderBottom: '1px solid #d8d8d8',
-          backgroundColor: '#ffffff',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '8px',
-              backgroundColor: '#f1f4ff',
-              border: '1px solid #c5dbfc',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <GitBranch size={20} color="#000099" />
-          </div>
+    if (total === 0) {
+      return (
+        <div
+          style={{
+            backgroundColor: '#ffffff',
+            border: '1px solid #d8d8d8',
+            borderRadius: '16px',
+            padding: '20px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            color: '#63666a',
+          }}
+        >
+          <DomainIcon style={{ width: '20px', height: '20px', color: themeColor }} />
           <div>
-            <h2
-              className="type-modal-title"
-              style={{
-                fontSize: 'var(--type-modal-title-size, 16px)',
-                fontWeight: 800,
-                color: '#212121',
-                margin: 0,
-                fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
-              }}
-            >
-              {displayTitle}
-            </h2>
-            <div
-              className="type-caption"
-              style={{
-                fontSize: 'var(--type-caption-size, 11.5px)',
-                color: '#63666a',
-                marginTop: '2px',
-                fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
-              }}
-            >
-              Engagement: <strong>{currentJob.fileName || currentJob.engagement || jobId}</strong>
+            <div style={{ fontSize: '13px', fontWeight: 800, color: '#212121' }}>
+              {domainLabel} Workflow Pipeline
+            </div>
+            <div style={{ fontSize: '11.5px', color: '#63666a' }}>
+              No findings currently mapped to this functional domain for this engagement.
             </div>
           </div>
         </div>
+      );
+    }
 
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close workflow modal"
+    // Dynamic connectors
+    const isConn1Done = tcCompleted === total;
+    const isConn2Done = isAllCleared;
+    const isConn3Done = vpActive === total && total > 0;
+
+    return (
+      <div
+        style={{
+          backgroundColor: '#ffffff',
+          border: '1px solid #d8d8d8',
+          borderRadius: '16px',
+          padding: '22px 20px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.05)',
+        }}
+      >
+        {/* Domain Header Row */}
+        <div
           style={{
-            border: 'none',
-            backgroundColor: 'transparent',
-            cursor: 'pointer',
-            padding: '4px',
-            color: '#63666a',
-            borderRadius: '4px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            width: '28px',
-            height: '28px',
-            transition: 'all 0.15s ease',
+            justifyContent: 'space-between',
+            marginBottom: '18px',
+            borderBottom: '1px solid #f4f4f4',
+            paddingBottom: '10px',
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = '#000099';
-            e.currentTarget.style.backgroundColor = '#F1F5F9';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = '#63666a';
-            e.currentTarget.style.backgroundColor = 'transparent';
-          }}
-          title="Close"
         >
-          <X size={20} />
-        </button>
-      </DialogTitle>
-
-      {/* Navigation Sub-Tabs */}
-      <Box sx={{ px: '24px', backgroundColor: '#f8fafc' }}>
-        <SharedTabs<'pipeline' | 'findings' | 'team'>
-          items={[
-            { id: 'pipeline', label: 'Workflow Pipeline Canvas', icon: <Layers size={14} /> },
-            { id: 'findings', label: `Findings Status Matrix (${realIssues.length})`, icon: <AlertCircle size={14} /> },
-            { id: 'team', label: 'Audit Review Team', icon: <Users size={14} /> }
-          ]}
-          value={activeTab}
-          onChange={(tab) => setActiveTab(tab)}
-          size="small"
-          borderColor="#e2e8f0"
-          ariaLabel="Workflow Modal sub-tabs"
-        />
-      </Box>
-
-      <DialogContent sx={{ p: '24px', backgroundColor: '#f8fafc', maxHeight: '70vh', overflowY: 'auto' }}>
-        {/* TAB 1: VISUAL PIPELINE */}
-        {activeTab === 'pipeline' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {/* 5-Tier Overview Bar */}
-            <div
-              style={{
-                backgroundColor: '#ffffff',
-                border: '1px solid #d8d8d8',
-                borderRadius: '10px',
-                padding: '18px 22px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-              }}
-            >
-              <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#000099', textTransform: 'uppercase', marginBottom: '16px' }}>
-                Standard 5-Tier Audit Review Lifecycle
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
-                {[
-                  { step: '1', title: 'Auditor Drafting', role: 'Staff Auditor', desc: 'Initial observations & evidence' },
-                  { step: '2', title: 'TC Review', role: leadTC, desc: 'Technical & procedural audit' },
-                  { step: '3', title: 'Manager Review', role: leadMgr, desc: 'Risk rating & management response' },
-                  { step: '4', title: 'Director Review', role: leadDir, desc: 'Quality assurance & reporting' },
-                  { step: '5', title: 'VP Sign-Off', role: leadVP, desc: 'Final executive endorsement' }
-                ].map((s, idx) => (
-                  <div key={s.step} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', minWidth: '130px' }}>
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          backgroundColor: '#000099',
-                          color: '#ffffff',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 800,
-                          fontSize: '13px',
-                          marginBottom: '8px'
-                        }}
-                      >
-                        {s.step}
-                      </div>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#212121' }}>{s.title}</div>
-                      <div style={{ fontSize: '10.5px', color: '#000099', fontWeight: 600 }}>{s.role}</div>
-                      <div style={{ fontSize: '9.5px', color: '#63666a', marginTop: '2px' }}>{s.desc}</div>
-                    </div>
-                    {idx < 4 && (
-                      <div style={{ flex: 1, height: '2px', backgroundColor: '#d8d8d8', margin: '0 8px', alignSelf: 'flex-start', marginTop: '16px' }} />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* IT Domain Pipeline */}
-            <div
-              style={{
-                backgroundColor: '#ffffff',
-                border: '1px solid #d8d8d8',
-                borderRadius: '10px',
-                padding: '20px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Cpu size={18} color="#000099" />
-                  <span style={{ fontSize: '14px', fontWeight: 800, color: '#212121' }}>
-                    IT Audit Stream ({itIssues.length} Findings)
-                  </span>
-                </div>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    padding: '3px 10px',
-                    borderRadius: '12px',
-                    backgroundColor: '#EFF6FF',
-                    color: '#000099',
-                    border: '1px solid #BFDBFE'
-                  }}
-                >
-                  TC: {itMetrics.tcCompleted}/{itIssues.length} | Mgr: {itMetrics.mgrCompleted}/{itIssues.length}
-                </span>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
-                <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>TC Review Stage</div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#212121', marginTop: '4px' }}>
-                    {itMetrics.tcCompleted === itIssues.length ? 'Completed' : `${itMetrics.tcCompleted} / ${itIssues.length} Done`}
-                  </div>
-                </div>
-                <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>Manager Stage</div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#212121', marginTop: '4px' }}>
-                    {itMetrics.mgrCompleted === itIssues.length ? 'Completed' : `${itMetrics.mgrCompleted} / ${itIssues.length} Done`}
-                  </div>
-                </div>
-                <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>Business Response</div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#0284C7', marginTop: '4px' }}>
-                    {itMetrics.bizActive > 0 ? `${itMetrics.bizActive} Pending` : 'All Cleared'}
-                  </div>
-                </div>
-                <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>Executive Submission</div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#eb1700', marginTop: '4px' }}>
-                    Ready for Director
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* FinOps Domain Pipeline */}
-            <div
-              style={{
-                backgroundColor: '#ffffff',
-                border: '1px solid #d8d8d8',
-                borderRadius: '10px',
-                padding: '20px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <TrendingUp size={18} color="#087D0D" />
-                  <span style={{ fontSize: '14px', fontWeight: 800, color: '#212121' }}>
-                    FinOps Audit Stream ({finOpsIssues.length} Findings)
-                  </span>
-                </div>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    padding: '3px 10px',
-                    borderRadius: '12px',
-                    backgroundColor: '#F0FDF4',
-                    color: '#087D0D',
-                    border: '1px solid #BBF2D0'
-                  }}
-                >
-                  TC: {finOpsMetrics.tcCompleted}/{finOpsIssues.length} | Mgr: {finOpsMetrics.mgrCompleted}/{finOpsIssues.length}
-                </span>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
-                <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>TC Review Stage</div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#212121', marginTop: '4px' }}>
-                    {finOpsMetrics.tcCompleted === finOpsIssues.length ? 'Completed' : `${finOpsMetrics.tcCompleted} / ${finOpsIssues.length} Done`}
-                  </div>
-                </div>
-                <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>Manager Stage</div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#212121', marginTop: '4px' }}>
-                    {finOpsMetrics.mgrCompleted === finOpsIssues.length ? 'Completed' : `${finOpsMetrics.mgrCompleted} / ${finOpsIssues.length} Done`}
-                  </div>
-                </div>
-                <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>Business Response</div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#0284C7', marginTop: '4px' }}>
-                    {finOpsMetrics.bizActive > 0 ? `${finOpsMetrics.bizActive} Pending` : 'All Cleared'}
-                  </div>
-                </div>
-                <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>Executive Submission</div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#eb1700', marginTop: '4px' }}>
-                    Ready for Director
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 2: FINDINGS STATUS MATRIX */}
-        {activeTab === 'findings' && (
           <div
-            className="slim-light-scrollbar"
             style={{
-              backgroundColor: '#ffffff',
-              border: '1px solid #d8d8d8',
-              borderRadius: '8px',
-              overflowX: 'auto',
-              maxWidth: '100%'
+              fontSize: '13px',
+              fontWeight: 900,
+              color: themeColor,
+              textTransform: 'uppercase',
+              letterSpacing: '0.4px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
             }}
           >
-            <table
-              style={{
-                width: '100%',
-                minWidth: '680px',
-                borderCollapse: 'collapse',
-                fontSize: 'var(--type-table-row-size, 12px)',
-                fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)'
-              }}
-            >
-              <thead>
-                <tr style={{ backgroundColor: '#f4f4f4', borderBottom: '1px solid #d8d8d8', textAlign: 'left' }}>
-                  <th style={{ padding: '10px 14px', fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 700, color: '#212121' }}>Finding # &amp; Title</th>
-                  <th style={{ padding: '10px 14px', fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 700, color: '#212121' }}>Stream</th>
-                  <th style={{ padding: '10px 14px', fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 700, color: '#212121' }}>Severity</th>
-                  <th style={{ padding: '10px 14px', fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 700, color: '#212121' }}>Staff</th>
-                  <th style={{ padding: '10px 14px', fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 700, color: '#212121' }}>TC Review</th>
-                  <th style={{ padding: '10px 14px', fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 700, color: '#212121' }}>Manager</th>
-                  <th style={{ padding: '10px 14px', fontSize: 'var(--type-table-header-size, 11px)', fontWeight: 700, color: '#212121' }}>Director / VP</th>
-                </tr>
-              </thead>
-              <tbody>
-                {realIssues.map((iss, index) => {
-                  const stage = resolveIssueStageStatuses(iss);
-                  const isIT = (iss.tech || iss.function || '').toUpperCase().includes('IT');
-
-                  return (
-                    <tr
-                      key={iss.id || index}
-                      style={{
-                        borderBottom: '1px solid #e2e8f0',
-                        backgroundColor: index % 2 === 0 ? '#ffffff' : '#fafafc'
-                      }}
-                    >
-                      <td style={{ padding: '10px 14px' }}>
-                        <div style={{ fontWeight: 700, color: '#212121', fontSize: 'var(--type-table-row-size, 12px)' }}>{iss.id}</div>
-                        <div style={{ fontSize: 'var(--type-caption-size, 11.5px)', color: '#63666a', maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {iss.title || iss.header}
-                        </div>
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <span
-                          className="type-badge"
-                          style={{
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            fontSize: 'var(--type-badge-size, 10.5px)',
-                            fontWeight: 700,
-                            backgroundColor: isIT ? '#EFF6FF' : '#F0FDF4',
-                            color: isIT ? '#000099' : '#087D0D'
-                          }}
-                        >
-                          {isIT ? 'IT' : 'FinOps'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          {getCritDot(iss.criticality || iss.severity)}
-                          <span style={{ fontWeight: 700, fontSize: 'var(--type-table-row-size, 12px)' }}>{iss.criticality || iss.severity || 'Minor'}</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <span className="type-badge" style={{ fontSize: 'var(--type-badge-size, 10.5px)', fontWeight: 700, color: stage.staff.color, backgroundColor: stage.staff.bg, padding: '2px 6px', borderRadius: '4px' }}>
-                          {stage.staff.label}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <span className="type-badge" style={{ fontSize: 'var(--type-badge-size, 10.5px)', fontWeight: 700, color: stage.tc.color, backgroundColor: stage.tc.bg, padding: '2px 6px', borderRadius: '4px' }}>
-                          {stage.tc.label}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <span className="type-badge" style={{ fontSize: 'var(--type-badge-size, 10.5px)', fontWeight: 700, color: stage.manager.color, backgroundColor: stage.manager.bg, padding: '2px 6px', borderRadius: '4px' }}>
-                          {stage.manager.label}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <span className="type-badge" style={{ fontSize: 'var(--type-badge-size, 10.5px)', fontWeight: 700, color: stage.director.color, backgroundColor: stage.director.bg, padding: '2px 6px', borderRadius: '4px' }}>
-                          {stage.director.label}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <DomainIcon style={{ width: '18px', height: '18px', color: themeColor }} />
+            <span>
+              {domainLabel} Workflow Pipeline ({total} Active Finding{total === 1 ? '' : 's'})
+            </span>
           </div>
-        )}
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 800,
+              color: themeColor,
+              backgroundColor: themeBg,
+              padding: '3px 10px',
+              borderRadius: '9999px',
+              border: `1px solid ${themeBorder}`,
+            }}
+          >
+            TC: {tcCompleted}/{total} | Manager: {mgrCompleted}/{total} | Director: {dirActive}/
+            {total}
+          </span>
+        </div>
 
-        {/* TAB 3: REVIEW TEAM ROSTER */}
-        {activeTab === 'team' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
-            {[
-              { role: 'Lead Team Coordinator', name: leadTC, title: 'Senior Auditor / IT TC', email: 'kzhang@its.jnj.com' },
-              { role: 'Audit Manager', name: leadMgr, title: 'Global Audit Manager', email: 'apalmer@its.jnj.com' },
-              { role: 'Audit Director', name: leadDir, title: 'Senior Director, Internal Audit', email: 'bcox@its.jnj.com' },
-              { role: 'Vice President (VP)', name: leadVP, title: 'VP, Corporate Internal Audit', email: 'rchen@its.jnj.com' }
-            ].map(m => (
+        {/* Dynamic Pipeline Canvas */}
+        <div style={{ position: 'relative', width: '100%', minHeight: '180px' }}>
+          <svg
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none',
+            }}
+          >
+            <defs>
+              <marker
+                id={`arrow-${domainLabel.replace(/\s+/g, '-')}`}
+                viewBox="0 0 10 10"
+                refX="6"
+                refY="5"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto-start-reverse"
+              >
+                <path
+                  d="M 0 0 L 10 5 L 0 10 z"
+                  fill={isConn1Done ? '#087D0D' : themeColor}
+                />
+              </marker>
+              <marker
+                id={`arrow-mgr-${domainLabel.replace(/\s+/g, '-')}`}
+                viewBox="0 0 10 10"
+                refX="6"
+                refY="5"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto-start-reverse"
+              >
+                <path
+                  d="M 0 0 L 10 5 L 0 10 z"
+                  fill={isConn2Done ? '#087D0D' : '#94A3B8'}
+                />
+              </marker>
+            </defs>
+
+            {/* TC to Manager */}
+            <line
+              x1="90"
+              y1="35"
+              x2="200"
+              y2="35"
+              stroke={isConn1Done ? '#087D0D' : tcActive > 0 ? themeColor : '#d8d8d8'}
+              strokeWidth={isConn1Done || tcActive > 0 ? 3 : 2}
+              markerEnd={`url(#arrow-${domainLabel.replace(/\s+/g, '-')})`}
+            />
+
+            {/* Manager to Director */}
+            <line
+              x1="340"
+              y1="35"
+              x2="430"
+              y2="35"
+              stroke={isConn2Done ? '#087D0D' : '#d8d8d8'}
+              strokeWidth={isConn2Done ? 3 : 2}
+              strokeDasharray={isConn2Done ? 'none' : '5,5'}
+              markerEnd={`url(#arrow-mgr-${domainLabel.replace(/\s+/g, '-')})`}
+            />
+
+            {/* Director to Final Report */}
+            <line
+              x1="550"
+              y1="35"
+              x2="610"
+              y2="35"
+              stroke={isConn3Done ? '#087D0D' : '#d8d8d8'}
+              strokeWidth={isConn3Done ? 3 : 2}
+              strokeDasharray={isConn3Done ? 'none' : '5,5'}
+            />
+
+            {/* Branch: Manager to Management Response */}
+            <path
+              d="M 270 55 L 270 125 L 430 125"
+              fill="none"
+              stroke={bizActive > 0 ? '#0284C7' : '#d8d8d8'}
+              strokeWidth={bizActive > 0 ? 2.5 : 2}
+              strokeDasharray={bizActive > 0 ? 'none' : '4,4'}
+            />
+          </svg>
+
+          {/* Nodes */}
+          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+            {/* Node 1: TC */}
+            <div style={{ position: 'absolute', left: '0%', top: '10px', pointerEvents: 'auto' }}>
               <div
-                key={m.role}
                 style={{
                   backgroundColor: '#ffffff',
-                  border: '1px solid #d8d8d8',
-                  borderRadius: '8px',
-                  padding: '16px',
+                  border: isConn1Done
+                    ? '2px solid #087D0D'
+                    : tcActive > 0
+                      ? `2.5px solid ${themeColor}`
+                      : '1.5px solid #d8d8d8',
+                  borderRadius: '10px',
+                  padding: '6px 12px',
+                  boxShadow: isConn1Done
+                    ? '0 2px 8px rgba(8,125,13,0.12)'
+                    : '0 2px 6px rgba(0,0,0,0.05)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '14px',
-                  fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)'
+                  gap: '8px',
                 }}
               >
                 <div
                   style={{
-                    width: '42px',
-                    height: '42px',
+                    width: '22px',
+                    height: '22px',
                     borderRadius: '50%',
-                    backgroundColor: '#000099',
-                    color: '#ffffff',
-                    fontWeight: 800,
+                    backgroundColor: isConn1Done
+                      ? '#F0FDF4'
+                      : tcActive > 0
+                        ? themeBg
+                        : '#f4f4f4',
+                    color: isConn1Done
+                      ? '#087D0D'
+                      : tcActive > 0
+                        ? themeColor
+                        : '#63666a',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '15px'
                   }}
                 >
-                  {m.name.split(' ').map((n: string) => n[0]).join('')}
+                  {isConn1Done ? (
+                    <CheckCircle2 style={{ width: '14px', height: '14px' }} />
+                  ) : (
+                    <Clock style={{ width: '14px', height: '14px' }} />
+                  )}
                 </div>
                 <div>
-                  <div style={{ fontSize: 'var(--type-caption-size, 11px)', fontWeight: 700, color: '#eb1700', textTransform: 'uppercase' }}>{m.role}</div>
-                  <div style={{ fontSize: 'var(--type-section-title-size, 14px)', fontWeight: 800, color: '#212121', marginTop: '2px' }}>{m.name}</div>
-                  <div style={{ fontSize: 'var(--type-caption-size, 11.5px)', color: '#63666a' }}>{m.title}</div>
-                  <div style={{ fontSize: 'var(--type-caption-size, 11px)', color: '#000099', marginTop: '2px' }}>{m.email}</div>
+                  <div style={{ fontSize: '12px', fontWeight: 900, color: '#212121' }}>
+                    TC Review
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      color: isConn1Done
+                        ? '#087D0D'
+                        : tcActive > 0
+                          ? themeColor
+                          : '#63666a',
+                    }}
+                  >
+                    {isConn1Done
+                      ? `Completed (${tcCompleted}/${total})`
+                      : tcActive > 0
+                        ? `In Progress (${tcActive}/${total})`
+                        : 'Pending'}
+                  </div>
                 </div>
               </div>
-            ))}
+            </div>
+
+            {/* Node 2: Audit Manager */}
+            <div style={{ position: 'absolute', left: '26%', top: '8px', pointerEvents: 'auto' }}>
+              <div
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: isConn2Done
+                    ? '2px solid #087D0D'
+                    : mgrActive > 0
+                      ? '2.5px solid #eb1700'
+                      : '1.5px solid #d8d8d8',
+                  borderRadius: '10px',
+                  padding: '6px 12px',
+                  boxShadow:
+                    mgrActive > 0
+                      ? '0 4px 16px rgba(235,23,0,0.18)'
+                      : '0 2px 6px rgba(0,0,0,0.05)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <div
+                  style={{
+                    width: '22px',
+                    height: '22px',
+                    borderRadius: '50%',
+                    backgroundColor: isConn2Done
+                      ? '#F0FDF4'
+                      : mgrActive > 0
+                        ? '#FFF1F0'
+                        : '#f4f4f4',
+                    color: isConn2Done
+                      ? '#087D0D'
+                      : mgrActive > 0
+                        ? '#eb1700'
+                        : '#63666a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {isConn2Done ? (
+                    <CheckCircle2 style={{ width: '14px', height: '14px' }} />
+                  ) : (
+                    <Clock style={{ width: '14px', height: '14px' }} />
+                  )}
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 900, color: '#212121' }}>
+                    Audit Manager
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      color: isConn2Done
+                        ? '#087D0D'
+                        : mgrActive > 0
+                          ? '#eb1700'
+                          : '#63666a',
+                    }}
+                  >
+                    {isConn2Done
+                      ? `Cleared (${mgrCompleted}/${total})`
+                      : mgrActive > 0
+                        ? `In Progress (${mgrActive}/${total})`
+                        : `Cleared (${mgrCompleted}/${total})`}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Node 3: Director Clearance (Batch gate) */}
+            <div style={{ position: 'absolute', left: '56%', top: '10px', pointerEvents: 'auto' }}>
+              <div
+                style={{
+                  backgroundColor: dirActive > 0 ? '#EFF6FF' : '#F8FAFC',
+                  border: dirActive > 0 ? '2px solid #000099' : '1.5px solid #d8d8d8',
+                  borderRadius: '10px',
+                  padding: '6px 12px',
+                  boxShadow: dirActive > 0 ? '0 4px 12px rgba(0,0,153,0.15)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <div
+                  style={{
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    backgroundColor: dirActive > 0 ? '#DBEAFE' : '#E2E8F0',
+                    color: dirActive > 0 ? '#000099' : '#63666a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '10px',
+                    fontWeight: 800,
+                  }}
+                >
+                  {dirActive > 0 ? <Clock style={{ width: '12px', height: '12px' }} /> : '3'}
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      color: dirActive > 0 ? '#000099' : '#212121',
+                    }}
+                  >
+                    Director Review
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '9.5px',
+                      fontWeight: 700,
+                      color: dirActive > 0 ? '#000099' : '#63666a',
+                    }}
+                  >
+                    {dirActive > 0
+                      ? `In Review (${dirActive}/${total})`
+                      : isAllCleared
+                        ? 'Cleared for Director'
+                        : 'Waiting on All Issues'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Node 4: Final Report / VP SignOff */}
+            <div style={{ position: 'absolute', right: '0%', top: '10px', pointerEvents: 'auto' }}>
+              <div
+                style={{
+                  backgroundColor: vpActive > 0 ? '#EFF6FF' : '#F8FAFC',
+                  border: vpActive > 0 ? '2px solid #000099' : '1.5px solid #d8d8d8',
+                  borderRadius: '10px',
+                  padding: '6px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <div
+                  style={{
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    backgroundColor: vpActive > 0 ? '#DBEAFE' : '#E2E8F0',
+                    color: vpActive > 0 ? '#000099' : '#63666a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '10px',
+                    fontWeight: 800,
+                  }}
+                >
+                  {vpActive > 0 ? <Clock style={{ width: '12px', height: '12px' }} /> : '4'}
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      color: vpActive > 0 ? '#000099' : '#212121',
+                    }}
+                  >
+                    VP Sign-Off
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '9.5px',
+                      fontWeight: 600,
+                      color: vpActive > 0 ? '#000099' : '#63666a',
+                    }}
+                  >
+                    {vpActive > 0 ? 'VP Review' : 'Not Started'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Node 5: Branch - Management Response */}
+            <div style={{ position: 'absolute', left: '52%', top: '100px', pointerEvents: 'auto' }}>
+              <div
+                style={{
+                  backgroundColor: bizActive > 0 ? '#F0F9FF' : '#F8FAFC',
+                  border: bizActive > 0 ? '2px solid #0284C7' : '1.5px solid #d8d8d8',
+                  borderRadius: '10px',
+                  padding: '6px 12px',
+                  boxShadow: bizActive > 0 ? '0 4px 12px rgba(2,132,199,0.18)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <div
+                  style={{
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    backgroundColor: bizActive > 0 ? '#E0F2FE' : '#E2E8F0',
+                    color: bizActive > 0 ? '#0369A1' : '#63666a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '10px',
+                    fontWeight: 800,
+                  }}
+                >
+                  {bizActive > 0 ? <Clock style={{ width: '12px', height: '12px' }} /> : 'B'}
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      color: bizActive > 0 ? '#075985' : '#212121',
+                    }}
+                  >
+                    Management Response
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '9.5px',
+                      fontWeight: 700,
+                      color: bizActive > 0 ? '#0284C7' : '#63666a',
+                    }}
+                  >
+                    {bizActive > 0 ? `Active: ${bizActive} Finding(s)` : 'Pending Owner Input'}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div
+      className="modal-overlay"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(33, 33, 33, 0.55)',
+        backdropFilter: 'blur(3px)',
+        display: 'flex',
+        justifyContent: 'flex-end',
+        zIndex: 1500,
+        fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+      }}
+      onClick={onClose}
+    >
+      {/* 820px Wide Drawer Panel (Exact Layout & Design from Backup_JNJ_IAR/src/components/reporting/WorkflowModal.jsx) */}
+      <aside
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '820px',
+          maxWidth: '96vw',
+          height: '100vh',
+          backgroundColor: '#ffffff',
+          boxShadow: '-12px 0 36px rgba(0,0,0,0.28)',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          animation: 'slideInRight 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Drawer Header */}
+        <div
+          style={{
+            padding: '18px 24px',
+            backgroundColor: '#000099',
+            color: '#ffffff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0,
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  color: '#93C5FD',
+                  letterSpacing: '0.8px',
+                }}
+              >
+                {isAuditWorkflow ? 'Audit Report Workflow Engine' : 'Executive Report Pipeline'}
+              </span>
+              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>•</span>
+              <span style={{ fontSize: '11px', color: '#E2E8F0', fontWeight: 600 }}>
+                Queue: <strong style={{ color: '#FCA5A5' }}>{workflowState.queue}</strong>
+              </span>
+            </div>
+            <h3
+              style={{
+                fontSize: '17px',
+                fontWeight: 800,
+                margin: 0,
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <GitBranch style={{ width: '18px', height: '18px', color: '#93C5FD' }} />
+              <span>{displayTitle}</span>
+            </h3>
+            <div style={{ fontSize: '12.5px', color: '#E2E8F0', marginTop: '2px' }}>
+              {auditTitle} ({realIssues.length} Findings)
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '6px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+              background: 'rgba(255, 255, 255, 0.1)',
+              color: '#ffffff',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'background 0.15s ease',
+            }}
+            title="Close Drawer"
+          >
+            <X style={{ width: '18px', height: '18px' }} />
+          </button>
+        </div>
+
+        {/* Scrollable Workflow Content */}
+        <div
+          style={{
+            padding: '24px',
+            flex: 1,
+            overflowY: 'auto',
+            backgroundColor: '#f4f4f4',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '22px',
+          }}
+        >
+          {isAuditWorkflow ? (
+            <>
+              {/* IT Issues Pipeline */}
+              {renderPipelineDiagram({
+                domainLabel: 'IT & Digital Systems',
+                metrics: itMetrics,
+                themeColor: '#000099',
+                themeBg: '#EFF6FF',
+                themeBorder: '#BFDBFE',
+                icon: Cpu,
+              })}
+
+              {/* FinOps Issues Pipeline */}
+              {renderPipelineDiagram({
+                domainLabel: 'FinOps & Supply Chain',
+                metrics: finOpsMetrics,
+                themeColor: '#087D0D',
+                themeBg: '#F0FDF4',
+                themeBorder: '#A7F3D0',
+                icon: TrendingUp,
+              })}
+
+              {/* DYNAMIC ISSUE & ROLE LEVEL WORKFLOW STATUS MATRIX */}
+              <div
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #d8d8d8',
+                  borderRadius: '14px',
+                  padding: '20px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '18px',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    borderBottom: '1px solid #f4f4f4',
+                    paddingBottom: '8px',
+                  }}
+                >
+                  <h4
+                    style={{
+                      fontSize: '13.5px',
+                      fontWeight: 900,
+                      color: '#212121',
+                      margin: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <ShieldCheck style={{ width: '18px', height: '18px', color: '#000099' }} />
+                    <span>Issue &amp; Role Level Workflow Status Matrix</span>
+                  </h4>
+                  <span style={{ fontSize: '11px', color: '#63666a', fontWeight: 600 }}>
+                    Total Findings: {realIssues.length}
+                  </span>
+                </div>
+
+                {realIssues.length === 0 ? (
+                  <div
+                    style={{
+                      padding: '24px',
+                      textAlign: 'center',
+                      color: '#63666a',
+                      backgroundColor: '#f4f4f4',
+                      borderRadius: '8px',
+                      border: '1px dashed #d8d8d8',
+                    }}
+                  >
+                    <AlertCircle
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        margin: '0 auto 6px auto',
+                        color: '#94A3B8',
+                      }}
+                    />
+                    <div style={{ fontSize: '12.5px', fontWeight: 700 }}>
+                      No findings drafted for this audit yet
+                    </div>
+                    <div style={{ fontSize: '11px' }}>
+                      Findings will appear dynamically in this matrix as they are created.
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table
+                      style={{
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        fontSize: '11.5px',
+                        textAlign: 'left',
+                        border: '1px solid #d8d8d8',
+                      }}
+                    >
+                      <thead>
+                        <tr
+                          style={{
+                            backgroundColor: '#f4f4f4',
+                            color: '#212121',
+                            borderBottom: '1px solid #d8d8d8',
+                          }}
+                        >
+                          <th style={{ padding: '8px 12px', fontWeight: 800 }}>
+                            Issue ID &amp; Finding Title
+                          </th>
+                          <th style={{ padding: '8px 10px', fontWeight: 800, width: '90px' }}>
+                            Domain
+                          </th>
+                          <th style={{ padding: '8px 12px', fontWeight: 800, width: '110px' }}>
+                            TC Auditor
+                          </th>
+                          <th style={{ padding: '8px 12px', fontWeight: 800, width: '130px' }}>
+                            Audit Manager
+                          </th>
+                          <th style={{ padding: '8px 12px', fontWeight: 800, width: '110px' }}>
+                            Director
+                          </th>
+                          <th style={{ padding: '8px 12px', fontWeight: 800, width: '140px' }}>
+                            Overall Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {realIssues.map((issue) => {
+                          const stages = resolveIssueStageStatuses(issue);
+                          const domainTag =
+                            issue.function || issue.functionType || issue.tech || 'IT';
+                          const isIT = String(domainTag).toLowerCase().includes('it');
+
+                          return (
+                            <tr
+                              key={issue.id}
+                              style={{
+                                borderBottom: '1px solid #d8d8d8',
+                                opacity: stages.isExcluded ? 0.6 : 1,
+                              }}
+                            >
+                              <td
+                                style={{
+                                  padding: '8px 12px',
+                                  fontWeight: 700,
+                                  color: '#212121',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontWeight: 800, color: '#000099' }}>
+                                    {issue.id}
+                                  </span>
+                                  <span>{issue.header || issue.title}</span>
+                                  {stages.isExcluded && (
+                                    <span
+                                      style={{
+                                        fontSize: '9px',
+                                        fontWeight: 800,
+                                        color: '#eb1700',
+                                        backgroundColor: '#FFF1F0',
+                                        padding: '1px 5px',
+                                        borderRadius: '4px',
+                                      }}
+                                    >
+                                      EXCLUDED
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td style={{ padding: '8px 10px' }}>
+                                <span
+                                  style={{
+                                    fontSize: '10px',
+                                    fontWeight: 800,
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    backgroundColor: isIT ? '#EFF6FF' : '#F0FDF4',
+                                    color: isIT ? '#000099' : '#087D0D',
+                                  }}
+                                >
+                                  {domainTag}
+                                </span>
+                              </td>
+
+                              <td
+                                style={{
+                                  padding: '8px 12px',
+                                  color: stages.tc.color,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    backgroundColor: stages.tc.bg,
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                  }}
+                                >
+                                  {stages.tc.label}
+                                </span>
+                              </td>
+
+                              <td
+                                style={{
+                                  padding: '8px 12px',
+                                  color: stages.manager.color,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    backgroundColor: stages.manager.bg,
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                  }}
+                                >
+                                  {stages.manager.label}
+                                </span>
+                              </td>
+
+                              <td
+                                style={{
+                                  padding: '8px 12px',
+                                  color: stages.director.color,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    backgroundColor: stages.director.bg,
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                  }}
+                                >
+                                  {stages.director.label}
+                                </span>
+                              </td>
+
+                              <td style={{ padding: '8px 12px' }}>
+                                <span
+                                  style={{
+                                    fontSize: '10.5px',
+                                    fontWeight: 700,
+                                    color: issue.status?.includes('Manager')
+                                      ? '#eb1700'
+                                      : issue.status?.includes('Director')
+                                        ? '#000099'
+                                        : '#087D0D',
+                                    backgroundColor: issue.status?.includes('Manager')
+                                      ? '#FFF1F0'
+                                      : issue.status?.includes('Director')
+                                        ? '#EFF6FF'
+                                        : '#F0FDF4',
+                                    padding: '2px 8px',
+                                    borderRadius: '4px',
+                                  }}
+                                >
+                                  {issue.status || 'Pending TC'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            /* EXECUTIVE SUMMARY WORKFLOW (4 DYNAMIC PIPELINE STAGES) */
+            <>
+              <div
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #d8d8d8',
+                  borderRadius: '16px',
+                  padding: '24px 22px',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+                }}
+              >
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    minHeight: '80px',
+                    padding: '10px 0',
+                  }}
+                >
+                  <svg
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      width: '100%',
+                      height: '100%',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    <defs>
+                      <marker
+                        id="arrowExec"
+                        viewBox="0 0 10 10"
+                        refX="6"
+                        refY="5"
+                        markerWidth="6"
+                        markerHeight="6"
+                        orient="auto-start-reverse"
+                      >
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#087D0D" />
+                      </marker>
+                    </defs>
+
+                    {/* Step 1 to 2 */}
+                    <line
+                      x1="100"
+                      y1="35"
+                      x2="220"
+                      y2="35"
+                      stroke="#087D0D"
+                      strokeWidth="3"
+                      markerEnd="url(#arrowExec)"
+                    />
+
+                    {/* Step 2 to 3 */}
+                    <line
+                      x1="380"
+                      y1="35"
+                      x2="450"
+                      y2="35"
+                      stroke={
+                        workflowState.queue === 'Vice President' ||
+                          workflowState.status === 'Completed'
+                          ? '#087D0D'
+                          : '#d8d8d8'
+                      }
+                      strokeWidth={2.5}
+                      strokeDasharray={
+                        workflowState.queue === 'Vice President' ||
+                          workflowState.status === 'Completed'
+                          ? 'none'
+                          : '5,5'
+                      }
+                    />
+
+                    {/* Step 3 to 4 */}
+                    <line
+                      x1="570"
+                      y1="35"
+                      x2="620"
+                      y2="35"
+                      stroke={workflowState.status === 'Completed' ? '#087D0D' : '#d8d8d8'}
+                      strokeWidth={2.5}
+                      strokeDasharray={workflowState.status === 'Completed' ? 'none' : '5,5'}
+                    />
+                  </svg>
+
+                  {/* HTML Node Cards */}
+                  <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                    {/* Node 1: AI Draft */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: '0%',
+                        top: '8px',
+                        pointerEvents: 'auto',
+                      }}
+                    >
+                      <div
+                        style={{
+                          backgroundColor: '#ffffff',
+                          border: '2px solid #087D0D',
+                          borderRadius: '10px',
+                          padding: '8px 12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            backgroundColor: '#DCFCE7',
+                            color: '#087D0D',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <CheckCircle2 style={{ width: '15px', height: '15px' }} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 900, color: '#212121' }}>
+                            AI Draft
+                          </div>
+                          <div style={{ fontSize: '10px', fontWeight: 800, color: '#087D0D' }}>
+                            Synthesized
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Node 2: Manager Review */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: '30%',
+                        top: '6px',
+                        pointerEvents: 'auto',
+                      }}
+                    >
+                      <div
+                        style={{
+                          backgroundColor: '#ffffff',
+                          border:
+                            workflowState.queue === 'Staff' ||
+                              workflowState.queue.includes('Manager')
+                              ? '2.5px solid #eb1700'
+                              : '2px solid #087D0D',
+                          borderRadius: '10px',
+                          padding: '8px 14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            backgroundColor:
+                              workflowState.queue === 'Staff' ||
+                                workflowState.queue.includes('Manager')
+                                ? '#FFF1F0'
+                                : '#DCFCE7',
+                            color:
+                              workflowState.queue === 'Staff' ||
+                                workflowState.queue.includes('Manager')
+                                ? '#eb1700'
+                                : '#087D0D',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {workflowState.queue === 'Staff' ||
+                            workflowState.queue.includes('Manager') ? (
+                            <Clock style={{ width: '15px', height: '15px' }} />
+                          ) : (
+                            <CheckCircle2 style={{ width: '15px', height: '15px' }} />
+                          )}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 900, color: '#212121' }}>
+                            Manager Review
+                          </div>
+                          <div
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: 800,
+                              color:
+                                workflowState.queue === 'Staff' ||
+                                  workflowState.queue.includes('Manager')
+                                  ? '#eb1700'
+                                  : '#087D0D',
+                            }}
+                          >
+                            {workflowState.queue === 'Staff' ||
+                              workflowState.queue.includes('Manager')
+                              ? 'Active Now'
+                              : 'Completed'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Node 3: Director Approval */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: '62%',
+                        top: '8px',
+                        pointerEvents: 'auto',
+                      }}
+                    >
+                      <div
+                        style={{
+                          backgroundColor:
+                            workflowState.queue === 'Director' ? '#EFF6FF' : '#F8FAFC',
+                          border:
+                            workflowState.queue === 'Director'
+                              ? '2.5px solid #000099'
+                              : workflowState.queue === 'Vice President' ||
+                                workflowState.status === 'Completed'
+                                ? '2px solid #087D0D'
+                                : '1.5px solid #d8d8d8',
+                          borderRadius: '10px',
+                          padding: '8px 12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '22px',
+                            height: '22px',
+                            borderRadius: '50%',
+                            backgroundColor:
+                              workflowState.queue === 'Director' ? '#DBEAFE' : '#E2E8F0',
+                            color: workflowState.queue === 'Director' ? '#000099' : '#63666a',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                          }}
+                        >
+                          {workflowState.queue === 'Director' ? (
+                            <Clock style={{ width: '13px', height: '13px' }} />
+                          ) : workflowState.queue === 'Vice President' ||
+                            workflowState.status === 'Completed' ? (
+                            <CheckCircle2
+                              style={{ width: '13px', height: '13px', color: '#087D0D' }}
+                            />
+                          ) : (
+                            '3'
+                          )}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#212121' }}>
+                            Director Review
+                          </div>
+                          <div
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              color: workflowState.queue === 'Director' ? '#000099' : '#63666a',
+                            }}
+                          >
+                            {workflowState.queue === 'Director'
+                              ? 'Active Now'
+                              : workflowState.queue === 'Vice President' ||
+                                workflowState.status === 'Completed'
+                                ? 'Completed'
+                                : 'Pending'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Node 4: VP SignOff */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        right: '0%',
+                        top: '8px',
+                        pointerEvents: 'auto',
+                      }}
+                    >
+                      <div
+                        style={{
+                          backgroundColor:
+                            workflowState.queue === 'Vice President'
+                              ? '#EFF6FF'
+                              : workflowState.status === 'Completed'
+                                ? '#F0FDF4'
+                                : '#F8FAFC',
+                          border:
+                            workflowState.queue === 'Vice President'
+                              ? '2.5px solid #000099'
+                              : workflowState.status === 'Completed'
+                                ? '2px solid #087D0D'
+                                : '1.5px solid #d8d8d8',
+                          borderRadius: '10px',
+                          padding: '8px 12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '22px',
+                            height: '22px',
+                            borderRadius: '50%',
+                            backgroundColor:
+                              workflowState.queue === 'Vice President'
+                                ? '#DBEAFE'
+                                : workflowState.status === 'Completed'
+                                  ? '#DCFCE7'
+                                  : '#E2E8F0',
+                            color:
+                              workflowState.queue === 'Vice President'
+                                ? '#000099'
+                                : workflowState.status === 'Completed'
+                                  ? '#087D0D'
+                                  : '#63666a',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                          }}
+                        >
+                          {workflowState.status === 'Completed' ? (
+                            <CheckCircle2 style={{ width: '13px', height: '13px' }} />
+                          ) : workflowState.queue === 'Vice President' ? (
+                            <Clock style={{ width: '13px', height: '13px' }} />
+                          ) : (
+                            '4'
+                          )}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#212121' }}>
+                            VP Sign-Off
+                          </div>
+                          <div
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              color:
+                                workflowState.status === 'Completed'
+                                  ? '#087D0D'
+                                  : workflowState.queue === 'Vice President'
+                                    ? '#000099'
+                                    : '#63666a',
+                            }}
+                          >
+                            {workflowState.status === 'Completed'
+                              ? 'Signed Off'
+                              : workflowState.queue === 'Vice President'
+                                ? 'Active Now'
+                                : 'Not Started'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* DYNAMIC STAGE AUDIT LOG & RESPONSIBLE PARTIES */}
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              border: '1px solid #d8d8d8',
+              borderRadius: '14px',
+              padding: '20px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            }}
+          >
+            <h4
+              style={{
+                fontSize: '13.5px',
+                fontWeight: 900,
+                color: '#212121',
+                margin: '0 0 14px 0',
+                borderBottom: '1px solid #f4f4f4',
+                paddingBottom: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <ShieldCheck style={{ width: '16px', height: '16px', color: '#087D0D' }} />
+              <span>Engagement Governance Pipeline &amp; Responsible Parties</span>
+            </h4>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12px' }}>
+              {/* Stage 1: TC Quality Review */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  backgroundColor: '#F0FDF4',
+                  borderRadius: '8px',
+                  border: '1px solid #BBF7D0',
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 800, color: '#087D0D', fontSize: '13px' }}>
+                    1. Quality &amp; Fieldwork Review
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '11.5px',
+                      color: '#087D0D',
+                      marginTop: '2px',
+                      fontWeight: 500,
+                    }}
+                  >
+                    Responsible: <strong>{leadTC}</strong> (Team Coordinator)
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#087D0D',
+                    backgroundColor: '#DCFCE7',
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                  }}
+                >
+                  {realIssues.length > 0 ? '✓ Fieldwork Completed' : 'In Progress'}
+                </span>
+              </div>
+
+              {/* Stage 2: Audit Manager Clearance */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  backgroundColor: workflowState.queue.includes('Manager')
+                    ? '#FFF1F0'
+                    : workflowState.queue === 'Director' ||
+                      workflowState.queue === 'Vice President' ||
+                      workflowState.status === 'Completed'
+                      ? '#F0FDF4'
+                      : '#F8FAFC',
+                  borderRadius: '8px',
+                  border: workflowState.queue.includes('Manager')
+                    ? '1.5px solid #FCA5A5'
+                    : '1px solid #d8d8d8',
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 800,
+                      color: workflowState.queue.includes('Manager') ? '#eb1700' : '#212121',
+                      fontSize: '13px',
+                    }}
+                  >
+                    2. Audit Manager Clearance &amp; Consolidation
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#63666a', marginTop: '2px' }}>
+                    Responsible: <strong>{leadMgr}</strong> (Audit Manager)
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    color: workflowState.queue.includes('Manager')
+                      ? '#eb1700'
+                      : workflowState.queue === 'Director' ||
+                        workflowState.queue === 'Vice President' ||
+                        workflowState.status === 'Completed'
+                        ? '#087D0D'
+                        : '#63666a',
+                    backgroundColor: workflowState.queue.includes('Manager')
+                      ? '#FFE4E6'
+                      : workflowState.queue === 'Director' ||
+                        workflowState.queue === 'Vice President' ||
+                        workflowState.status === 'Completed'
+                        ? '#DCFCE7'
+                        : '#F1F5F9',
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                  }}
+                >
+                  {workflowState.queue.includes('Manager')
+                    ? 'Active Now'
+                    : workflowState.queue === 'Director' ||
+                      workflowState.queue === 'Vice President' ||
+                      workflowState.status === 'Completed'
+                      ? '✓ Completed'
+                      : 'Active Now'}
+                </span>
+              </div>
+
+              {/* Stage 3: Director Clearance Gate */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  backgroundColor:
+                    workflowState.queue === 'Director'
+                      ? '#EFF6FF'
+                      : workflowState.queue === 'Vice President' ||
+                        workflowState.status === 'Completed'
+                        ? '#F0FDF4'
+                        : '#F8FAFC',
+                  borderRadius: '8px',
+                  border:
+                    workflowState.queue === 'Director'
+                      ? '1.5px solid #93C5FD'
+                      : '1px solid #d8d8d8',
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 800,
+                      color: workflowState.queue === 'Director' ? '#000099' : '#212121',
+                      fontSize: '13px',
+                    }}
+                  >
+                    3. Director Clearance Gate (Batch Clearance)
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#63666a', marginTop: '2px' }}>
+                    Responsible: <strong>{leadDir}</strong> (Audit Director)
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    color:
+                      workflowState.queue === 'Director'
+                        ? '#000099'
+                        : workflowState.queue === 'Vice President' ||
+                          workflowState.status === 'Completed'
+                          ? '#087D0D'
+                          : '#63666a',
+                    backgroundColor:
+                      workflowState.queue === 'Director'
+                        ? '#DBEAFE'
+                        : workflowState.queue === 'Vice President' ||
+                          workflowState.status === 'Completed'
+                          ? '#DCFCE7'
+                          : '#F1F5F9',
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                  }}
+                >
+                  {workflowState.queue === 'Director'
+                    ? 'Active Now'
+                    : workflowState.queue === 'Vice President' ||
+                      workflowState.status === 'Completed'
+                      ? '✓ Completed'
+                      : 'Pending Batch Gate'}
+                </span>
+              </div>
+
+              {/* Stage 4: Vice President Sign-Off */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  backgroundColor:
+                    workflowState.queue === 'Vice President'
+                      ? '#EFF6FF'
+                      : workflowState.status === 'Completed'
+                        ? '#F0FDF4'
+                        : '#F8FAFC',
+                  borderRadius: '8px',
+                  border:
+                    workflowState.queue === 'Vice President'
+                      ? '1.5px solid #93C5FD'
+                      : '1px solid #d8d8d8',
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 800,
+                      color:
+                        workflowState.queue === 'Vice President'
+                          ? '#000099'
+                          : workflowState.status === 'Completed'
+                            ? '#087D0D'
+                            : '#212121',
+                      fontSize: '13px',
+                    }}
+                  >
+                    4. Vice President Final Sign-Off &amp; Publication
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#63666a', marginTop: '2px' }}>
+                    Responsible: <strong>{leadVP}</strong> (Vice President)
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    color:
+                      workflowState.status === 'Completed'
+                        ? '#087D0D'
+                        : workflowState.queue === 'Vice President'
+                          ? '#000099'
+                          : '#63666a',
+                    backgroundColor:
+                      workflowState.status === 'Completed'
+                        ? '#DCFCE7'
+                        : workflowState.queue === 'Vice President'
+                          ? '#DBEAFE'
+                          : '#F1F5F9',
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                  }}
+                >
+                  {workflowState.status === 'Completed'
+                    ? '✓ Signed Off & Closed'
+                    : workflowState.queue === 'Vice President'
+                      ? 'Active Now'
+                      : 'Not Started'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
   );
 };

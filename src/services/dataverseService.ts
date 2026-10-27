@@ -1,5 +1,22 @@
 import type { IDataProvider } from './dataProvider';
 import { mockDataverseProvider } from './mock/mockDataverseProvider';
+import {
+  fetchCommentsForIssue,
+  createDataverseComment,
+  resolveDataverseComment,
+  acquireIssueLock,
+  releaseIssueLock,
+  callBackIssue,
+  sendToPeer,
+  excludeIssue,
+  includeIssue,
+  toggleIssueFunction,
+  fetchAuditTrailLogsForIssue,
+  advanceIssueWorkflow,
+  managerSubmitIssueWorkflow,
+  batchAdvanceEngagementIssues,
+  signOffAuditReport
+} from './dataverseReportingService';
 
 /**
  * Enterprise Service Layer Abstraction.
@@ -47,6 +64,50 @@ class DataverseService implements IDataProvider {
     return this.activeProvider.updateIssueStatus(issueId, status, remarks);
   }
 
+  acquireIssueLock(issueId: string, engagementId?: string, user?: { userId?: string; name?: string; email?: string; role?: string }) {
+    return acquireIssueLock(issueId, engagementId, user);
+  }
+
+  releaseIssueLock(issueId: string, engagementId?: string, user?: { userId?: string; name?: string; email?: string; role?: string }, reason?: string) {
+    return releaseIssueLock(issueId, engagementId, user, reason);
+  }
+
+  callBackIssue(issueId: string, engagementId?: string, callerUser?: { userId?: string; name?: string; email?: string; role?: string }, reason?: string, targetStatus?: string) {
+    return callBackIssue(issueId, engagementId, callerUser, reason, targetStatus);
+  }
+
+  sendToPeer(issueId: string, engagementId?: string, senderUser?: { userId?: string; name?: string; email?: string; role?: string }, recipient?: any, remarks?: string, _targetStatus?: string) {
+    return sendToPeer(issueId, engagementId, senderUser, recipient, remarks);
+  }
+
+  excludeIssue(issueId: string, engagementId?: string, user?: { userId?: string; name?: string; email?: string; role?: string }, reason?: string) {
+    return excludeIssue(issueId, engagementId, user, reason);
+  }
+
+  includeIssue(issueId: string, engagementId?: string, user?: { userId?: string; name?: string; email?: string; role?: string }, reason?: string, targetStatus?: string) {
+    return includeIssue(issueId, engagementId, user, reason, targetStatus);
+  }
+
+  toggleIssueFunction(issueId: string, engagementId?: string, user?: { userId?: string; name?: string; email?: string; role?: string }, forcedTargetFunction?: 'IT' | 'FinOps') {
+    return toggleIssueFunction(issueId, engagementId, user, forcedTargetFunction);
+  }
+
+  advanceIssueWorkflow(issueId: string, engagementId?: string, targetStatus?: string, remarks?: string, user?: any, assignedUsers?: any[], currentIssue?: any) {
+    return advanceIssueWorkflow(issueId, engagementId, targetStatus, remarks, user, assignedUsers, currentIssue);
+  }
+
+  managerSubmitIssueWorkflow(issueId: string, engagementId: string, allEngagementIssues: any[], remarks?: string, user?: any, assignedUsers?: any[]) {
+    return managerSubmitIssueWorkflow(issueId, engagementId, allEngagementIssues, remarks, user, assignedUsers);
+  }
+
+  batchAdvanceEngagementIssues(engagementId: string, issues: any[], targetStatus: string, remarks?: string, user?: any, assignedUsers?: any[]) {
+    return batchAdvanceEngagementIssues(engagementId, issues, targetStatus, remarks, user, assignedUsers);
+  }
+
+  signOffAuditReport(engagementId: string, issues: any[], user?: any, remarks?: string, assignedUsers?: any[]) {
+    return signOffAuditReport(engagementId, issues, user, remarks, assignedUsers);
+  }
+
   getAiVersionsByIssueId(issueId: string) {
     return this.activeProvider.getAiVersionsByIssueId(issueId);
   }
@@ -55,20 +116,20 @@ class DataverseService implements IDataProvider {
     return this.activeProvider.createAiVersion(version);
   }
 
-  getCommentsByIssueId(issueId: string) {
-    return this.activeProvider.getCommentsByIssueId(issueId);
+  getCommentsByIssueId(issueId: string, engagementId?: string) {
+    return fetchCommentsForIssue(issueId, engagementId);
   }
 
-  addComment(comment: Parameters<IDataProvider['addComment']>[0]) {
-    return this.activeProvider.addComment(comment);
+  addComment(comment: Parameters<IDataProvider['addComment']>[0] & { engagementId?: string; authorEmail?: string }) {
+    return createDataverseComment(comment);
   }
 
-  resolveComment(commentId: string, resolvedByUserId: string) {
-    return this.activeProvider.resolveComment(commentId, resolvedByUserId);
+  resolveComment(commentId: string, resolvedByUserId: string, resolvedByName?: string) {
+    return resolveDataverseComment(commentId, resolvedByUserId, resolvedByName);
   }
 
-  getAuditTrailLogs(entityName: string, recordId: string) {
-    return this.activeProvider.getAuditTrailLogs(entityName, recordId);
+  getAuditTrailLogs(_entityName: string, recordId: string) {
+    return fetchAuditTrailLogsForIssue(recordId);
   }
 }
 

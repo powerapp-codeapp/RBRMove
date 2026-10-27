@@ -12,6 +12,7 @@ export interface SharedSelectButtonItem {
   disabled?: boolean;
   danger?: boolean;
   dividerAfter?: boolean;
+  title?: string;
 }
 
 export interface SharedSelectButtonProps {
@@ -178,7 +179,10 @@ export const SharedSelectButton: React.FC<SharedSelectButtonProps> = ({
               <MenuItem
                 disabled={item.disabled}
                 onClick={() => handleItemClick(item)}
+                title={item.title}
                 sx={{
+                  pointerEvents: 'auto',
+                  cursor: item.disabled ? 'not-allowed !important' : 'pointer',
                   color: item.disabled
                     ? '#94A3B8'
                     : item.danger

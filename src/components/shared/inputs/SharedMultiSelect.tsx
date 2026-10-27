@@ -36,6 +36,7 @@ export interface SharedMultiSelectProps<T = string> {
       AutocompleteProps<SelectOption<T>, true, false, false>
     >;
   };
+  extraHeaderActions?: React.ReactNode;
 }
 
 /**
@@ -65,6 +66,7 @@ export function SharedMultiSelect<T extends string | number>({
   accentArrow = false,
   noOptionsText = 'No options available',
   slotProps,
+  extraHeaderActions,
 }: SharedMultiSelectProps<T>) {
   const generatedId = useId();
   const selectId = externalId || `multiselect-${generatedId}`;
@@ -85,13 +87,17 @@ export function SharedMultiSelect<T extends string | number>({
   return (
     <div className={`${fullWidth ? 'w-full' : 'inline-block'} ${className}`}>
       {label && (
-        <SharedFieldLabel
-          htmlFor={selectId}
-          label={label}
-          required={required}
-          error={error}
-          disabled={disabled}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+          <SharedFieldLabel
+            htmlFor={selectId}
+            label={label}
+            required={required}
+            error={error}
+            disabled={disabled}
+            style={{ marginBottom: 0 }}
+          />
+          {extraHeaderActions}
+        </div>
       )}
 
       <div

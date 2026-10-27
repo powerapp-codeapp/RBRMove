@@ -33,6 +33,7 @@ export interface SharedTextAreaProps {
   slotProps?: {
     inputBase?: Partial<InputBaseProps>;
   };
+  extraHeaderActions?: React.ReactNode;
 }
 
 /**
@@ -67,6 +68,7 @@ export const SharedTextArea: React.FC<SharedTextAreaProps> = ({
   resize = 'vertical',
   inputRef,
   slotProps,
+  extraHeaderActions,
 }) => {
   const generatedId = useId();
   const inputId = externalId || `textarea-${generatedId}`;
@@ -97,13 +99,17 @@ export const SharedTextArea: React.FC<SharedTextAreaProps> = ({
   return (
     <div className={`${fullWidth ? 'w-full' : 'inline-block'} ${className}`}>
       {label && (
-        <SharedFieldLabel
-          htmlFor={inputId}
-          label={label}
-          required={required}
-          error={error}
-          disabled={disabled}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+          <SharedFieldLabel
+            htmlFor={inputId}
+            label={label}
+            required={required}
+            error={error}
+            disabled={disabled}
+            style={{ marginBottom: 0 }}
+          />
+          {extraHeaderActions}
+        </div>
       )}
 
       <div

@@ -267,7 +267,21 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
       align: 'center',
       width: '105px',
       render: (iss: any) => {
-        const crit = (iss.criticality || 'Minor').trim();
+        const crit = (iss.criticality || '').trim();
+        if (!crit) {
+          return (
+            <span
+              className="type-table-cell"
+              style={{
+                fontSize: 'var(--type-table-row-size, 12.5px)',
+                fontWeight: 400,
+                color: '#94A3B8'
+              }}
+            >
+              —
+            </span>
+          );
+        }
         const critLower = crit.toLowerCase();
         let color = '#087D0D'; // Minor green
         if (critLower.includes('crit')) {

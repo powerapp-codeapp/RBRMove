@@ -66,7 +66,7 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
     return !isIT;
   });
 
-  // Check editability restriction by role
+  // Check editability restriction by role and review tier
   const checkIssueEditability = (item: Issue) => {
     const roleStr = (userRole || '').toLowerCase();
     if (roleStr.includes('vp') || roleStr.includes('head')) {
@@ -88,6 +88,39 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
         reason: 'As a FinOps reviewer, you can only modify FinOps findings. This finding belongs to IT.',
       };
     }
+
+    // Check review tier progression: finding at higher tier than logged-in user is read-only
+    const userTier = (() => {
+      if (roleStr.includes('admin')) return 99;
+      if (roleStr.includes('vp')) return 5;
+      if (roleStr.includes('business')) return 4.5;
+      if (roleStr.includes('director')) return 4;
+      if (roleStr.includes('manager') || roleStr.includes('mgr')) return 3;
+      if (roleStr.includes('coordinator') || roleStr.includes('tc')) return 2;
+      return 1;
+    })();
+
+    const issueTier = (() => {
+      const s = (item.status || '').trim().toLowerCase();
+      if (s.includes('exclude')) return -1;
+      if (s.includes('complete') || s.includes('signed off')) return 6;
+      if (s.includes('vp')) return 5;
+      if (s.includes('business')) return 4.5;
+      if (s.includes('ready for director')) return 3.8;
+      if (s.includes('director')) return 4;
+      if (s.includes('manager completed') || s.includes('waiting for other')) return 3.5;
+      if (s.includes('manager') || s.includes('mgr')) return 3;
+      if (s.includes('tc') || s.includes('coordinator')) return 2;
+      return 1;
+    })();
+
+    if (userTier < 99 && issueTier > userTier && issueTier > 0) {
+      return {
+        canEdit: false,
+        reason: `Finding is in higher review tier (${item.status}). Non-editable until called back.`,
+      };
+    }
+
     return { canEdit: true, reason: null };
   };
 

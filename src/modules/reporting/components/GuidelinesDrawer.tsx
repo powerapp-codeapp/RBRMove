@@ -150,7 +150,7 @@ export const GuidelinesDrawer: React.FC<GuidelinesDrawerProps> = ({
           <BookOpen size={18} color="#FFFFFF" />
           <div>
             <div style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF' }}>
-              Show Guidelines
+              AI POV
             </div>
             <div style={{ fontSize: '11.5px', color: 'rgba(255, 255, 255, 0.85)' }}>
               Field-level guidelines, PEF standards, and review suggestions
@@ -172,7 +172,7 @@ export const GuidelinesDrawer: React.FC<GuidelinesDrawerProps> = ({
             justifyContent: 'center',
             borderRadius: '4px'
           }}
-          title="Close guidelines"
+          title="Close AI POV"
         >
           <X size={18} />
         </button>

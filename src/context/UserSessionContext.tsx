@@ -60,7 +60,7 @@ const UserSessionContext = createContext<UserSessionContextType | undefined>(und
 export const UserSessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [realUser, setRealUser] = useState<UserSession>(DEFAULT_REAL_USER);
   const [impersonatedUser, setImpersonatedUser] = useState<UserSession | null>(null);
-  const [activeRoleId, setActiveRoleId] = useState<string>('it-manager');
+  const [activeRoleId, setActiveRoleId] = useState<string>('assigned');
   const [liveUsers, setLiveUsers] = useState<UserSession[]>([]);
 
   // Available users directory (sourced from distinct active security assignments & administrators)
@@ -177,7 +177,7 @@ export const UserSessionProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         let isUserAdmin = false;
         if (liveAdmins.length > 0) {
-          isUserAdmin = liveAdmins.some((a: any) => 
+          isUserAdmin = liveAdmins.some((a: any) =>
             a.iar_admin?.internalemailaddress?.toLowerCase() === activeEmail.toLowerCase() ||
             a._iar_admin_value === realUser.userId ||
             activeEmail.toLowerCase().includes('tamilselvan') ||
@@ -192,16 +192,6 @@ export const UserSessionProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const realTmRole = realRoleId ? (tmRoleMap.get(realRoleId) || (realRoleName ? tmRoleMap.get(realRoleName.toLowerCase()) : null)) : null;
         const realRoleDetails = getRoleDetails(realTmRole?.iar_logickey || realRoleId || realRoleName || 'IT MGR');
 
-        if (isMounted) {
-          setRealUser(prev => ({
-            ...prev,
-            isAdmin: isUserAdmin,
-            role: isUserAdmin ? 'Global Audit Administrator' : (realRoleName || prev.role),
-            baseRole: realRoleDetails.baseRole as any,
-            function: (realRoleDetails.domain === 'FinOps' ? 'FinOps' : 'IT') as any
-          }));
-        }
-
         // 1. Index systemusers by email and by systemuserid for fast lookup
         const userByEmail = new Map<string, any>();
         const userById = new Map<string, any>();
@@ -210,6 +200,24 @@ export const UserSessionProvider: React.FC<{ children: React.ReactNode }> = ({ c
           if (em) userByEmail.set(em, u);
           if (u.systemuserid) userById.set(String(u.systemuserid).toLowerCase(), u);
         });
+
+        const matchedRealSysUser =
+          userByEmail.get(activeEmail.toLowerCase().trim()) ||
+          liveUsersRaw.find((u: any) =>
+            u.fullname && activeName && u.fullname.toLowerCase().includes(activeName.toLowerCase().split(' ')[0])
+          ) ||
+          liveUsersRaw[0];
+
+        if (isMounted) {
+          setRealUser(prev => ({
+            ...prev,
+            userId: matchedRealSysUser?.systemuserid || prev.userId,
+            isAdmin: isUserAdmin,
+            role: isUserAdmin ? 'Global Audit Administrator' : (realRoleName || prev.role),
+            baseRole: realRoleDetails.baseRole as any,
+            function: (realRoleDetails.domain === 'FinOps' ? 'FinOps' : 'IT') as any
+          }));
+        }
 
         // 2. Build distinct users map strictly from security assignments (active staffed audit users)
         const distinctAuditorsMap = new Map<string, UserSession>();
@@ -239,7 +247,20 @@ export const UserSessionProvider: React.FC<{ children: React.ReactNode }> = ({ c
           const tmRole = roleId ? (tmRoleMap.get(roleId) || (roleName ? tmRoleMap.get(roleName.toLowerCase()) : null)) : null;
           const roleKey = tmRole?.iar_logickey || roleId || roleName || matchedSysUser?.title || 'IT MGR';
           const roleDetails = getRoleDetails(roleKey);
-          const roleTitle = roleName || tmRole?.iar_rolenamename || (roleDetails.domain === 'FinOps' ? 'FinOps Audit' : 'IT Audit') + ' ' + (roleDetails.baseRole === 'staff' ? 'Staff Auditor' : roleDetails.baseRole === 'tc' ? 'Team Coordinator' : roleDetails.baseRole === 'director' ? 'Audit Director' : 'Audit Manager');
+          const roleLabelSuffix =
+            roleDetails.baseRole === 'auditor'
+              ? 'Staff Auditor'
+              : roleDetails.baseRole === 'team-coordinator'
+              ? 'Team Coordinator'
+              : roleDetails.baseRole === 'director'
+              ? 'Audit Director'
+              : roleDetails.baseRole === 'vp'
+              ? 'Vice President'
+              : 'Audit Manager';
+          const roleTitle =
+            roleName ||
+            tmRole?.iar_rolenamename ||
+            `${roleDetails.domain === 'FinOps' ? 'FinOps Audit' : 'IT Audit'} ${roleLabelSuffix}`;
 
           distinctAuditorsMap.set(email, {
             userId: matchedSysUser?.systemuserid || a.iar_securityassignmentsid || email,
@@ -366,23 +387,29 @@ export const UserSessionProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [impersonatedUser, realUser, activeRoleId]);
 
   const activeRole: ApplicationRole = useMemo(() => {
+    if (activeRoleId === 'assigned') {
+      return {
+        id: 'assigned',
+        label: 'Assigned Role',
+        category: 'Case-Based',
+        scope: 'Engagement-Driven',
+        domain: 'All',
+        baseRole: 'manager'
+      };
+    }
     return APPLICATION_ROLES.find(r => r.id === activeRoleId) || APPLICATION_ROLES[2];
   }, [activeRoleId]);
 
   const startImpersonation = (targetUser: UserSession) => {
     setImpersonatedUser(targetUser);
-    // Automatically switch active role to match the impersonated user's baseline role
-    const matchedAppRole = APPLICATION_ROLES.find(
-      r => r.baseRole === targetUser.baseRole && (targetUser.function ? r.domain === targetUser.function : true)
-    ) || APPLICATION_ROLES.find(r => r.baseRole === targetUser.baseRole) || APPLICATION_ROLES[0];
-    
-    setActiveRoleId(matchedAppRole.id);
+    // Use 'assigned' by default so each engagement dynamically resolves the impersonated user's security assignment on that engagement
+    setActiveRoleId('assigned');
   };
 
   const exitImpersonation = () => {
     setImpersonatedUser(null);
-    // Reset role to real user's default role
-    setActiveRoleId('it-manager');
+    // Reset role to dynamic assigned role
+    setActiveRoleId('assigned');
   };
 
   return (

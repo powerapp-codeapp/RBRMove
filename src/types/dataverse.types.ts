@@ -5,8 +5,10 @@ export type IssueStatus =
   | 'Pending TC'
   | 'In progress TC'
   | 'Pending Manager'
+  | 'Pending Business'
   | 'Pending with Business'
   | 'Manager Completed'
+  | 'Manager Completed (Waiting for Other Issues)'
   | 'Ready for Director Submission'
   | 'Pending Director'
   | 'Pending VP'
@@ -207,6 +209,7 @@ export interface IssueComment {
   resolvedByName?: string | null;
   resolvedAt?: string | null;
   createdAt: string;
+  engagementId?: string;
 }
 
 export interface AuditTrailLog {

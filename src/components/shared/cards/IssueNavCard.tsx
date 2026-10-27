@@ -95,9 +95,11 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
 
   const functionLabel = isIT ? 'IT' : 'FinOps';
   const ownerName =
+    issue.currentOwner ||
+    (issue as any).owner ||
+    issue.primaryBusinessOwnerName ||
     issue.accountableContact ||
     issue.businessContactName ||
-    (issue as any).owner ||
     (issue as any).leadAuditor ||
     'Unassigned';
 
@@ -111,13 +113,16 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
     return rawTitle;
   };
 
-  // Render Criticality Badge
-  const renderCriticalityBadge = (crit: string) => {
-    let bg = '#F1B500';
-    if (crit === 'Critical') bg = '#D8001D';
-    else if (crit === 'Major') bg = '#EA580C';
-    else if (crit === 'Minor') bg = '#16A34A';
-    else if (crit === 'Moderate') bg = '#D97706';
+  // Render Criticality Badge directly from the Dataverse table value as-is
+  const renderCriticalityBadge = (crit?: string) => {
+    const cleanCrit = (crit || '').trim();
+    if (!cleanCrit) return null;
+
+    const cLower = cleanCrit.toLowerCase();
+    let bg = '#000099';
+    if (cLower === 'critical' || cLower === 'high') bg = '#D8001D';
+    else if (cLower === 'major' || cLower === 'medium') bg = '#EA580C';
+    else if (cLower === 'minor' || cLower === 'low') bg = '#16A34A';
 
     return (
       <span
@@ -137,7 +142,7 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
           MozOsxFontSmoothing: 'grayscale',
         }}
       >
-        {crit}
+        {cleanCrit}
       </span>
     );
   };

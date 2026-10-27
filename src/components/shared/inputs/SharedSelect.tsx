@@ -34,6 +34,7 @@ export interface SharedSelectProps<T = string> {
   slotProps?: {
     select?: Partial<SelectProps<T>>;
   };
+  extraHeaderActions?: React.ReactNode;
 }
 
 /**
@@ -59,6 +60,7 @@ export function SharedSelect<T extends string | number>({
   id: externalId,
   className = '',
   slotProps,
+  extraHeaderActions,
 }: SharedSelectProps<T>) {
   const generatedId = useId();
   const selectId = externalId || `select-${generatedId}`;
@@ -83,13 +85,17 @@ export function SharedSelect<T extends string | number>({
   return (
     <div className={`${fullWidth ? 'w-full' : 'inline-block'} ${className}`}>
       {label && (
-        <SharedFieldLabel
-          htmlFor={selectId}
-          label={label}
-          required={required}
-          error={error}
-          disabled={disabled}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+          <SharedFieldLabel
+            htmlFor={selectId}
+            label={label}
+            required={required}
+            error={error}
+            disabled={disabled}
+            style={{ marginBottom: 0 }}
+          />
+          {extraHeaderActions}
+        </div>
       )}
 
       <div

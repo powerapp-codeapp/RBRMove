@@ -190,8 +190,7 @@
               "x-ms-dynamically-added": true,
               "type": "string"
             }
-          },
-          "additionalProperties": {}
+          }
         }
       },
       "basePath": "/apim/logicflows"

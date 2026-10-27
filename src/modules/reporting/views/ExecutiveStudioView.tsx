@@ -219,9 +219,13 @@ export const ExecutiveStudioView: React.FC = () => {
     };
   }, [isDraggingSplitter]);
 
-  // Close active comment popover on click outside
+  // Close active comment popover on click outside (unless popped out to side drawer)
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      // If drawer mode is active, do not dismiss on click outside
+      if (document.querySelector('[data-field-comment-drawer="true"]')) {
+        return;
+      }
       const target = e.target as HTMLElement;
       if (!target.closest('[data-field-comment-container]')) {
         setActiveCommentField(null);

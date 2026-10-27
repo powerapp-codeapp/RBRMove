@@ -42,7 +42,12 @@ const STATUS_OPTIONS = [
 export const AuditQueueView: React.FC = () => {
   const { setSelectedEngagementId, setActiveReportingView, setActiveEngagement } = useEngagement();
   const { currentUser, activeRole, isAdmin, isImpersonating } = useUserSession();
-  const userRole = activeRole?.id || 'it-manager';
+  const userRole =
+    activeRole?.id && activeRole.id !== 'assigned'
+      ? activeRole.id
+      : currentUser?.role && currentUser.role !== 'Global Audit Administrator'
+      ? currentUser.role
+      : 'it-manager';
   const userRoleDetails = useMemo(() => getRoleDetails(userRole), [userRole]);
   const isBusinessRole = userRoleDetails.baseRole === 'primary-business-contact';
 
@@ -228,7 +233,8 @@ export const AuditQueueView: React.FC = () => {
             engagementId: selectedJobForIssue.id,
             ...newIssueData
           },
-          currentUser
+          currentUser,
+          selectedJobForIssue.assignedUsers || []
         );
 
         const newIssue = created?.issue || {
@@ -782,7 +788,12 @@ export const AuditQueueView: React.FC = () => {
           engagementId={selectedJobForIssue.id}
           job={selectedJobForIssue}
           engagementName={selectedJobForIssue.title || selectedJobForIssue.engagementName || selectedJobForIssue.name}
-          userRole={userRole}
+          userRole={
+            activeRole?.id && activeRole.id !== 'assigned'
+              ? activeRole.id
+              : getUserRoleOnEngagement(selectedJobForIssue, currentUser.email, currentUser.userId) ||
+                userRole
+          }
           currentUser={currentUser}
           onSave={handleSaveNewIssue}
         />
