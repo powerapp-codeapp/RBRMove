@@ -832,9 +832,10 @@ export async function fetchDataverseReportingData(): Promise<DataverseReportingP
               if (statusText.toLowerCase().includes('business')) {
                 resolvedIssueOwner = pboUser?.fullname || 'Business Contact';
               } else if (assignedUsersList.length > 0) {
-                // Find user in assignedUsersList matching current review level
+                // Find user in assignedUsersList matching current review level and function domain
                 const sLower = statusText.toLowerCase();
-                const matchedAssignee = assignedUsersList.find((u: any) => {
+                const targetDomain = isIT ? 'IT' : 'FinOps';
+                const matchesRoleLevel = (u: any) => {
                   const { baseRole } = getRoleDetails(u.roleId || u.roleName);
                   if (sLower.includes('staff') || sLower.includes('draft')) return baseRole === 'auditor';
                   if (sLower.includes('tc') || sLower.includes('coordinator')) return baseRole === 'team-coordinator';
@@ -842,7 +843,12 @@ export async function fetchDataverseReportingData(): Promise<DataverseReportingP
                   if (sLower.includes('director')) return baseRole === 'director';
                   if (sLower.includes('vp')) return baseRole === 'vp';
                   return false;
-                });
+                };
+                const matchedAssignee =
+                  assignedUsersList.find((u: any) => {
+                    const { domain } = getRoleDetails(u.roleId || u.roleName);
+                    return matchesRoleLevel(u) && domain === targetDomain;
+                  }) || assignedUsersList.find(matchesRoleLevel);
                 resolvedIssueOwner = matchedAssignee?.displayName || matchedAssignee?.name;
                 if (!resolvedIssueOwner) {
                   // Fallback to role archetype if not directly matched in assignment list
@@ -913,7 +919,8 @@ export async function fetchDataverseReportingData(): Promise<DataverseReportingP
               criticality: critName,
               tech: isIT ? 'IT' : 'FinOps',
               function: isIT ? 'IT' : 'FinOps',
-              reportReference: iss.iar_reportreference || 1,
+              reportRef: Number(iss.iar_reportreference || iss.iar_reportref || 0) || 1,
+              reportReference: Number(iss.iar_reportreference || iss.iar_reportref || 0) || 1,
               testProcedureId: procId,
               testProcedureCode: procCode,
               testProcedureTitle: procCode,
@@ -932,12 +939,12 @@ export async function fetchDataverseReportingData(): Promise<DataverseReportingP
               exceptionRemedComments: iss.iar_exceptionremedcomments || '',
               exceptionRemedDate: iss.iar_exceptionremeddate || '',
               hasExceptionRemedDate: !!iss.iar_exceptionremeddate,
-              agreedRemediationDate: iss.iar_agreedremediationdate || '',
-              remediationTargetDate: iss.iar_agreedremediationdate || '',
-              businessManagementReason: iss.iar_businessmanagementreason || '',
-              businessManagementResponse: iss.iar_businessmanagementresponse || '',
-              managementResponse: iss.iar_businessmanagementresponse || '',
-              businessManagementAttachment: iss.iar_businessmanagementattachment_name || iss.iar_businessmanagementattachment || '',
+              agreedRemediationDate: getProp(iss, 'iar_agreedremediationdate', 'agreedremediationdate') || '',
+              remediationTargetDate: getProp(iss, 'iar_agreedremediationdate', 'agreedremediationdate') || '',
+              businessManagementReason: getProp(iss, 'iar_businessmanagementreason', 'businessmanagementreason') || '',
+              businessManagementResponse: getProp(iss, 'iar_businessmanagementresponse', 'businessmanagementresponse') || '',
+              managementResponse: getProp(iss, 'iar_businessmanagementresponse', 'businessmanagementresponse') || '',
+              businessManagementAttachment: getProp(iss, 'iar_businessmanagementattachment_name', 'iar_businessmanagementattachment') || '',
               salesUsd: iss.iar_salesusd,
               ibtUsd: iss.iar_ibtusd,
               netIncomeUsd: iss.iar_netincomeusd,
@@ -973,7 +980,23 @@ export async function fetchDataverseReportingData(): Promise<DataverseReportingP
               updatedAt: iss.modifiedon || new Date().toISOString(),
               activeAiVersionNumber: 1
             };
-          });
+          })
+          .sort((a: any, b: any) => {
+            // Active issues always precede excluded issues
+            const aEx = a.isExcluded || a.status === 'Excluded' ? 1 : 0;
+            const bEx = b.isExcluded || b.status === 'Excluded' ? 1 : 0;
+            if (aEx !== bEx) return aEx - bEx;
+            // Within active or excluded, sort by Ref number ascending
+            const aRef = Number(a.reportRef || a.reportReference || 9999);
+            const bRef = Number(b.reportRef || b.reportReference || 9999);
+            if (aRef !== bRef) return aRef - bRef;
+            return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+          })
+          .map((item: any, idx: number) => ({
+            ...item,
+            reportRef: idx + 1,
+            reportReference: idx + 1,
+          }));
 
         // 4. Resolve Test Procedures for this engagement
         const engProcedures = liveProcedures
@@ -990,11 +1013,27 @@ export async function fetchDataverseReportingData(): Promise<DataverseReportingP
             state: tp.iar_procedurestate || 'Active'
           }));
 
-        // 5. Engagement Status Mapping
+        // 5. Engagement Status Mapping & BusinessResponseRequested Flag
         const mappedReportStatus = REPORT_STATUS_MAP[eng.iar_reportstatus] || {
           status: 'Not Started',
           workflowStatus: 'Not Started'
         };
+
+        const rawBizRespReq = getProp(
+          eng,
+          'iar_businessresponserequested',
+          'businessresponserequested',
+          'iar_businessresponserequestedname'
+        );
+        const isBusinessResponseRequested =
+          rawBizRespReq === true ||
+          rawBizRespReq === 1 ||
+          String(rawBizRespReq || '').toLowerCase() === 'yes' ||
+          String(rawBizRespReq || '').toLowerCase() === 'true';
+
+        engIssues.forEach((i: any) => {
+          i.businessResponseRequested = isBusinessResponseRequested;
+        });
 
         const resolvedLeadOwner = assignedUsersList[0]?.name || 'Unassigned';
 
@@ -1015,6 +1054,7 @@ export async function fetchDataverseReportingData(): Promise<DataverseReportingP
           status: mappedReportStatus.status,
           subStatus: mappedReportStatus.workflowStatus,
           workflowStatus: mappedReportStatus.workflowStatus,
+          businessResponseRequested: isBusinessResponseRequested,
           executionStatus: mappedReportStatus.status === 'Completed' ? 'Completed' : (mappedReportStatus.status === 'Not Started' ? 'Pending' : 'Running'),
           issuesList: engIssues,
           testProcedures: engProcedures,
@@ -1174,6 +1214,7 @@ export interface CreateDataverseIssueInput {
   status?: string;
   activeAiVersionNumber?: number;
   workflowRemarks?: string;
+  reportRef?: number;
 }
 
 const ISSUE_STATUS_TO_DATAVERSE_CODE: Record<string, number> = {
@@ -1302,10 +1343,12 @@ export async function resolveTargetOwnerForStatusAsync(
     fallbackName = currentUser?.name || 'Tamilselvan Natarajan';
   }
 
-  // Look for matching user in engagement assignments
+  // Look for matching user in engagement assignments (preferring matching function domain IT vs FinOps)
   let matchedUser: any = null;
+  const rawFn = String((issue as any)?.function || (issue as any)?.tech || '').toUpperCase();
+  const targetDomain: 'IT' | 'FinOps' = rawFn.includes('FIN') ? 'FinOps' : 'IT';
   if (Array.isArray(assignedUsers) && assignedUsers.length > 0) {
-    matchedUser = assignedUsers.find((u: any) => {
+    const matchesBaseRole = (u: any) => {
       const { baseRole } = getRoleDetails(u.roleId || u.roleName || u.roleAbbr);
       if (targetRoleKey === 'vp') return baseRole === 'vp';
       if (targetRoleKey === 'director') return baseRole === 'director';
@@ -1313,7 +1356,12 @@ export async function resolveTargetOwnerForStatusAsync(
       if (targetRoleKey === 'team-coordinator') return baseRole === 'team-coordinator';
       if (targetRoleKey === 'staff') return baseRole === 'auditor';
       return false;
-    });
+    };
+    matchedUser =
+      assignedUsers.find((u: any) => {
+        const { domain } = getRoleDetails(u.roleId || u.roleName || u.roleAbbr);
+        return matchesBaseRole(u) && domain === targetDomain;
+      }) || assignedUsers.find(matchesBaseRole);
   }
 
   const resolvedName = matchedUser?.displayName || matchedUser?.name || fallbackName;
@@ -1327,8 +1375,8 @@ export async function resolveTargetOwnerForStatusAsync(
     resolvedGuid = await resolveUserGuid({ name: resolvedName, email: resolvedEmail });
   }
 
-  // If targeting staff and current user is staff/creator with valid GUID, prefer currentUser's GUID
-  if (targetRoleKey === 'staff' && currentUser?.userId && isGuid(extractCleanGuid(currentUser.userId))) {
+  // If targeting staff and no matched user was found in assignments, fallback to currentUser's GUID if staff
+  if (!resolvedGuid && targetRoleKey === 'staff' && currentUser?.userId && isGuid(extractCleanGuid(currentUser.userId))) {
     resolvedGuid = extractCleanGuid(currentUser.userId);
   }
 
@@ -1384,7 +1432,7 @@ export async function createDataverseIssue(
     iar_function: input.function === 'FinOps' ? 822500001 : 822500000,
     iar_issuestatus: statusCode,
     iar_soxreportable: input.soxReportable === 'Yes',
-    iar_reportreference: 1,
+    iar_reportreference: input.reportRef || 1,
     statecode: 0,
     statuscode: 1
   };
@@ -1503,7 +1551,8 @@ export async function createDataverseIssue(
     currentLevel: rawStatus,
     tech: input.function === 'FinOps' ? 'FinOps' : 'IT',
     function: input.function === 'FinOps' ? 'FinOps' : 'IT',
-    reportReference: 1,
+    reportRef: input.reportRef || 1,
+    reportReference: input.reportRef || 1,
     testProcedureCode: input.testProcedureCode || 'TP-101',
     testProcedureTitle: input.testProcedureTitle || 'Audit Procedure',
     testProcedureId: input.testProcedureId,
@@ -1644,6 +1693,9 @@ export async function updateDataverseIssueFields(issue: Issue, engagementId?: st
     if (issue.soxReportable !== undefined) {
       payload.iar_soxreportable = issue.soxReportable === 'Yes' || (issue.soxReportable as any) === true;
     }
+    if (issue.reportRef !== undefined || (issue as any).reportReference !== undefined) {
+      payload.iar_reportreference = Number(issue.reportRef ?? (issue as any).reportReference) || 1;
+    }
 
     const pboGuid = extractCleanGuid(issue.primaryBusinessOwnerId || issue.businessContactId);
     if (isGuid(pboGuid)) {
@@ -1656,6 +1708,28 @@ export async function updateDataverseIssueFields(issue: Issue, engagementId?: st
   } catch (err) {
     console.warn('[DataverseReportingService] Notice updating issue fields on iar_issueses:', err);
   }
+}
+
+/**
+ * Synchronizes sequential report reference numbers (iar_reportreference) across iar_issueses in Dataverse.
+ */
+export async function syncIssueReportReferences(issues: Issue[], engagementId?: string): Promise<void> {
+  if (!Array.isArray(issues) || issues.length === 0) return;
+  await Promise.all(
+    issues.map(async (item, idx) => {
+      const refNum = Number(item.reportRef || idx + 1);
+      const { cleanIssueGuid } = await resolveIssueGuidAndEngagementGuid(item.id, engagementId || item.engagementId);
+      if (isGuid(cleanIssueGuid)) {
+        try {
+          await Iar_issuesesService.update(cleanIssueGuid, {
+            iar_reportreference: refNum,
+          } as any);
+        } catch (err) {
+          console.warn(`[DataverseReportingService] Notice updating iar_reportreference=${refNum} for issue ${cleanIssueGuid}:`, err);
+        }
+      }
+    })
+  );
 }
 
 /**
@@ -2935,7 +3009,8 @@ export async function excludeIssue(
   issueId: string,
   engagementId?: string,
   user?: { userId?: string; name?: string; email?: string; role?: string },
-  reason?: string
+  reason?: string,
+  newReportRef?: number
 ): Promise<Issue> {
   const { cleanIssueGuid, cleanEngGuid } = await resolveIssueGuidAndEngagementGuid(issueId, engagementId);
   const cleanUserGuid = await resolveUserGuid(user);
@@ -2964,6 +3039,9 @@ export async function excludeIssue(
         iar_lockeddatetime: null,
         'iar_LockedBy@odata.bind': null,
       };
+      if (newReportRef !== undefined && newReportRef > 0) {
+        payload.iar_reportreference = newReportRef;
+      }
 
       await withTimeout(
         Iar_issuesesService.update(cleanIssueGuid, payload),
@@ -3013,6 +3091,7 @@ export async function excludeIssue(
     isExcluded: true,
     previousStatus: previousStatus,
     workflowRemarks: reason,
+    ...(newReportRef ? { reportRef: newReportRef, reportReference: newReportRef } : {}),
     isLocked: false,
     lockedBy: null,
     lockedAt: null,
@@ -3022,29 +3101,42 @@ export async function excludeIssue(
 /**
  * Include Issue (Re-inclusion):
  * Re-includes an excluded finding back into the audit report.
- * Per FRD Section 4.2, transitions finding directly into Pending with [Persona performing include]
- * (Staff -> Pending Staff, TC -> Pending TC, Manager -> Pending Manager, Director -> Pending Director).
- * Updates iar_issueses, releases lock, and logs to iar_issuelogses (iar_logsubtype: 1 Submit).
+ * Transitions finding back to Pending Staff of that issue's function (IT or FinOps)
+ * and updates iar_reportreference to highest active ref number + 1.
  */
 export async function includeIssue(
   issueId: string,
   engagementId?: string,
   user?: { userId?: string; name?: string; email?: string; role?: string },
   reason?: string,
-  targetStatusText?: string
+  targetStatusText?: string,
+  assignedUsers?: any[],
+  currentIssue?: Partial<Issue>,
+  newReportRef?: number
 ): Promise<Issue> {
   const { cleanIssueGuid, cleanEngGuid } = await resolveIssueGuidAndEngagementGuid(issueId, engagementId);
   const cleanUserGuid = await resolveUserGuid(user);
   const actorName = user?.name || 'Reviewer';
-  const actorRole = user?.role || 'Staff Auditor';
 
-  // Per FRD Section 4.2: restore into Pending with [Persona performing include]
-  const targetInfo = targetStatusText && STATUS_TEXT_TO_CODE[targetStatusText]
-    ? { statusCode: STATUS_TEXT_TO_CODE[targetStatusText], statusText: targetStatusText }
-    : deriveTargetStatusForRole(actorRole);
+  // Always restore to 'Pending Staff' unless explicitly overridden
+  const effectiveStatusText = targetStatusText && STATUS_TEXT_TO_CODE[targetStatusText] ? targetStatusText : 'Pending Staff';
+  const targetInfo = {
+    statusCode: STATUS_TEXT_TO_CODE[effectiveStatusText] ?? 822500000,
+    statusText: effectiveStatusText,
+  };
+
+  // Resolve the Staff Auditor of that issue's function (IT or FinOps)
+  const targetOwner = await resolveTargetOwnerForStatusAsync(
+    targetInfo.statusText,
+    assignedUsers,
+    currentIssue,
+    user
+  );
 
   const nowIso = new Date().toISOString();
-  console.info(`[DataverseReportingService] Executing Re-include Issue for ${cleanIssueGuid} into ${targetInfo.statusText} by ${actorName}`);
+  console.info(
+    `[DataverseReportingService] Executing Re-include Issue for ${cleanIssueGuid} into ${targetInfo.statusText} (Owner: ${targetOwner.ownerName}, Ref: ${newReportRef || 'auto'}) by ${actorName}`
+  );
 
   if (isGuid(cleanIssueGuid)) {
     try {
@@ -3055,7 +3147,12 @@ export async function includeIssue(
         iar_lockeddatetime: null,
         'iar_LockedBy@odata.bind': null,
       };
-      if (cleanUserGuid) {
+      if (newReportRef !== undefined && newReportRef > 0) {
+        payload.iar_reportreference = newReportRef;
+      }
+      if (targetOwner.ownerGuid && isGuid(targetOwner.ownerGuid)) {
+        payload['iar_CurrentOwner@odata.bind'] = `/systemusers(${targetOwner.ownerGuid})`;
+      } else if (cleanUserGuid) {
         payload['iar_CurrentOwner@odata.bind'] = `/systemusers(${cleanUserGuid})`;
       }
 
@@ -3106,7 +3203,8 @@ export async function includeIssue(
     status: targetInfo.statusText as any,
     isExcluded: false,
     workflowRemarks: reason,
-    currentOwner: actorName,
+    currentOwner: targetOwner.ownerName || actorName,
+    ...(newReportRef ? { reportRef: newReportRef, reportReference: newReportRef } : {}),
     isLocked: false,
     lockedBy: null,
     lockedAt: null,
@@ -3294,10 +3392,12 @@ export async function advanceIssueWorkflow(
       // proceed if fetch fails
     }
 
+    const persistedRemarks = remarks || `Advanced to ${targetInfo.statusText} by ${actorName} (${actorRole})`;
+
     try {
       const payload: any = {
         iar_issuestatus: targetInfo.statusCode,
-        iar_workflowremarks: remarks || `Advanced to ${targetInfo.statusText} by ${actorName} (${actorRole})`,
+        iar_workflowremarks: persistedRemarks,
         iar_lockstatus: false,
         iar_lockeddatetime: null,
         'iar_LockedBy@odata.bind': null,
@@ -3339,14 +3439,18 @@ export async function advanceIssueWorkflow(
 
       // Create immutable audit log in iar_issuelogses
       const logPayload: any = {
+        iar_issuelogid: `LOG-${Date.now().toString().slice(-6)}`,
         iar_modules: 822500001, // Audit Report
         iar_logtype: 2, // Workflow
         iar_logsubtype: 1, // Submit
+        iar_fieldreference: 'iar_issuestatus',
         iar_fromdata: previousStatus,
         iar_todata: targetInfo.statusText,
-        iar_workflowremarks: remarks || `Advanced to ${targetInfo.statusText} by ${actorName} (${actorRole})`,
+        iar_workflowremarks: persistedRemarks,
         iar_loggeddatetime: nowIso,
         'iar_IssueID@odata.bind': `/iar_issueses(${cleanIssueGuid})`,
+        statecode: 0,
+        statuscode: 1,
       };
       if (cleanUserGuid) {
         logPayload['iar_LoggedBy@odata.bind'] = `/systemusers(${cleanUserGuid})`;
@@ -3368,31 +3472,25 @@ export async function advanceIssueWorkflow(
 
   // Update mock cache for fallback consistency
   try {
-    const updated = await mockDataverseProvider.updateIssueStatus(
+    await mockDataverseProvider.updateIssueStatus(
       issueId,
       targetInfo.statusText as any,
       remarks || `Advanced to ${targetInfo.statusText} by ${actorName}`
     );
-    return {
-      ...updated,
-      status: targetInfo.statusText as any,
-      currentOwner: targetOwner.ownerName,
-      isLocked: false,
-      lockedBy: null,
-      lockedAt: null,
-      workflowRemarks: remarks,
-    };
   } catch {
-    return {
-      id: issueId,
-      status: targetInfo.statusText as any,
-      currentOwner: targetOwner.ownerName,
-      isLocked: false,
-      lockedBy: null,
-      lockedAt: null,
-      workflowRemarks: remarks,
-    } as any;
+    // ignore mock fallback notice
   }
+
+  return {
+    ...(currentIssue || {}),
+    id: issueId,
+    status: targetInfo.statusText as any,
+    currentOwner: targetOwner.ownerName,
+    isLocked: false,
+    lockedBy: null,
+    lockedAt: null,
+    workflowRemarks: remarks,
+  } as Issue;
 }
 
 /**
@@ -3506,6 +3604,25 @@ export async function batchAdvanceEngagementIssues(
     (i) => i.status !== 'Excluded' && !(i as any).isExcluded
   );
   console.info(`[DataverseReportingService] Batch advancing ${activeIssues.length} active issues to ${targetStatusText}`);
+
+  // When Director submits to Business Management, set engagement-level flag iar_businessresponserequested = true (Yes)
+  if (targetStatusText === 'Pending Business') {
+    const cleanEngGuid = extractCleanGuid(engagementId);
+    if (isGuid(cleanEngGuid)) {
+      try {
+        await withTimeout(
+          Iar_engagementsesService.update(cleanEngGuid, {
+            iar_businessresponserequested: true,
+          } as any),
+          15000,
+          'Iar_engagementsesService.update(iar_businessresponserequested: true)'
+        );
+        console.info(`[DataverseReportingService] Set iar_businessresponserequested = true on engagement ${cleanEngGuid}`);
+      } catch (engFlagErr) {
+        console.warn('[DataverseReportingService] Notice setting iar_businessresponserequested on iar_engagementses:', engFlagErr);
+      }
+    }
+  }
 
   const updatedList: Issue[] = [];
   for (const iss of activeIssues) {

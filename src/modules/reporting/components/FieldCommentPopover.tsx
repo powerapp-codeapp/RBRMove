@@ -13,7 +13,7 @@ import {
   PanelRightClose,
 } from 'lucide-react';
 import type { IssueComment } from '../../../types/dataverse.types';
-import { SharedButton } from '../../../components/shared';
+import { SharedButton, SharedTooltip } from '../../../components/shared';
 
 export interface CommentUser {
   userId: string;
@@ -133,19 +133,20 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1, marginRight: '8px' }}>
           <MessageSquare style={{ width: '13px', height: '13px', color: '#60A5FA', flexShrink: 0 }} />
-          <span
-            style={{
-              fontSize: '11.5px',
-              fontWeight: 600,
-              letterSpacing: '0.1px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-            title={fieldLabel}
-          >
-            {fieldLabel}
-          </span>
+          <SharedTooltip title={fieldLabel} placement="top">
+            <span
+              style={{
+                fontSize: '11.5px',
+                fontWeight: 600,
+                letterSpacing: '0.1px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {fieldLabel}
+            </span>
+          </SharedTooltip>
           {unresolvedCount > 0 && (
             <span
               style={{
@@ -165,59 +166,64 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
           {/* Pop-out / Dock button */}
-          <button
-            type="button"
-            onClick={() => setIsDrawerMode(!isDrawerMode)}
-            aria-label={isDrawerMode ? 'Dock to field popover' : 'Pop out to side drawer'}
+          <SharedTooltip
             title={isDrawerMode ? 'Dock back to field popover' : 'Open in side drawer'}
-            style={{
-              border: 'none',
-              background: 'none',
-              color: '#94A3B8',
-              cursor: 'pointer',
-              padding: '2px 4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: '3px',
-              transition: 'color 0.15s ease',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = '#94A3B8')}
+            placement="top"
           >
-            {isDrawerMode ? (
-              <PanelRightClose style={{ width: '14px', height: '14px' }} />
-            ) : (
-              <PanelRightOpen style={{ width: '14px', height: '14px' }} />
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={() => setIsDrawerMode(!isDrawerMode)}
+              aria-label={isDrawerMode ? 'Dock to field popover' : 'Pop out to side drawer'}
+              style={{
+                border: 'none',
+                background: 'none',
+                color: '#94A3B8',
+                cursor: 'pointer',
+                padding: '2px 4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '3px',
+                transition: 'color 0.15s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#94A3B8')}
+            >
+              {isDrawerMode ? (
+                <PanelRightClose style={{ width: '14px', height: '14px' }} />
+              ) : (
+                <PanelRightOpen style={{ width: '14px', height: '14px' }} />
+              )}
+            </button>
+          </SharedTooltip>
 
           {/* Close button */}
-          <button
-            type="button"
-            onClick={() => {
-              setIsDrawerMode(false);
-              onClose();
-            }}
-            aria-label="Close Popover"
-            title="Close"
-            style={{
-              border: 'none',
-              background: 'none',
-              color: '#94A3B8',
-              cursor: 'pointer',
-              padding: '2px 4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: '3px',
-              transition: 'color 0.15s ease',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = '#94A3B8')}
-          >
-            <X style={{ width: '14px', height: '14px' }} />
-          </button>
+          <SharedTooltip title="Close" placement="top">
+            <button
+              type="button"
+              onClick={() => {
+                setIsDrawerMode(false);
+                onClose();
+              }}
+              aria-label="Close Popover"
+              style={{
+                border: 'none',
+                background: 'none',
+                color: '#94A3B8',
+                cursor: 'pointer',
+                padding: '2px 4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '3px',
+                transition: 'color 0.15s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#94A3B8')}
+            >
+              <X style={{ width: '14px', height: '14px' }} />
+            </button>
+          </SharedTooltip>
         </div>
       </div>
 
@@ -347,22 +353,30 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
                         </div>
                       )}
 
-                      <SharedButton
-                        variant={canResolve ? 'success' : 'secondary'}
-                        size="small"
-                        disabled={!canResolve}
-                        onClick={() => onResolveComment(c.commentId)}
-                        startIcon={<Check style={{ width: '10px', height: '10px' }} />}
+                      <SharedTooltip
                         title={canResolve ? 'Click to mark this comment as done' : `Only @${c.taggedUserName} can resolve`}
-                        style={{
-                          padding: '1px 7px',
-                          minHeight: '24px',
-                          fontSize: '10px',
-                          fontWeight: 600,
-                        }}
+                        placement="top"
                       >
-                        Mark Done
-                      </SharedButton>
+                        <SharedButton
+                          variant={canResolve ? 'success' : 'secondary'}
+                          size="small"
+                          disabled={!canResolve}
+                          onClick={() => onResolveComment(c.commentId)}
+                          startIcon={<Check style={{ width: '10px', height: '10px' }} />}
+                          style={{
+                            padding: '2px 8px',
+                            minHeight: '24px',
+                            fontSize: '10.5px',
+                            fontWeight: 600,
+                            backgroundColor: canResolve ? '#16A34A' : '#E2E8F0',
+                            color: canResolve ? '#FFFFFF' : '#94A3B8',
+                            border: canResolve ? '1px solid #15803D' : '1px solid #CBD5E1',
+                            borderRadius: '4px',
+                          }}
+                        >
+                          Mark Done
+                        </SharedButton>
+                      </SharedTooltip>
                     </div>
                   )}
                 </div>
@@ -548,24 +562,25 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
               onBlur={(e) => (e.target.style.borderColor = '#CBD5E1')}
             />
           </div>
-          <SharedButton
-            variant="primary"
-            size="small"
-            onClick={handlePost}
-            disabled={!commentText.trim()}
-            title="Post comment (Ctrl+Enter)"
-            aria-label="Post comment"
-            style={{
-              height: isDrawerMode ? '60px' : '44px',
-              padding: '0 10px',
-              minWidth: '34px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Send style={{ width: '12px', height: '12px' }} />
-          </SharedButton>
+          <SharedTooltip title="Post comment (Ctrl+Enter)" placement="top">
+            <SharedButton
+              variant="primary"
+              size="small"
+              onClick={handlePost}
+              disabled={!commentText.trim()}
+              aria-label="Post comment"
+              style={{
+                height: isDrawerMode ? '60px' : '44px',
+                padding: '0 10px',
+                minWidth: '34px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Send style={{ width: '12px', height: '12px' }} />
+            </SharedButton>
+          </SharedTooltip>
         </div>
       </div>
     </>

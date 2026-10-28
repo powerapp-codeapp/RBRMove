@@ -10,6 +10,7 @@ import {
   sendToPeer,
   excludeIssue,
   includeIssue,
+  syncIssueReportReferences,
   toggleIssueFunction,
   fetchAuditTrailLogsForIssue,
   advanceIssueWorkflow,
@@ -80,12 +81,16 @@ class DataverseService implements IDataProvider {
     return sendToPeer(issueId, engagementId, senderUser, recipient, remarks);
   }
 
-  excludeIssue(issueId: string, engagementId?: string, user?: { userId?: string; name?: string; email?: string; role?: string }, reason?: string) {
-    return excludeIssue(issueId, engagementId, user, reason);
+  excludeIssue(issueId: string, engagementId?: string, user?: { userId?: string; name?: string; email?: string; role?: string }, reason?: string, newReportRef?: number) {
+    return excludeIssue(issueId, engagementId, user, reason, newReportRef);
   }
 
-  includeIssue(issueId: string, engagementId?: string, user?: { userId?: string; name?: string; email?: string; role?: string }, reason?: string, targetStatus?: string) {
-    return includeIssue(issueId, engagementId, user, reason, targetStatus);
+  includeIssue(issueId: string, engagementId?: string, user?: { userId?: string; name?: string; email?: string; role?: string }, reason?: string, targetStatus?: string, assignedUsers?: any[], currentIssue?: any, newReportRef?: number) {
+    return includeIssue(issueId, engagementId, user, reason, targetStatus, assignedUsers, currentIssue, newReportRef);
+  }
+
+  syncIssueReportReferences(issues: any[], engagementId?: string) {
+    return syncIssueReportReferences(issues, engagementId);
   }
 
   toggleIssueFunction(issueId: string, engagementId?: string, user?: { userId?: string; name?: string; email?: string; role?: string }, forcedTargetFunction?: 'IT' | 'FinOps') {

@@ -29,11 +29,8 @@ export class MockDataverseProvider implements IDataProvider {
       found = {
         id: issueId,
         engagementId: engagementId || 'REP-2026-001',
-        testProcedureCode: 'TP-101',
-        title: '',
-        criticality: '' as any,
         status: 'Pending TC',
-      };
+      } as Issue;
       this.issues.push(found);
     }
     return found;

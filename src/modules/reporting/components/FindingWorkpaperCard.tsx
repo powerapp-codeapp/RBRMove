@@ -10,6 +10,7 @@ import {
   SharedMultiSelect,
   SharedCheckbox,
   SharedListBoxFilter,
+  SharedTooltip,
   AIInput,
   ReferenceComponent,
 } from '../../../components/shared';
@@ -17,8 +18,10 @@ import type { ListBoxFilterOption } from '../../../components/shared';
 import {
   History,
   MessageSquare,
+  Mail,
+  MailOpen,
   Lock,
-  Unlock,
+  Eye,
   RotateCcw,
   Ban,
   CheckCircle2,
@@ -31,9 +34,6 @@ import {
   FileText,
   Trash2,
   BookOpen,
-  Sparkles,
-  Clock,
-  Shield,
 } from 'lucide-react';
 import { synthesizeAiDraft } from '../utils/aiSynthesisHelper';
 import { getRoleDetails } from '../utils/reportingWorkflowEngine';
@@ -342,6 +342,9 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
   // E.g., for Manager (Tier 3): an issue in Pending TC (Tier 2) or Pending Staff (Tier 1) CANNOT be called back!
   const canCallBack = useMemo(() => {
     if (isExcluded) return false;
+    // Non-function issues and issues locked by another user cannot be called back
+    if (!canEdit) return false;
+    if (isLocked && !isLockedByCurrentUser) return false;
     const status = (issue.status || '').trim();
     if (status === 'Completed' || status === 'Signed Off' || status === 'Excluded') return false;
 
@@ -364,10 +367,11 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
     }
 
     return false;
-  }, [isExcluded, issue.status, issueTier, userTier]);
+  }, [isExcluded, canEdit, isLocked, isLockedByCurrentUser, issue.status, issueTier, userTier]);
 
-  // Peer handover is available inside Issue Actions dropdown for active editable/preemptable findings
+  // Peer handover is available inside Issue Actions dropdown for active editable findings
   const canSendTo =
+    canEdit &&
     !isExcluded &&
     issue.status !== 'Completed' &&
     issue.status !== 'Signed Off' &&
@@ -376,6 +380,13 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
 
   // If issue is at a further review stage than the user's role, or locked by another user, or domain restricted, it is non-editable (Read-Only)
   const isFieldDisabled = !canEdit || isExcluded || isFurtherStage || (isLocked && !isLockedByCurrentUser);
+
+  // Exclude / Include is only allowed when the issue is editable (not read-only, not non-function, not in a higher review stage, not locked by another user, and not completed)
+  const canExclude =
+    canEdit &&
+    !isFieldDisabled &&
+    issue.status !== 'Completed' &&
+    issue.status !== 'Signed Off';
 
   // For excluded issues, action buttons are not applicable
   const canShowIssueButtons = !isExcluded;
@@ -763,8 +774,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
     const commentsList = (comments || []).filter((c) => c.fieldKey === fieldKey);
     const isOpen = activeCommentField === fieldKey;
     const unresolvedCount = commentsList.filter((c) => !c.isResolved).length;
-    const isAllResolved = commentsList.length > 0 && unresolvedCount === 0;
-    const latestComment = commentsList.length > 0 ? commentsList[commentsList.length - 1] : null;
+    const hasOpenComments = unresolvedCount > 0;
 
     const handleToggleComment = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -791,122 +801,67 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
         }}
       >
         {commentsList.length > 0 ? (
-          <button
-            type="button"
-            onClick={handleToggleComment}
-            aria-label={`Comments on ${fieldLabel}: ${commentsList.length} comment(s), ${unresolvedCount} open`}
-            title={`Comments on ${fieldLabel}\n${commentsList.length} comment(s) (${unresolvedCount} open). Click to view thread & reply.`}
-            style={{
-              padding: isRowLevel ? '2px 6px' : '2px 8px',
-              fontSize: isRowLevel ? 'var(--type-caption-size, 9.5px)' : 'var(--type-caption-size, 10px)',
-              fontWeight: 700,
-              borderRadius: '12px',
-              border: isAllResolved
-                ? isOpen
-                  ? '1.5px solid #16A34A'
-                  : '1px solid #BBF7D0'
-                : isOpen
-                ? '1.5px solid #000099'
-                : '1px solid #BFDBFE',
-              backgroundColor: isAllResolved
-                ? isOpen
-                  ? '#DCFCE7'
-                  : '#F0FDF4'
-                : isOpen
-                ? '#DBEAFE'
-                : '#EFF6FF',
-              color: isAllResolved ? '#166534' : '#000099',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              boxShadow: isAllResolved ? '0 1px 2px rgba(22,163,74,0.08)' : '0 1px 2px rgba(0,0,153,0.08)',
-              transition: 'all 0.15s ease',
-              maxWidth: isRowLevel ? '70px' : '220px',
-            }}
+          <SharedTooltip
+            title={`Comments on ${fieldLabel} (${commentsList.length} total, ${unresolvedCount} open) — Click to view thread & reply`}
+            placement="top"
           >
-            {isAllResolved ? (
-              <>
-                <CheckCircle2 style={{ width: '11px', height: '11px', color: '#16A34A' }} />
-                <span style={{ fontSize: 'var(--type-caption-size, 9.5px)', fontWeight: 800 }}>
-                  ✓ {isRowLevel ? commentsList.length : `Resolved (${commentsList.length})`}
-                </span>
-              </>
-            ) : (
-              <>
-                <span
-                  style={{
-                    width: '14px',
-                    height: '14px',
-                    borderRadius: '50%',
-                    backgroundColor: '#000099',
-                    color: '#ffffff',
-                    fontSize: 'var(--type-caption-size, 8px)',
-                    fontWeight: 800,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  {latestComment?.authorName ? latestComment.authorName.charAt(0).toUpperCase() : 'U'}
-                </span>
-
-                {!isRowLevel && (
-                  <span
-                    style={{
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      maxWidth: '110px',
-                      fontSize: 'var(--type-caption-size, 9.5px)',
-                      color: '#1E3A8A',
-                    }}
-                  >
-                    <strong>{latestComment?.authorName ? latestComment.authorName.split(' ')[0] : 'Note'}:</strong> &ldquo;{latestComment?.content || ''}&rdquo;
-                  </span>
-                )}
-
-                <span
-                  style={{
-                    backgroundColor: unresolvedCount > 0 ? '#000099' : '#16A34A',
-                    color: '#ffffff',
-                    borderRadius: '8px',
-                    padding: '0 4px',
-                    fontSize: 'var(--type-caption-size, 9px)',
-                    fontWeight: 800,
-                    lineHeight: '12px',
-                  }}
-                >
-                  {unresolvedCount}
-                </span>
-              </>
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={handleToggleComment}
+              aria-label={`Comments on ${fieldLabel}: ${commentsList.length} comment(s), ${unresolvedCount} open`}
+              style={{
+                padding: isRowLevel ? '2px 5px' : '1px 6px',
+                fontSize: 'var(--type-caption-size, 9.5px)',
+                fontWeight: 600,
+                borderRadius: '10px',
+                border: isOpen ? '1px solid #000099' : '1px solid #CBD5E1',
+                backgroundColor: isOpen ? '#EFF6FF' : '#F8FAFC',
+                color: hasOpenComments || isOpen ? '#000099' : '#64748B',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {hasOpenComments ? (
+                <>
+                  <Mail style={{ width: '9px', height: '9px', color: '#000099' }} />
+                  <span>{isRowLevel ? unresolvedCount : `Comments ${unresolvedCount}`}</span>
+                </>
+              ) : (
+                <>
+                  <MailOpen style={{ width: '9px', height: '9px', color: isOpen ? '#000099' : '#94A3B8' }} />
+                  <span>{isRowLevel ? commentsList.length : `Comments ${commentsList.length}`}</span>
+                </>
+              )}
+            </button>
+          </SharedTooltip>
         ) : (
-          <button
-            type="button"
-            onClick={handleToggleComment}
-            aria-label={`Add comment on ${fieldLabel}`}
-            title={`Add a comment on ${fieldLabel}`}
-            style={{
-              padding: isRowLevel ? '2px 5px' : '1px 6px',
-              fontSize: 'var(--type-caption-size, 9.5px)',
-              fontWeight: 600,
-              borderRadius: '10px',
-              border: isOpen ? '1px solid #000099' : '1px dashed #CBD5E1',
-              backgroundColor: isOpen ? '#EFF6FF' : '#F8FAFC',
-              color: isOpen ? '#000099' : '#64748B',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '3px',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <MessageSquare style={{ width: '9px', height: '9px', color: isOpen ? '#000099' : '#94A3B8' }} />
-            <span>{isRowLevel ? '' : '+ Comment'}</span>
-          </button>
+          <SharedTooltip title={`Add a comment on ${fieldLabel}`} placement="top">
+            <button
+              type="button"
+              onClick={handleToggleComment}
+              aria-label={`Add comment on ${fieldLabel}`}
+              style={{
+                padding: isRowLevel ? '2px 5px' : '1px 6px',
+                fontSize: 'var(--type-caption-size, 9.5px)',
+                fontWeight: 600,
+                borderRadius: '10px',
+                border: isOpen ? '1px solid #000099' : '1px dashed #CBD5E1',
+                backgroundColor: isOpen ? '#EFF6FF' : '#F8FAFC',
+                color: isOpen ? '#000099' : '#64748B',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <MessageSquare style={{ width: '9px', height: '9px', color: isOpen ? '#000099' : '#94A3B8' }} />
+              <span>{isRowLevel ? '' : 'Comment'}</span>
+            </button>
+          </SharedTooltip>
         )}
 
         <FieldCommentPopover
@@ -1014,6 +969,166 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
         }}
       >
         {/* Row 1: Left collapse button + Title */}
+        {/* Top Row: Status / Lock / Read-Only / Excluded Alert Container (Above Heading Row when available) */}
+        {!isExcluded && isLocked && (
+          <div
+            style={{
+              padding: '5px 12px',
+              borderRadius: '6px',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderLeft: `3px solid ${isLockedByCurrentUser ? '#000099' : '#D97706'}`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: 'var(--type-table-header-size, 12px)',
+              color: '#334155',
+              lineHeight: '1.4',
+            }}
+          >
+            <Lock
+              style={{
+                width: '13px',
+                height: '13px',
+                color: isLockedByCurrentUser ? '#000099' : '#D97706',
+                flexShrink: 0,
+              }}
+            />
+            {isLockedByCurrentUser ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                <strong style={{ color: '#1E293B' }}>Editing Session Active</strong>
+                {onToggleLock && (
+                  <>
+                    <span style={{ color: '#94A3B8' }}>&mdash;</span>
+                    <button
+                      type="button"
+                      onClick={() => onToggleLock(issue.id)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#000099',
+                        fontWeight: 700,
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: 0,
+                      }}
+                    >
+                      Unlock Now
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <span>
+                Issue locked by{' '}
+                <strong style={{ color: '#1E293B' }}>
+                  {issue.lockedBy?.name ||
+                    (typeof (issue as any).lockedBy === 'string' ? (issue as any).lockedBy : '') ||
+                    'another auditor'}
+                </strong>
+              </span>
+            )}
+          </div>
+        )}
+
+        {!isExcluded && !isLocked && !canEdit && editRestrictionReason && (
+          <div
+            style={{
+              padding: '5px 12px',
+              borderRadius: '6px',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderLeft: '3px solid #64748B',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: 'var(--type-table-header-size, 12px)',
+              color: '#334155',
+              lineHeight: '1.4',
+            }}
+          >
+            <Eye style={{ width: '13px', height: '13px', color: '#64748B', flexShrink: 0 }} />
+            <span>
+              <strong style={{ color: '#1E293B' }}>Read Only:</strong> Non-Function Issue
+            </span>
+          </div>
+        )}
+
+        {!isExcluded && !isLocked && canEdit && isFurtherStage && (
+          <div
+            style={{
+              padding: '5px 12px',
+              borderRadius: '6px',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderLeft: '3px solid #64748B',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: 'var(--type-table-header-size, 12px)',
+              color: '#334155',
+              lineHeight: '1.4',
+            }}
+          >
+            <Eye style={{ width: '13px', height: '13px', color: '#64748B', flexShrink: 0 }} />
+            <span>
+              <strong style={{ color: '#1E293B' }}>Read Only:</strong> In {issue.status} &mdash; Call back to edit
+            </span>
+          </div>
+        )}
+
+        {isExcluded && (
+          <div
+            style={{
+              padding: '5px 12px',
+              borderRadius: '6px',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderLeft: '3px solid #EB1700',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: 'var(--type-table-header-size, 12px)',
+              color: '#334155',
+              lineHeight: '1.4',
+            }}
+          >
+            <Ban style={{ width: '13px', height: '13px', color: '#EB1700', flexShrink: 0 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <strong style={{ color: '#1E293B' }}>Issue Excluded</strong>
+              {canEdit && (
+                <>
+                  <span style={{ color: '#94A3B8' }}>&mdash;</span>
+                  <button
+                    type="button"
+                    onClick={() => onIncludeIssue?.(issue.id)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#000099',
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: 0,
+                    }}
+                  >
+                    Include Issue
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Heading Row: Collapse Button, Criticality Dot, Issue Title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
           {onToggleCollapse && (
             <button
@@ -1074,265 +1189,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
           >
             {issue.title}
           </span>
-
-          {/* Business Owner Issue-Level Comments Icon Trigger (Near Issue Title) */}
-          {currentBizComments.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setIsBizCommentsDrawerOpen(true)}
-              title={
-                openBizCommentsCount > 0
-                  ? `Business Owner Comments (${openBizCommentsCount} open of ${currentBizComments.length}) — Click to view in right drawer`
-                  : `All ${currentBizComments.length} Business Owner comments marked as done — Click to view`
-              }
-              aria-label="Open Business Owner Comments Drawer"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '3px 9px',
-                borderRadius: '999px',
-                border:
-                  openBizCommentsCount > 0
-                    ? '1px solid #BFDBFE'
-                    : '1px solid #BBF7D0',
-                backgroundColor:
-                  openBizCommentsCount > 0 ? '#EFF6FF' : '#F0FDF4',
-                color: openBizCommentsCount > 0 ? '#000099' : '#166534',
-                fontSize: '11.5px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                flexShrink: 0,
-                transition: 'all 0.15s ease',
-                boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  openBizCommentsCount > 0 ? '#DBEAFE' : '#DCFCE7';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  openBizCommentsCount > 0 ? '#EFF6FF' : '#F0FDF4';
-              }}
-            >
-              <MessageSquare
-                size={13}
-                style={{
-                  color: openBizCommentsCount > 0 ? '#000099' : '#16A34A',
-                  flexShrink: 0,
-                }}
-              />
-              <span>Business Comments</span>
-              <span
-                style={{
-                  backgroundColor:
-                    openBizCommentsCount > 0 ? '#000099' : '#16A34A',
-                  color: '#FFFFFF',
-                  borderRadius: '999px',
-                  padding: '0 5px',
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  lineHeight: '15px',
-                  minWidth: '15px',
-                  textAlign: 'center',
-                }}
-              >
-                {openBizCommentsCount > 0
-                  ? openBizCommentsCount
-                  : `✓ ${currentBizComments.length}`}
-              </span>
-            </button>
-          )}
         </div>
-
-        {/* Row 2: Concurrency Lock Banner (if locked) */}
-        {!isExcluded && isLocked && (
-          <div
-            style={{
-              padding: '7px 14px',
-              borderRadius: '6px',
-              backgroundColor: isLockedByCurrentUser ? '#EFF6FF' : '#FEF3C7',
-              border: `1px solid ${isLockedByCurrentUser ? '#BFDBFE' : '#FDE68A'}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '10px',
-              fontSize: 'var(--type-table-header-size, 12px)',
-              color: isLockedByCurrentUser ? '#1E40AF' : '#92400E',
-              lineHeight: '1.4',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-              <span className="lock-icon-blink" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-                <Lock style={{ width: '13px', height: '13px', color: isLockedByCurrentUser ? '#2563EB' : '#D97706', flexShrink: 0 }} />
-                <strong>{isLockedByCurrentUser ? 'Editing Session Active:' : 'Issue Locked:'}</strong>
-              </span>
-              <span>
-                {isLockedByCurrentUser ? (
-                  <>You are currently editing this finding. Changes are locked for other users. Auto-unlocks after 1 hour of inactivity.</>
-                ) : (
-                  <>
-                    Currently being edited by{' '}
-                    <strong>
-                      {issue.lockedBy?.name ||
-                        (typeof (issue as any).lockedBy === 'string' ? (issue as any).lockedBy : '') ||
-                        'another auditor'}
-                    </strong>{' '}
-                    — changes are locked for other users. Auto-unlocks after 1 hour of inactivity.
-                  </>
-                )}
-              </span>
-            </div>
-
-            {/* Quick action button on banner */}
-            {isLockedByCurrentUser && onToggleLock && (
-              <button
-                type="button"
-                onClick={() => onToggleLock(issue.id)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#2563EB',
-                  fontWeight: 700,
-                  fontSize: '11.5px',
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '2px 4px',
-                  flexShrink: 0,
-                }}
-              >
-                <Unlock size={12} />
-                Unlock Now
-              </button>
-            )}
-
-            {!isLockedByCurrentUser && isUserAdmin && onToggleLock && (
-              <button
-                type="button"
-                onClick={() => onToggleLock(issue.id)}
-                style={{
-                  background: '#DC2626',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  padding: '3px 8px',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  flexShrink: 0,
-                }}
-                title="Super-user administrative unlock override"
-              >
-                <Unlock size={11} />
-                Force Unlock (Admin)
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Row 2: One-liner Domain Restricted / Read-Only Alert Container */}
-        {!isExcluded && !isLocked && !canEdit && editRestrictionReason && (
-          <div
-            style={{
-              padding: '6px 12px',
-              borderRadius: '6px',
-              backgroundColor: '#FEF3C7',
-              border: '1px solid #FDE68A',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontSize: 'var(--type-table-header-size, 12px)',
-              color: '#92400E',
-              lineHeight: '1.4',
-            }}
-          >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-              <Lock style={{ width: '13px', height: '13px', color: '#D97706', flexShrink: 0 }} />
-              <strong>Read Only:</strong>
-            </span>
-            <span>
-              {editRestrictionReason}
-            </span>
-          </div>
-        )}
-
-        {/* Row 2: Higher Review Stage / Read-Only Alert */}
-        {!isExcluded && !isLocked && canEdit && isFurtherStage && (
-          <div
-            style={{
-              padding: '6px 12px',
-              borderRadius: '6px',
-              backgroundColor: '#EFF6FF',
-              border: '1px solid #BFDBFE',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '10px',
-              fontSize: 'var(--type-table-header-size, 12px)',
-              color: '#1E40AF',
-              lineHeight: '1.4',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-                <Lock style={{ width: '13px', height: '13px', color: '#2563EB', flexShrink: 0 }} />
-                <strong>Read Only:</strong>
-              </span>
-              <span>
-                Finding is in <strong>{issue.status}</strong> (further review stage). You cannot edit or submit until you call it back via <strong>Issue Actions &gt; Call Back Issue</strong>.
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Row 2: One-liner Excluded Alert Container (if excluded) */}
-        {isExcluded && (
-          <div
-            style={{
-              padding: '6px 12px',
-              borderRadius: '6px',
-              backgroundColor: '#FEF3C7',
-              border: '1px solid #FDE68A',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '10px',
-              fontSize: 'var(--type-table-header-size, 12px)',
-              color: '#92400E',
-              lineHeight: '1.4',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-              <span className="lock-icon-blink" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-                <Ban style={{ width: '13px', height: '13px', color: '#D97706', flexShrink: 0 }} />
-                <strong>Issue Excluded:</strong>
-              </span>
-              <span style={{ color: '#92400E' }}>
-                Issue excluded from report.
-              </span>
-            </div>
-
-            <SharedButton
-              variant="success"
-              size="small"
-              startIcon={<RotateCcw size={11} />}
-              onClick={() => onIncludeIssue?.(issue.id)}
-              style={{
-                minHeight: 'var(--control-min-height-compact, 1.5rem)',
-                fontSize: 'var(--type-caption-size, 11px)',
-                padding: '0 10px',
-              }}
-            >
-              Include Issue
-            </SharedButton>
-          </div>
-        )}
 
         {/* Row 3: Action Buttons Toolbar & Section Tab Filter */}
         <div
@@ -1367,8 +1224,8 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 flexWrap: 'wrap',
               }}
             >
-              {/* Primary Submit Button: ONLY shown if NOT in further stage */}
-              {!isFurtherStage && onAdvanceWorkflow && (() => {
+              {/* Primary Submit Button: ONLY shown if editable and NOT in further stage */}
+              {canEdit && !isFurtherStage && (!isLocked || isLockedByCurrentUser) && onAdvanceWorkflow && (() => {
                 const statusNorm = (issue.status || '').trim().toLowerCase();
                 const isPendingStaff = !statusNorm || statusNorm.includes('staff') || statusNorm.includes('draft') || statusNorm.includes('auditor');
                 const isPendingTC = (statusNorm.includes('tc') || statusNorm.includes('coordinator')) && !statusNorm.includes('manager');
@@ -1507,7 +1364,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 label="Issue Actions"
                 size="small"
                 menuWidth={240}
-                title="Issue actions (Send To, Call Back, Lock/Unlock, Track Changes, Functional Scope, Exclusion)"
+                title="Issue actions (Send To, Call Back, Track Changes, Functional Scope, Exclusion)"
                 items={[
                   ...(onOpenSendTo
                     ? [
@@ -1527,6 +1384,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                           if (canSendTo) onOpenSendTo(issue.id);
                         },
                         disabled: !canSendTo,
+                        dividerAfter: !onOpenCallback,
                         title: !canSendTo
                           ? 'Send To is not available for this finding in its current state.'
                           : 'Hand over this finding to another assigned team member on this engagement',
@@ -1551,45 +1409,12 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                           if (canCallBack) onOpenCallback(issue.id);
                         },
                         disabled: !canCallBack,
-                        title: !canCallBack
-                          ? `Call Back is not valid: this finding is currently in ${issue.status || 'current stage'}, which has not progressed past your review tier (${userRole || 'Reviewer'}).`
-                          : 'Call back this finding from higher review stage to your review bucket',
-                      },
-                    ]
-                    : []),
-                  ...(onToggleLock
-                    ? [
-                      {
-                        key: 'lock-unlock',
-                        label: isLocked
-                          ? isLockedByCurrentUser
-                            ? 'Unlock Issue'
-                            : isUserAdmin
-                            ? 'Force Unlock (Admin)'
-                            : `Locked by ${issue.lockedBy?.name || 'Auditor'}`
-                          : 'Lock Issue',
-                        icon: isLocked ? (
-                          <Unlock
-                            style={{
-                              width: '13px',
-                              height: '13px',
-                              color: isLockedByCurrentUser
-                                ? '#047857'
-                                : isUserAdmin
-                                ? '#DC2626'
-                                : '#94A3B8',
-                            }}
-                          />
-                        ) : (
-                          <Lock style={{ width: '13px', height: '13px', color: '#D97706' }} />
-                        ),
-                        onClick: () => {
-                          if (!isLocked || isLockedByCurrentUser || isUserAdmin) {
-                            onToggleLock(issue.id);
-                          }
-                        },
-                        disabled: isLocked && !isLockedByCurrentUser && !isUserAdmin,
                         dividerAfter: true,
+                        title: !canCallBack
+                          ? !canEdit
+                            ? 'Call Back is not available for Non-Function issues.'
+                            : `Call Back is not valid: this finding is currently in ${issue.status || 'current stage'}, which has not progressed past your review tier (${userRole || 'Reviewer'}).`
+                          : 'Call back this finding from higher review stage to your review bucket',
                       },
                     ]
                     : []),
@@ -1614,24 +1439,44 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                     ),
                     disabled: isFieldDisabled,
                     title: isFieldDisabled
-                      ? 'Function re-assignment is not available while this finding is in a higher review stage or locked.'
+                      ? 'Function re-assignment is not available while this finding is read-only.'
                       : `Re-assign finding function from ${issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')} to ${(issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')) === 'IT' ? 'FinOps' : 'IT'}`,
-                    onClick: () => onMarkNotAnIssue?.(issue.id),
+                    onClick: () => {
+                      if (!isFieldDisabled) onMarkNotAnIssue?.(issue.id);
+                    },
                   },
                   {
                     key: 'exclude-include',
                     label: isExcluded ? 'Include Issue in Report' : 'Mark Exclude Issue',
                     icon: isExcluded ? (
-                      <RotateCcw style={{ width: '13px', height: '13px', color: '#059669' }} />
+                      <RotateCcw
+                        style={{
+                          width: '13px',
+                          height: '13px',
+                          color: canEdit ? '#059669' : '#94A3B8',
+                        }}
+                      />
                     ) : (
-                      <AlertOctagon style={{ width: '13px', height: '13px', color: '#991B1B' }} />
+                      <AlertOctagon
+                        style={{
+                          width: '13px',
+                          height: '13px',
+                          color: canExclude ? '#991B1B' : '#94A3B8',
+                        }}
+                      />
                     ),
-                    danger: !isExcluded,
+                    danger: !isExcluded && canExclude,
+                    disabled: isExcluded ? !canEdit : !canExclude,
+                    title: !(isExcluded ? canEdit : canExclude)
+                      ? 'Exclude / Include is not available while this finding is read-only.'
+                      : isExcluded
+                        ? 'Include this finding back into the Audit Report'
+                        : 'Mark this finding as Excluded from the Audit Report',
                     onClick: () => {
                       if (isExcluded) {
-                        onIncludeIssue?.(issue.id);
+                        if (canEdit) onIncludeIssue?.(issue.id);
                       } else {
-                        onExcludeIssue?.(issue.id);
+                        if (canExclude) onExcludeIssue?.(issue.id);
                       }
                     },
                   },
@@ -1641,252 +1486,75 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
           )}
         </div>
 
-        {/* Row 4: Dedicated Review Stage Status Bar (Beneath Section Filter & Actions Row) */}
-        {(() => {
-          const status = issue.status || '';
-          const sNorm = status.trim().toLowerCase();
-          if (sNorm.includes('ready for director')) {
-            return (
-              <div
+        {/* Row 4: Business Owner Issue-Level Comments Pill (Beneath Section Filter & Action Buttons Row) */}
+        {currentBizComments.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', paddingTop: '2px' }}>
+            <SharedTooltip
+              title={
+                openBizCommentsCount > 0
+                  ? `Business Owner Comments (${openBizCommentsCount} open of ${currentBizComments.length}) — Click to view in right drawer`
+                  : `All ${currentBizComments.length} Business Owner comments marked as done — Click to view`
+              }
+              placement="top"
+            >
+              <button
+                type="button"
+                onClick={() => setIsBizCommentsDrawerOpen(true)}
+                aria-label="Open Business Owner Comments Drawer"
                 style={{
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '7px 12px',
-                  borderRadius: '6px',
-                  backgroundColor: '#EEF2FF',
-                  border: '1px solid #C7D2FE',
-                  color: '#3730A3',
-                  fontSize: '12px',
+                  gap: '5px',
+                  padding: '3px 9px',
+                  borderRadius: '999px',
+                  border: '1px solid #E2E8F0',
+                  backgroundColor: '#FFFFFF',
+                  color: '#334155',
+                  fontSize: '11.5px',
                   fontWeight: 600,
-                  marginTop: '6px',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease',
+                  boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#F8FAFC';
+                  e.currentTarget.style.borderColor = '#CBD5E1';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#FFFFFF';
+                  e.currentTarget.style.borderColor = '#E2E8F0';
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <CheckCircle2 size={14} style={{ color: '#4F46E5', flexShrink: 0 }} />
-                  <span>
-                    All issues completed by Manager &mdash; <strong>Ready for Director Submission</strong>
-                  </span>
-                </div>
+                <MessageSquare
+                  size={13}
+                  style={{
+                    color: '#334155',
+                    flexShrink: 0,
+                  }}
+                />
+                <span>Business Comments</span>
                 <span
                   style={{
-                    backgroundColor: '#4338CA',
-                    color: '#ffffff',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
+                    backgroundColor: '#64748B',
+                    color: '#FFFFFF',
+                    borderRadius: '999px',
+                    padding: '0 5px',
                     fontSize: '10px',
                     fontWeight: 700,
-                    letterSpacing: '0.3px',
-                    textTransform: 'uppercase',
+                    lineHeight: '15px',
+                    minWidth: '15px',
+                    textAlign: 'center',
                   }}
                 >
-                  Report-Level Submission Pending
+                  {openBizCommentsCount > 0
+                    ? openBizCommentsCount
+                    : `✓ ${currentBizComments.length}`}
                 </span>
-              </div>
-            );
-          }
-          if (sNorm.includes('waiting for other')) {
-            return (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '7px 12px',
-                  borderRadius: '6px',
-                  backgroundColor: '#FFFBEB',
-                  border: '1px solid #FDE68A',
-                  color: '#92400E',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  marginTop: '6px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Clock size={14} style={{ color: '#D97706', flexShrink: 0 }} />
-                  <span>
-                    Manager Review Complete on this issue &mdash; <strong>Waiting for other issues in engagement</strong>
-                  </span>
-                </div>
-                <span
-                  style={{
-                    backgroundColor: '#D97706',
-                    color: '#ffffff',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    letterSpacing: '0.3px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  Waiting For Sibling Issues
-                </span>
-              </div>
-            );
-          }
-          if (sNorm.includes('director') && !sNorm.includes('ready')) {
-            return (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '7px 12px',
-                  borderRadius: '6px',
-                  backgroundColor: '#F5F3FF',
-                  border: '1px solid #DDD6FE',
-                  color: '#5B21B6',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  marginTop: '6px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Shield size={14} style={{ color: '#7C3AED', flexShrink: 0 }} />
-                  <span>
-                    Under Executive Review by Audit Director &mdash; <strong>Pending Director</strong>
-                  </span>
-                </div>
-                <span
-                  style={{
-                    backgroundColor: '#6D28D9',
-                    color: '#ffffff',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    letterSpacing: '0.3px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  Director Review Tier
-                </span>
-              </div>
-            );
-          }
-          if (sNorm.includes('business')) {
-            return (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '7px 12px',
-                  borderRadius: '6px',
-                  backgroundColor: '#ECFDF5',
-                  border: '1px solid #A7F3D0',
-                  color: '#065F46',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  marginTop: '6px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <MessageSquare size={14} style={{ color: '#059669', flexShrink: 0 }} />
-                  <span>
-                    Transmitted to Business Owner &mdash; <strong>Awaiting Formal Management Response</strong>
-                  </span>
-                </div>
-                <span
-                  style={{
-                    backgroundColor: '#059669',
-                    color: '#ffffff',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    letterSpacing: '0.3px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  Pending Business
-                </span>
-              </div>
-            );
-          }
-          if (sNorm.includes('vp')) {
-            return (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '7px 12px',
-                  borderRadius: '6px',
-                  backgroundColor: '#FEF2F2',
-                  border: '1px solid #FECACA',
-                  color: '#991B1B',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  marginTop: '6px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <AlertTriangle size={14} style={{ color: '#DC2626', flexShrink: 0 }} />
-                  <span>
-                    Critical Observation Escalation &mdash; <strong>Pending VP Executive Clearance</strong>
-                  </span>
-                </div>
-                <span
-                  style={{
-                    backgroundColor: '#DC2626',
-                    color: '#ffffff',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    letterSpacing: '0.3px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  VP Review Tier
-                </span>
-              </div>
-            );
-          }
-          if (sNorm.includes('complete') || sNorm.includes('signed off')) {
-            return (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '7px 12px',
-                  borderRadius: '6px',
-                  backgroundColor: '#F0FDF4',
-                  border: '1px solid #BBF7D0',
-                  color: '#166534',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  marginTop: '6px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <CheckCircle2 size={14} style={{ color: '#16A34A', flexShrink: 0 }} />
-                  <span>
-                    Audit Finding Finalized &mdash; <strong>Completed &amp; Signed Off</strong>
-                  </span>
-                </div>
-                <span
-                  style={{
-                    backgroundColor: '#15803D',
-                    color: '#ffffff',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    letterSpacing: '0.3px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  Finalized
-                </span>
-              </div>
-            );
-          }
-          return null;
-        })()}
+              </button>
+            </SharedTooltip>
+          </div>
+        )}
       </div>
 
       {/* Pane 2 Main Body */}
@@ -1902,10 +1570,10 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
           minHeight: 0,
           overflowY: 'auto',
           overflowX: 'hidden',
-          padding: 'clamp(12px, 1.4vh, 20px) clamp(12px, 1.4vw, 24px)',
+          padding: '24px clamp(16px, 1.6vw, 24px) 24px clamp(16px, 1.6vw, 24px)',
           display: 'flex',
           flexDirection: 'column',
-          gap: 'clamp(12px, 1.4vh, 20px)',
+          gap: 'clamp(16px, 1.8vh, 22px)',
           backgroundColor: '#ffffff',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
@@ -1930,7 +1598,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
           >
 
             {/* Row 1: Test Procedure & Function */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+            <div className="two-col-field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', columnGap: '24px', rowGap: '16px' }}>
               <SharedSelect
                 label="Test Procedure"
                 value={issue.testProcedureCode || 'TP-101'}
@@ -1953,7 +1621,6 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                     padding: '0 12px',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
                     backgroundColor: '#F8FAFC',
                     border: '1px solid #D8D8D8',
                     borderRadius: '4px',
@@ -1961,44 +1628,27 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                     color: '#212121',
                     cursor: 'default',
                   }}
-                  title="Function track is updated exclusively via Issue Actions > Mark Not my Function Issue"
                 >
                   <span style={{ fontWeight: 600 }}>
                     {((issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')) === 'FinOps')
                       ? 'FinOps (Finance & Operations)'
                       : 'IT (Information Technology)'}
                   </span>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      backgroundColor: ((issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')) === 'FinOps') ? '#FEF3C7' : '#EFF6FF',
-                      color: ((issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')) === 'FinOps') ? '#B45309' : '#000099',
-                      border: `1px solid ${((issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')) === 'FinOps') ? '#FDE68A' : '#BFDBFE'}`,
-                    }}
-                  >
-                    {issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')}
-                  </span>
-                </div>
-                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '3px' }}>
-                  Updated exclusively via <strong>Issue Actions &gt; Mark Not my Function Issue</strong>
                 </div>
               </div>
             </div>
 
-            {/* Row 2: Original Issue / Initial Observation */}
+            {/* Row 2: Original Issue */}
             <div>
               <SharedTextArea
-                label="Original Issue / Auditor Observation"
+                label="Original Issue"
                 value={issue.originalIssue || issue.description || issue.title || ''}
                 onChange={(val) => handleFieldChange('originalIssue', val)}
                 placeholder="Detail initial audit observations, test sample exceptions, and discovered control gaps..."
                 rows={4}
                 required
                 disabled={isFieldDisabled}
-                extraHeaderActions={renderCommentTrigger('originalIssue', 'Original Issue / Auditor Observation')}
+                extraHeaderActions={renderCommentTrigger('originalIssue', 'Original Issue')}
               />
             </div>
           </div>
@@ -2021,41 +1671,98 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               gap: '16px',
             }}
           >
-            {/* AI Section Top Header Toolbar: Title & Show Guidelines button */}
+            {/* Single Top Row: Regenerate Container (left / remaining space) + AI POV Button (right end) */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
                 gap: '12px',
                 flexWrap: 'wrap',
-                paddingBottom: '2px',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '6px',
-                    backgroundColor: '#EFF6FF',
-                    border: '1px solid #BFDBFE',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#000099',
-                    flexShrink: 0,
-                  }}
-                >
-                  <Sparkles size={15} />
+              {/* Always-Visible Regeneration Container */}
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: '240px',
+                  backgroundColor: isRegenerateActive ? '#EFF6FF' : '#F8FAFC',
+                  border: isRegenerateActive ? '1px solid #BFDBFE' : '1px solid #E2E8F0',
+                  borderRadius: '8px',
+                  padding: '8px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  boxShadow: isRegenerateActive ? '0 1px 3px rgba(0, 0, 153, 0.08)' : 'none',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flex: 1 }}>
+                  <div
+                    style={{
+                      width: '26px',
+                      height: '26px',
+                      borderRadius: '50%',
+                      backgroundColor: isRegenerateActive ? '#DBEAFE' : '#F1F5F9',
+                      border: isRegenerateActive ? '1px solid #93C5FD' : '1px solid #CBD5E1',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: isRegenerateActive ? '#000099' : '#94A3B8',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {isRegenerateActive ? <AlertTriangle size={14} /> : <RotateCcw size={13} />}
+                  </div>
+                  <div>
+                    <div
+                      style={{
+                        fontSize: '12.5px',
+                        color: isRegenerateActive ? '#1E3A8A' : '#64748B',
+                        lineHeight: 1.4,
+                        fontWeight: isRegenerateActive ? 600 : 400,
+                      }}
+                    >
+                      {isRegenerateActive
+                        ? 'Changed the original issue or function, so generated AI might not be aligned. Please click Regenerate AI if needed.'
+                        : 'Change the function or original issue to regenerate'}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#1E293B', lineHeight: 1.3 }}>
-                    AI Synthesized Finding Statement &amp; Citations
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748B' }}>
-                    Review, refine, or regenerate synthesized finding fields and citations
-                  </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                  {isRegenerateActive && (
+                    <SharedButton
+                      variant="outline"
+                      size="small"
+                      onClick={() => setIsBannerDismissed(true)}
+                      style={{ minHeight: '1.75rem', fontSize: '11.5px', padding: '0 12px' }}
+                    >
+                      Cancel
+                    </SharedButton>
+                  )}
+
+                  <SharedButton
+                    variant={isRegenerateActive ? 'primary' : 'outline'}
+                    size="small"
+                    startIcon={<RotateCcw size={12} />}
+                    onClick={handleRegenerateAi}
+                    disabled={!isRegenerateActive || isAiLoadingLocal || isFieldDisabled}
+                    loading={isAiLoadingLocal}
+                    style={
+                      !isRegenerateActive
+                        ? {
+                            opacity: 0.6,
+                            borderColor: '#CBD5E1',
+                            color: '#94A3B8',
+                            cursor: 'not-allowed',
+                            backgroundColor: '#F8FAFC',
+                          }
+                        : undefined
+                    }
+                  >
+                    {isAiLoadingLocal ? 'Regenerating...' : 'Regenerate AI'}
+                  </SharedButton>
                 </div>
               </div>
 
@@ -2069,98 +1776,14 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                   color: '#000099',
                   fontWeight: 600,
                   backgroundColor: '#FFFFFF',
-                  minHeight: '1.75rem',
+                  minHeight: '42px',
                   fontSize: '11.5px',
-                  padding: '0 12px',
+                  padding: '0 14px',
+                  flexShrink: 0,
                 }}
               >
                 AI POV
               </SharedButton>
-            </div>
-
-            {/* Always-Visible Regeneration Container (matches Create Issue style) */}
-            <div
-              style={{
-                backgroundColor: isRegenerateActive ? '#EFF6FF' : '#F8FAFC',
-                border: isRegenerateActive ? '1px solid #BFDBFE' : '1px solid #E2E8F0',
-                borderRadius: '8px',
-                padding: '12px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '14px',
-                boxShadow: isRegenerateActive ? '0 1px 3px rgba(0, 0, 153, 0.08)' : 'none',
-                transition: 'all 0.2s ease',
-                flexShrink: 0,
-              }}
-            >
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flex: 1 }}>
-                <div
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '50%',
-                    backgroundColor: isRegenerateActive ? '#DBEAFE' : '#F1F5F9',
-                    border: isRegenerateActive ? '1px solid #93C5FD' : '1px solid #CBD5E1',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: isRegenerateActive ? '#000099' : '#94A3B8',
-                    flexShrink: 0,
-                  }}
-                >
-                  {isRegenerateActive ? <AlertTriangle size={15} /> : <RotateCcw size={14} />}
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: '12.5px',
-                      color: isRegenerateActive ? '#1E3A8A' : '#64748B',
-                      lineHeight: 1.45,
-                      fontWeight: isRegenerateActive ? 600 : 400,
-                    }}
-                  >
-                    {isRegenerateActive
-                      ? 'Changed the original issue or function, so generated AI might not be aligned. Please click Regenerate AI if needed.'
-                      : 'Change the function or issue to regenerate'}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                {isRegenerateActive && (
-                  <SharedButton
-                    variant="outline"
-                    size="small"
-                    onClick={() => setIsBannerDismissed(true)}
-                    style={{ minHeight: '1.75rem', fontSize: '11.5px', padding: '0 12px' }}
-                  >
-                    Cancel
-                  </SharedButton>
-                )}
-
-                <SharedButton
-                  variant={isRegenerateActive ? 'primary' : 'outline'}
-                  size="small"
-                  startIcon={<RotateCcw size={12} />}
-                  onClick={handleRegenerateAi}
-                  disabled={!isRegenerateActive || isAiLoadingLocal || isFieldDisabled}
-                  loading={isAiLoadingLocal}
-                  style={
-                    !isRegenerateActive
-                      ? {
-                          opacity: 0.6,
-                          borderColor: '#CBD5E1',
-                          color: '#94A3B8',
-                          cursor: 'not-allowed',
-                          backgroundColor: '#F8FAFC',
-                        }
-                      : undefined
-                  }
-                >
-                  {isAiLoadingLocal ? 'Regenerating...' : 'Regenerate AI'}
-                </SharedButton>
-              </div>
             </div>
 
             {/* Standard 6 AI Fields */}
@@ -2181,9 +1804,9 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 extraHeaderActions={renderCommentTrigger('title', 'Issue Title')}
               />
 
-              {/* 2. Condition Narrative & Observed Exceptions */}
+              {/* 2. Issue Description */}
               <AIInput
-                label="Condition Narrative & Observed Exceptions"
+                label="Issue Description"
                 value={issue.issueNarrative || issue.description || issue.issue || ''}
                 onChange={(val) => handleFieldChange('issueNarrative', val)}
                 remark={fieldRemarks.issueNarrative}
@@ -2194,12 +1817,12 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 isAiLoading={isAiLoadingLocal}
                 placeholder="AI synthesized condition narrative & standard citations..."
                 inputBackgroundColor="#FFFFFF"
-                extraHeaderActions={renderCommentTrigger('issueNarrative', 'Condition Narrative & Observed Exceptions')}
+                extraHeaderActions={renderCommentTrigger('issueNarrative', 'Issue Description')}
               />
 
               {/* 3. Root Cause */}
               <AIInput
-                label="Root Cause Analysis"
+                label="Root Cause"
                 value={issue.rootCause || ''}
                 onChange={(val) => handleFieldChange('rootCause', val)}
                 remark={fieldRemarks.rootCause}
@@ -2210,7 +1833,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 isAiLoading={isAiLoadingLocal}
                 placeholder="Underlying operational or technical root cause gap..."
                 inputBackgroundColor="#FFFFFF"
-                extraHeaderActions={renderCommentTrigger('rootCause', 'Root Cause Analysis')}
+                extraHeaderActions={renderCommentTrigger('rootCause', 'Root Cause')}
               />
 
               {/* 4. Impact */}
@@ -2231,7 +1854,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
 
               {/* 5. Recommendations */}
               <AIInput
-                label="Recommendations & Remediation Criteria"
+                label="Recommendations"
                 value={issue.recommendation || ''}
                 onChange={(val) => handleFieldChange('recommendation', val)}
                 remark={fieldRemarks.recommendation}
@@ -2242,10 +1865,10 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 isAiLoading={isAiLoadingLocal}
                 placeholder="Numbered corrective actions and recommendations..."
                 inputBackgroundColor="#FFFFFF"
-                extraHeaderActions={renderCommentTrigger('recommendation', 'Recommendations & Remediation Criteria')}
+                extraHeaderActions={renderCommentTrigger('recommendation', 'Recommendations')}
               />
 
-              {/* 6. References / Non-Compliance Standards */}
+              {/* 6. References */}
               <div
                 style={{
                   backgroundColor: '#FFFFFF',
@@ -2255,7 +1878,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 }}
               >
                 <ReferenceComponent
-                  label="References / Non-Compliance Standards"
+                  label="References"
                   value={issue.nonComplianceReferences || ''}
                   onChange={(val) => handleFieldChange('nonComplianceReferences', val)}
                   disabled={isFieldDisabled}
@@ -2327,7 +1950,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
             />
 
             {/* 5. Issue Type & 6. Issue Cause Type */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+            <div className="two-col-field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', columnGap: '24px', rowGap: '16px' }}>
               <SharedSelect
                 label="Issue Type"
                 value={issue.issueType || 'Operational'}
@@ -2350,9 +1973,9 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
             </div>
 
             {/* 7. Criticality & 8. SOX Reportable */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+            <div className="two-col-field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', columnGap: '24px', rowGap: '16px' }}>
               <SharedSelect
-                label="Criticality Severity"
+                label="Criticality"
                 value={issue.criticality || ''}
                 onChange={(val) => handleFieldChange('criticality', val as CriticalityLevel)}
                 options={
@@ -2362,7 +1985,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 }
                 required
                 disabled={isFieldDisabled}
-                extraHeaderActions={renderCommentTrigger('criticality', 'Criticality Severity')}
+                extraHeaderActions={renderCommentTrigger('criticality', 'Criticality')}
               />
               <SharedSelect
                 label="SOX Reportable"
@@ -2375,7 +1998,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
             </div>
 
             {/* 9. Issue Finding Source & 10. Key Theme */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+            <div className="two-col-field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', columnGap: '24px', rowGap: '16px' }}>
               <SharedSelect
                 label="Issue Finding Source"
                 value={issue.issueSource || 'Internal Audit'}
@@ -2395,7 +2018,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
             </div>
 
             {/* 11. Area & 12. Repeat Finding */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+            <div className="two-col-field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', columnGap: '24px', rowGap: '16px' }}>
               <SharedSelect
                 label="Area"
                 value={issue.processArea || issue.accountableProcessArea || 'Access Control & IAM'}
@@ -2418,7 +2041,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
             </div>
 
             {/* 13. IT Asset Accountable Sector & 14. Accountable Function */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+            <div className="two-col-field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', columnGap: '24px', rowGap: '16px' }}>
               <SharedSelect
                 label="IT Asset Accountable Sector"
                 value={issue.itAssetAccountableSector || 'MT'}
@@ -2438,7 +2061,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
             </div>
 
             {/* 15. Impacted Region & 16. Impacted Sector */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+            <div className="two-col-field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', columnGap: '24px', rowGap: '16px' }}>
               <SharedSelect
                 label="Impacted Region"
                 value={issue.impactedRegion || 'NA'}
@@ -2458,7 +2081,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
             </div>
 
             {/* 17. Impact MRC & 18. Quarter Impacted */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+            <div className="two-col-field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', columnGap: '24px', rowGap: '16px' }}>
               <SharedSelect
                 label="Impact MRC"
                 value={issue.impactedMrc || 'MRC-01: Global Supply Chain & Manufacturing Operations'}
@@ -2478,7 +2101,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
             </div>
 
             {/* 19. Sales (USD) & 20. IBT (USD) */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+            <div className="two-col-field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', columnGap: '24px', rowGap: '16px' }}>
               <SharedTextInput
                 label="Sales (USD)"
                 value={issue.salesUsd != null ? String(issue.salesUsd) : ''}
@@ -2498,7 +2121,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
             </div>
 
             {/* 21. Net Income (USD) & 22. Total Assets (USD) */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+            <div className="two-col-field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', columnGap: '24px', rowGap: '16px' }}>
               <SharedTextInput
                 label="Net Income (USD)"
                 value={issue.netIncomeUsd != null ? String(issue.netIncomeUsd) : ''}

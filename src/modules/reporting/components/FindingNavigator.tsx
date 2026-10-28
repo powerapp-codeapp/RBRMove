@@ -58,8 +58,18 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
     { value: 'FinOps', label: 'FinOps', count: finOpsCount },
   ];
 
-  // Filtered list
-  const filteredIssues = issues.filter((issue) => {
+  // Sort issues by Ref # ascending with active issues first and excluded issues at the bottom
+  const sortedIssues = [...issues].sort((a, b) => {
+    const aEx = a.isExcluded || a.status === 'Excluded' ? 1 : 0;
+    const bEx = b.isExcluded || b.status === 'Excluded' ? 1 : 0;
+    if (aEx !== bEx) return aEx - bEx;
+    const aRef = Number(a.reportRef || (a as any).reportReference || 9999);
+    const bRef = Number(b.reportRef || (b as any).reportReference || 9999);
+    return aRef - bRef;
+  });
+
+  // Filtered list (maintaining ascending Ref # order)
+  const filteredIssues = sortedIssues.filter((issue) => {
     if (filterDomain === 'all') return true;
     const isIT = isItemIT(issue);
     if (filterDomain === 'IT') return isIT;
@@ -126,22 +136,30 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
 
   // Reorder helper with priority change detection
   const performReorder = (draggedId: string, targetId: string) => {
-    const dragIdx = issues.findIndex((i) => i.id === draggedId);
-    const targetIdx = issues.findIndex((i) => i.id === targetId);
+    const dragIdx = sortedIssues.findIndex((i) => i.id === draggedId);
+    const targetIdx = sortedIssues.findIndex((i) => i.id === targetId);
     if (dragIdx === -1 || targetIdx === -1 || dragIdx === targetIdx) return;
 
-    const currentItem = issues[dragIdx];
-    const targetItem = issues[targetIdx];
+    const currentItem = sortedIssues[dragIdx];
+    const targetItem = sortedIssues[targetIdx];
+    // Prevent reordering active issues into excluded issues or vice versa
+    const isCurrentExcluded = Boolean(currentItem.isExcluded || currentItem.status === 'Excluded');
+    const isTargetExcluded = Boolean(targetItem.isExcluded || targetItem.status === 'Excluded');
+    if (isCurrentExcluded || isTargetExcluded) return;
+
     const isCrossPriority = currentItem.criticality !== targetItem.criticality;
 
-    const updated = [...issues];
+    const updated = [...sortedIssues];
     const [moved] = updated.splice(dragIdx, 1);
     updated.splice(targetIdx, 0, moved);
 
-    // Realign sequential numbers
-    const sequenced = updated.map((item, idx) => ({
+    // Keep active issues above excluded issues and realign sequential Ref numbers
+    const activePart = updated.filter((i) => !i.isExcluded && i.status !== 'Excluded');
+    const excludedPart = updated.filter((i) => i.isExcluded || i.status === 'Excluded');
+    const sequenced = [...activePart, ...excludedPart].map((item, idx) => ({
       ...item,
       reportRef: idx + 1,
+      reportReference: idx + 1,
     }));
 
     onReorderIssues(sequenced, isCrossPriority, currentItem.criticality, targetItem.criticality);
@@ -271,6 +289,7 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
       style={{
         width: '100%',
         height: '100%',
+        minHeight: 0,
         backgroundColor: '#F4F6F8',
         borderRight: 'none',
         display: 'flex',
@@ -360,9 +379,13 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
 
       {/* Cards List */}
       <div
+        className="no-scrollbar"
         style={{
           flex: 1,
+          minHeight: 0,
           overflowY: 'auto',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
           padding: '6px 10px 10px 10px',
           display: 'flex',
           flexDirection: 'column',
@@ -382,6 +405,8 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
         ) : (
           filteredIssues.map((item, filteredIdx) => {
             const editability = checkIssueEditability(item);
+            const isItemExcluded = Boolean(item.isExcluded || item.status === 'Excluded');
+            const activeFilteredCount = filteredIssues.filter((i) => !i.isExcluded && i.status !== 'Excluded').length;
             return (
               <IssueNavCard
                 key={item.id}
@@ -390,12 +415,12 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
                 isSelected={selectedIssueId === item.id}
                 isReadOnly={!editability.canEdit}
                 readOnlyReason={editability.reason || undefined}
-                isFirst={filteredIdx === 0}
-              isLast={filteredIdx === filteredIssues.length - 1}
-              isDragging={draggedIssueId === item.id}
-              isOver={dragOverIssueId === item.id}
-              draggable={draggableCardId === item.id}
-              onSelect={() => onSelectIssue(selectedIssueId === item.id ? null : item.id)}
+                isFirst={isItemExcluded || filteredIdx === 0}
+                isLast={isItemExcluded || filteredIdx >= activeFilteredCount - 1}
+                isDragging={draggedIssueId === item.id}
+                isOver={dragOverIssueId === item.id}
+                draggable={!isItemExcluded && (draggableCardId === item.id || true)}
+                onSelect={() => onSelectIssue(selectedIssueId === item.id ? null : item.id)}
               onMoveUp={() => handleMoveIssueById(item.id, 'up')}
               onMoveDown={() => handleMoveIssueById(item.id, 'down')}
               onInclude={() => onIncludeIssue?.(item.id)}

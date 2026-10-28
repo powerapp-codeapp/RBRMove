@@ -1159,3 +1159,32 @@ input::-ms-reveal {
 .rich-text-preview p:last-child {
   margin-bottom: 0;
 }
+
+
+/* Hide scrollbar track/thumb while preserving full scroll functionality */
+.no-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+/* Ensure two-column grid children never overflow their track or eat into column-gap */
+.two-col-field-grid > * {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+
+/* Ensure input and textarea placeholders always use normal (400) font weight */
+input::placeholder,
+textarea::placeholder,
+.MuiInputBase-input::placeholder {
+  font-weight: 400 !important;
+}

@@ -48,7 +48,7 @@ const DEFAULT_REAL_USER: UserSession = {
   baseRole: 'manager',
   avatar: 'TN',
   department: 'Global Audit & Assurance (GA&A)',
-  isAdmin: true,
+  isAdmin: false,
   title: 'Global Audit Administrator & IT Lead',
   function: 'IT',
   location: 'New Brunswick, NJ (US)',
@@ -175,30 +175,17 @@ export const UserSessionProvider: React.FC<{ children: React.ReactNode }> = ({ c
           }
         });
 
-        let isUserAdmin = false;
-        if (liveAdmins.length > 0) {
-          isUserAdmin = liveAdmins.some((a: any) =>
-            a.iar_admin?.internalemailaddress?.toLowerCase() === activeEmail.toLowerCase() ||
-            a._iar_admin_value === realUser.userId ||
-            activeEmail.toLowerCase().includes('tamilselvan') ||
-            activeEmail.toLowerCase().includes('tamil@')
-          );
-        }
-
-        // Check if realUser has an explicit security assignment in Dataverse
-        const realAsg = asgByUserEmail.get(activeEmail.toLowerCase().trim());
-        const realRoleId = realAsg ? String(getProp(realAsg, 'iar_tmroleid', 'iar_TMRoleID', 'tmroleid', 'roleid') || '') : '';
-        const realRoleName = realAsg ? String(getProp(realAsg, 'iar_tmrolename', 'iar_TMRoleName', 'tmrolename', 'rolename') || '') : '';
-        const realTmRole = realRoleId ? (tmRoleMap.get(realRoleId) || (realRoleName ? tmRoleMap.get(realRoleName.toLowerCase()) : null)) : null;
-        const realRoleDetails = getRoleDetails(realTmRole?.iar_logickey || realRoleId || realRoleName || 'IT MGR');
-
         // 1. Index systemusers by email and by systemuserid for fast lookup
+        const normalizeGuid = (val: any): string =>
+          String(val || '').toLowerCase().replace(/[{}]/g, '').trim();
+
         const userByEmail = new Map<string, any>();
         const userById = new Map<string, any>();
         liveUsersRaw.forEach((u: any) => {
           const em = String(u.internalemailaddress || '').toLowerCase().trim();
           if (em) userByEmail.set(em, u);
-          if (u.systemuserid) userById.set(String(u.systemuserid).toLowerCase(), u);
+          const uid = normalizeGuid(u.systemuserid);
+          if (uid) userById.set(uid, u);
         });
 
         const matchedRealSysUser =
@@ -207,6 +194,39 @@ export const UserSessionProvider: React.FC<{ children: React.ReactNode }> = ({ c
             u.fullname && activeName && u.fullname.toLowerCase().includes(activeName.toLowerCase().split(' ')[0])
           ) ||
           liveUsersRaw[0];
+
+        const resolvedRealUserId = normalizeGuid(matchedRealSysUser?.systemuserid);
+        const resolvedRealEmail = String(
+          matchedRealSysUser?.internalemailaddress || activeEmail || ''
+        ).toLowerCase().trim();
+
+        // Strictly check Dataverse table iar_administratorses (active records only, no hardcoded emails)
+        let isUserAdmin = false;
+        if (liveAdmins.length > 0) {
+          isUserAdmin = liveAdmins.some((a: any) => {
+            if (a.statecode !== undefined && a.statecode !== 0) return false;
+            const adminGuid = normalizeGuid(
+              getProp(a, '_iar_admin_value', 'iar_admin', 'iar_Admin')
+            );
+            if (resolvedRealUserId && adminGuid && adminGuid === resolvedRealUserId) {
+              return true;
+            }
+            const adminSysUser = adminGuid ? userById.get(adminGuid) : null;
+            const adminEmail = String(
+              a.iar_admin?.internalemailaddress ||
+              adminSysUser?.internalemailaddress ||
+              ''
+            ).toLowerCase().trim();
+            return Boolean(resolvedRealEmail && adminEmail && adminEmail === resolvedRealEmail);
+          });
+        }
+
+        // Check if realUser has an explicit security assignment in Dataverse
+        const realAsg = asgByUserEmail.get(activeEmail.toLowerCase().trim());
+        const realRoleId = realAsg ? String(getProp(realAsg, 'iar_tmroleid', 'iar_TMRoleID', 'tmroleid', 'roleid') || '') : '';
+        const realRoleName = realAsg ? String(getProp(realAsg, 'iar_tmrolename', 'iar_TMRoleName', 'tmrolename', 'rolename') || '') : '';
+        const realTmRole = realRoleId ? (tmRoleMap.get(realRoleId) || (realRoleName ? tmRoleMap.get(realRoleName.toLowerCase()) : null)) : null;
+        const realRoleDetails = getRoleDetails(realTmRole?.iar_logickey || realRoleId || realRoleName || 'IT MGR');
 
         if (isMounted) {
           setRealUser(prev => ({

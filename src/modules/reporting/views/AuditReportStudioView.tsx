@@ -138,24 +138,39 @@ export const AuditReportStudioView: React.FC = () => {
     };
   }, [isDraggingSplitter2, isPane1Collapsed]);
 
+  // Helper to sort issues by Ref # ascending with active issues first and excluded issues at the bottom
+  const sortAndSequenceIssues = useCallback((rawList: Issue[]): Issue[] => {
+    const sorted = [...rawList].sort((a, b) => {
+      const aEx = a.isExcluded || a.status === 'Excluded' ? 1 : 0;
+      const bEx = b.isExcluded || b.status === 'Excluded' ? 1 : 0;
+      if (aEx !== bEx) return aEx - bEx;
+      const aRef = Number(a.reportRef || (a as any).reportReference || 9999);
+      const bRef = Number(b.reportRef || (b as any).reportReference || 9999);
+      if (aRef !== bRef) return aRef - bRef;
+      return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+    });
+    return sorted.map((item, idx) => ({
+      ...item,
+      reportRef: idx + 1,
+      reportReference: idx + 1,
+    }));
+  }, []);
+
   // Load issues seamlessly from active engagement or Dataverse (and refresh on window focus / persona switch)
   const refreshIssuesFromDataverse = useCallback(
     (engId: string, engAny?: any) => {
       fetchIssuesForEngagement(engId).then((data) => {
         if (data && data.length > 0) {
-          const sequenced = data.map((item: Issue, idx: number) => ({
-            ...item,
-            reportRef: item.reportRef || idx + 1,
-          }));
+          const sequenced = sortAndSequenceIssues(data);
           setIssues(sequenced);
           setSelectedIssueId((prev) => prev || sequenced[0].id);
+          if (engAny && (sequenced[0] as any).businessResponseRequested !== undefined) {
+            engAny.businessResponseRequested = Boolean((sequenced[0] as any).businessResponseRequested);
+          }
         } else if (!engAny?.issuesList || engAny.issuesList.length === 0) {
           dataverseService.getIssuesByEngagementId(engId).then((fallbackData) => {
             if (fallbackData && fallbackData.length > 0) {
-              const sequenced = fallbackData.map((item: Issue, idx: number) => ({
-                ...item,
-                reportRef: item.reportRef || idx + 1,
-              }));
+              const sequenced = sortAndSequenceIssues(fallbackData);
               setIssues(sequenced);
               setSelectedIssueId((prev) => prev || sequenced[0].id);
             } else {
@@ -165,7 +180,7 @@ export const AuditReportStudioView: React.FC = () => {
         }
       });
     },
-    []
+    [sortAndSequenceIssues]
   );
 
   useEffect(() => {
@@ -175,10 +190,7 @@ export const AuditReportStudioView: React.FC = () => {
     // 1. If activeEngagement has issuesList in memory, seed immediately for instant UI responsiveness
     const engAny = activeEngagement as any;
     if (engAny?.issuesList && engAny.issuesList.length > 0) {
-      const sequenced = engAny.issuesList.map((item: Issue, idx: number) => ({
-        ...item,
-        reportRef: item.reportRef || idx + 1,
-      }));
+      const sequenced = sortAndSequenceIssues(engAny.issuesList);
       setIssues((prev) => (prev.length > 0 ? prev : sequenced));
       setSelectedIssueId((prev) => prev || sequenced[0].id);
     }
@@ -281,13 +293,21 @@ export const AuditReportStudioView: React.FC = () => {
 
   const { canEdit, reason: editRestrictionReason } = checkIssueEditability(selectedIssue);
 
-  // Synchronize issues and sequential numbering
+  // Synchronize issues and sequential numbering (active first, excluded at the bottom, persisted to Dataverse)
   const updateIssuesAndSync = (newIssues: Issue[]) => {
-    const sequenced = newIssues.map((item, idx) => ({
+    const activePart = newIssues.filter((i) => !i.isExcluded && i.status !== 'Excluded');
+    const excludedPart = newIssues.filter((i) => i.isExcluded || i.status === 'Excluded');
+    const sequenced = [...activePart, ...excludedPart].map((item, idx) => ({
       ...item,
       reportRef: idx + 1,
+      reportReference: idx + 1,
     }));
     setIssues(sequenced);
+    const engId = selectedEngagementId || (activeEngagement as any)?.id;
+    if (activeEngagement) {
+      (activeEngagement as any).issuesList = sequenced;
+    }
+    dataverseService.syncIssueReportReferences(sequenced, engId).catch(() => {});
   };
 
   const fieldSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -351,11 +371,21 @@ export const AuditReportStudioView: React.FC = () => {
         );
       }
 
+      // Excluded issue moves to the bottom of the list with highest available ref number
+      const remainingActive = issues
+        .filter((i) => i.id !== issueId && extractCleanGuid(i.id).toLowerCase() !== cleanId && !i.isExcluded && i.status !== 'Excluded')
+        .sort((a, b) => (a.reportRef || 0) - (b.reportRef || 0));
+      const existingExcluded = issues
+        .filter((i) => i.id !== issueId && extractCleanGuid(i.id).toLowerCase() !== cleanId && (i.isExcluded || i.status === 'Excluded'))
+        .sort((a, b) => (a.reportRef || 0) - (b.reportRef || 0));
+      const highestRef = remainingActive.length + existingExcluded.length + 1;
+
       const updated = await dataverseService.excludeIssue(
         issueId,
         engId,
         currentUser,
-        reason
+        reason,
+        highestRef
       );
 
       const updatedTarget: Issue = {
@@ -364,6 +394,9 @@ export const AuditReportStudioView: React.FC = () => {
         isExcluded: true,
         previousStatus: target.status !== 'Excluded' ? target.status : target.previousStatus || 'Pending TC',
         status: 'Excluded',
+        currentLevel: 'Excluded',
+        reportRef: highestRef,
+        reportReference: highestRef,
         workflowRemarks: reason,
         excludedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isLocked: false,
@@ -371,14 +404,12 @@ export const AuditReportStudioView: React.FC = () => {
         lockedAt: null,
       };
 
-      // Soft delete: move excluded issue to the end of the list
-      const remaining = issues.filter((i) => i.id !== issueId && extractCleanGuid(i.id).toLowerCase() !== cleanId);
-      const newIssues = [...remaining, updatedTarget];
+      const newIssues = [...remainingActive, ...existingExcluded, updatedTarget];
       setSelectedIssueId(issueId);
       updateIssuesAndSync(newIssues);
 
       setToastMessage({
-        message: `Finding "${target.title}" successfully excluded from final audit report.`,
+        message: `Finding "${target.title}" excluded and moved to bottom (Ref #${highestRef}).`,
         severity: 'info',
       });
     } catch (err: any) {
@@ -389,42 +420,60 @@ export const AuditReportStudioView: React.FC = () => {
     }
   };
 
-  // Include Issue Handler with Dataverse wiring & persona tier resolution
+  // Include Issue Handler with Dataverse wiring: sets Ref # to highest active + 1 and status back to Pending Staff of that function
   const handleIncludeIssue = async (issueId: string) => {
     const cleanId = extractCleanGuid(issueId).toLowerCase();
     const target = issues.find((i) => i.id === issueId || (cleanId && extractCleanGuid(i.id).toLowerCase() === cleanId));
     if (!target) return;
     const engId = selectedEngagementId || (activeEngagement as any)?.id || 'REP-2026-001';
+    const assignedUsers = (activeEngagement as any)?.assignedUsers || [];
 
     try {
+      const active = issues
+        .filter((i) => i.id !== issueId && extractCleanGuid(i.id).toLowerCase() !== cleanId && !i.isExcluded && i.status !== 'Excluded')
+        .sort((a, b) => (a.reportRef || 0) - (b.reportRef || 0));
+      const excluded = issues
+        .filter((i) => i.id !== issueId && extractCleanGuid(i.id).toLowerCase() !== cleanId && (i.isExcluded || i.status === 'Excluded'))
+        .sort((a, b) => (a.reportRef || 0) - (b.reportRef || 0));
+
+      const highestActiveRef = active.reduce((max, item, idx) => Math.max(max, Number(item.reportRef || idx + 1)), 0);
+      const newRefNumber = highestActiveRef + 1;
+
       const updated = await dataverseService.includeIssue(
         issueId,
         engId,
         currentUser,
-        `Restored and included in report by ${currentUser?.name || 'Reviewer'}`
+        `Restored and included in report by ${currentUser?.name || 'Reviewer'}`,
+        'Pending Staff',
+        assignedUsers,
+        target,
+        newRefNumber
       );
 
       const restoredTarget: Issue = {
         ...target,
         ...updated,
         isExcluded: false,
-        status: updated.status || (target.previousStatus as IssueStatus) || 'Pending Staff',
-        currentLevel: updated.status || (target.previousStatus as IssueStatus) || 'Pending Staff',
+        status: 'Pending Staff',
+        currentLevel: 'Pending Staff',
+        currentOwner: updated.currentOwner || target.currentOwner,
+        owner: updated.currentOwner || (target as any).owner,
+        reportRef: newRefNumber,
+        reportReference: newRefNumber,
         excludedAt: null,
         isLocked: false,
         lockedBy: null,
         lockedAt: null,
       };
 
-      // Re-insert into active issues before any other excluded issues
-      const active = issues.filter((i) => i.id !== issueId && !i.isExcluded);
-      const excluded = issues.filter((i) => i.id !== issueId && i.isExcluded);
+      // Re-insert right after active issues (highest active ref + 1) and before any remaining excluded issues
       const newIssues = [...active, restoredTarget, ...excluded];
       setSelectedIssueId(issueId);
       updateIssuesAndSync(newIssues);
 
+      const fnLabel = (restoredTarget.function || (restoredTarget as any).tech || 'IT') === 'FinOps' ? 'FinOps' : 'IT';
       setToastMessage({
-        message: `Finding "${target.title}" restored into ${restoredTarget.status} review tier.`,
+        message: `Finding "${target.title}" restored as Ref #${newRefNumber} in Pending Staff (${fnLabel}).`,
         severity: 'success',
       });
     } catch (err: any) {
@@ -589,7 +638,7 @@ export const AuditReportStudioView: React.FC = () => {
         (currentUserId && tLockedById && currentUserId === tLockedById) ||
         (currentUserName && tLockedByName && currentUserName === tLockedByName)
       );
-      if (!isHolder && !effectiveIsAdmin) {
+      if (!isHolder) {
         setToastMessage({
           message: `Cannot unlock: finding is currently locked by ${target.lockedBy?.name || 'another auditor'}.`,
           severity: 'warning',
@@ -601,7 +650,7 @@ export const AuditReportStudioView: React.FC = () => {
         issueId,
         engId,
         currentUser,
-        effectiveIsAdmin ? 'Administrative unlock override' : 'Auditor unlocked'
+        'Auditor unlocked'
       );
       const updatedTarget: Issue = {
         ...target,
@@ -792,6 +841,9 @@ export const AuditReportStudioView: React.FC = () => {
               ? {
                   ...item,
                   ...found,
+                  title: found.title || item.title,
+                  criticality: found.criticality || item.criticality,
+                  testProcedureCode: found.testProcedureCode || item.testProcedureCode,
                   status: (found.status || result.nextStatus) as any,
                   currentOwner: found.currentOwner || item.currentOwner,
                   isLocked: false,
@@ -830,6 +882,9 @@ export const AuditReportStudioView: React.FC = () => {
             ? {
                 ...item,
                 ...updated,
+                title: updated.title || item.title,
+                criticality: updated.criticality || item.criticality,
+                testProcedureCode: updated.testProcedureCode || item.testProcedureCode,
                 status: targetStatus,
                 currentOwner: updated.currentOwner || item.currentOwner,
                 isLocked: false,
@@ -887,10 +942,15 @@ export const AuditReportStudioView: React.FC = () => {
     try {
       const engId = selectedEngagementId || (activeEngagement as any)?.id || 'REP-2026-001';
       const assignedUsers = (activeEngagement as any)?.assignedUsers || [];
+      const currentActiveIssues = issues.filter((i) => !i.isExcluded && i.status !== 'Excluded');
+      const currentExcludedIssues = issues.filter((i) => i.isExcluded || i.status === 'Excluded');
+      const nextActiveRef = currentActiveIssues.length + 1;
+
       const created = await createDataverseIssue(
         {
           engagementId: engId,
           ...newIssueData,
+          reportRef: nextActiveRef,
           function: (newIssueData.function === 'FinOps' ? 'FinOps' : 'IT') as 'IT' | 'FinOps'
         } as any,
         currentUser,
@@ -928,11 +988,12 @@ export const AuditReportStudioView: React.FC = () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         activeAiVersionNumber: newIssueData.activeAiVersionNumber || 1,
-        reportRef: issues.length + 1,
+        reportRef: nextActiveRef,
+        reportReference: nextActiveRef,
         ...newIssueData,
       };
 
-      const newIssues = [...issues, issueToAdd];
+      const newIssues = [...currentActiveIssues, issueToAdd, ...currentExcludedIssues];
       updateIssuesAndSync(newIssues);
       setSelectedIssueId(issueToAdd.id);
 
@@ -1043,6 +1104,9 @@ export const AuditReportStudioView: React.FC = () => {
             ? {
                 ...item,
                 ...found,
+                title: found.title || item.title,
+                criticality: found.criticality || item.criticality,
+                testProcedureCode: found.testProcedureCode || item.testProcedureCode,
                 status: 'Pending Director',
                 currentOwner: found.currentOwner || 'Marcus Vance',
                 isLocked: false,
@@ -1082,14 +1146,22 @@ export const AuditReportStudioView: React.FC = () => {
             ? {
                 ...item,
                 ...found,
+                title: found.title || item.title,
+                criticality: found.criticality || item.criticality,
+                testProcedureCode: found.testProcedureCode || item.testProcedureCode,
                 status: 'Pending Business',
                 currentOwner: found.currentOwner || item.primaryBusinessOwnerName || item.accountableContact || 'Business Owner',
+                businessResponseRequested: true,
+                workflowRemarks: remarks || 'Submitted to Business Management',
                 isLocked: false,
                 lockedBy: null
-              }
+              } as any
             : item;
         })
       );
+      if (activeEngagement) {
+        (activeEngagement as any).businessResponseRequested = true;
+      }
       setToastMessage({
         message: 'Findings submitted to Business Management for formal response.',
         severity: 'success',
@@ -1121,6 +1193,9 @@ export const AuditReportStudioView: React.FC = () => {
             ? {
                 ...item,
                 ...found,
+                title: found.title || item.title,
+                criticality: found.criticality || item.criticality,
+                testProcedureCode: found.testProcedureCode || item.testProcedureCode,
                 status: 'Pending VP',
                 currentOwner: found.currentOwner || 'Elena Rostova',
                 isLocked: false,
@@ -1159,6 +1234,9 @@ export const AuditReportStudioView: React.FC = () => {
             ? {
                 ...item,
                 ...found,
+                title: found.title || item.title,
+                criticality: found.criticality || item.criticality,
+                testProcedureCode: found.testProcedureCode || item.testProcedureCode,
                 status: 'Completed',
                 currentOwner: found.currentOwner || 'QA Archive',
                 isLocked: false,
@@ -1205,19 +1283,12 @@ export const AuditReportStudioView: React.FC = () => {
   const allPendingDirector = activeIssues.length > 0 && activeIssues.every((i) => i.status === 'Pending Director');
   const allPendingVP = activeIssues.length > 0 && activeIssues.every((i) => i.status === 'Pending VP');
   const allCompleted = activeIssues.length > 0 && activeIssues.every((i) => i.status === 'Completed' || i.status === 'Signed Off');
-  const hasBusinessResponses =
-    activeIssues.some((i) =>
-      Boolean(
-        i.managementResponse ||
-          (i as any).businessManagementResponse ||
-          i.businessManagementReason
-      )
-    ) ||
-    auditLogs.some(
-      (l) =>
-        (l.newState || '').toLowerCase().includes('business') ||
-        (l.previousState || '').toLowerCase().includes('business')
-    );
+
+  // Driven strictly by the engagement-level Dataverse column iar_businessresponserequested (Yes / No)
+  const hasBusinessResponses = Boolean(
+    issues.some((i) => (i as any).businessResponseRequested === true) ||
+    (activeEngagement as any)?.businessResponseRequested === true
+  );
 
   const readyIssuesCount = activeIssues.filter(
     (i) => i.status === 'Ready for Director Submission' || i.status === 'Manager Completed (Waiting for Other Issues)'
@@ -1284,7 +1355,7 @@ export const AuditReportStudioView: React.FC = () => {
               />
             )}
 
-            {/* 2. Audit Director Report Submit: Submit to Business */}
+            {/* 2. Audit Director Report Submit (Round 1 only — when BusinessResponseRequested is No / false): Submit to Business */}
             {(isDirector || isUserAdmin) && allPendingDirector && !hasBusinessResponses && (
               <WorkflowSubmitButton
                 label="Submit to Business"

@@ -103,6 +103,39 @@
           "x-ms-read-only": true,
           "maxLength": 850
         },
+        "iar_businessresponserequested": {
+          "type": "string",
+          "title": "Business Response Requested",
+          "x-ms-dataverse-attribute": "iar_businessresponserequested",
+          "x-ms-dataverse-type": "BooleanType",
+          "x-ms-schema-name": "iar_BusinessResponseRequested",
+          "required": true,
+          "enum": [
+            "No",
+            "Yes"
+          ],
+          "x-ms-enum-values": [
+            0,
+            1
+          ],
+          "Color": [
+            null,
+            null
+          ],
+          "x-ms-optionsetmetadataid": "f1d45089-14d2-f111-b618-7c1e520e2b9b",
+          "x-ms-isGlobal": false,
+          "x-ms-optionsetdisplayname": "Business Response Requested",
+          "x-ms-optionSetType": "Boolean"
+        },
+        "iar_businessresponserequestedname": {
+          "type": "string",
+          "title": "iar_businessresponserequestedname",
+          "x-ms-dataverse-attribute": "iar_businessresponserequestedname",
+          "x-ms-dataverse-type": "VirtualType",
+          "x-ms-schema-name": "iar_businessresponserequestedName",
+          "x-ms-dataverse-attribute-of": "iar_businessresponserequested",
+          "x-ms-read-only": true
+        },
         "iar_engagementcode": {
           "type": "string",
           "title": "Engagement Code",
@@ -485,6 +518,7 @@
         "createdbyyominame",
         "createdonbehalfbyyominame",
         "iar_assessmentid",
+        "iar_businessresponserequested",
         "iar_engagementcode",
         "iar_engagementname",
         "iar_engagementsid",

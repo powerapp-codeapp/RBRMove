@@ -127,6 +127,9 @@ These 9 entities are active in the environment and have models/services in `src/
     - `822500001` $\rightarrow$ **`Audit Report Inprogress`**
     - `822500002` $\rightarrow$ **`Executive Report Inprogress`**
     - `822500003` $\rightarrow$ **`Completed`**
+  - `iar_businessresponserequested`: Boolean (`Yes` / `No`, default `No` / `false`) tracking whether the Audit Director has submitted the engagement's findings to Business Management for Round 1 response:
+    - `false` (`No`) $\rightarrow$ Round 1 (Pre-Business Response): When all active issues reach `Pending Director`, the Audit Director sees **`Submit to Business`**.
+    - `true` (`Yes`) $\rightarrow$ Round 2 (Post-Business Response): Automatically set to `Yes` (`true`) when the Audit Director clicks **`Submit to Business`**. When findings return from Business through Manager back to `Pending Director`, **`Submit to Business` is no longer shown**, and the Audit Director sees **`Submit to VP`** and **`Sign Off`**.
   - `iar_tmlastmodified`: TeamMate synchronization timestamp (e.g. `4/27/2026 8:27 PM`).
   - `statecode` / `statuscode`: Active (`statecode: 0`, `statuscode: 1`).
   - Upstream TeamMate Pass-Through Metadata:

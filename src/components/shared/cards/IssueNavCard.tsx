@@ -6,6 +6,7 @@ import {
   ArrowUp,
   ArrowDown,
   Lock,
+  Eye,
   Ban,
   User,
 } from 'lucide-react';
@@ -218,6 +219,7 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
         display: 'flex',
         flexDirection: 'column',
         gap: '6px',
+        flexShrink: 0,
       }}
     >
       {/* Active Selection Indicator: Blue container on the left edge for full height */}
@@ -376,7 +378,7 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
               flexShrink: 0,
             }}
           >
-            Ref #{issue.reportRef || index + 1}
+            Ref #{issue.reportRef || (issue as any).reportReference || index + 1}
           </span>
 
           <span
@@ -407,9 +409,9 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
                 fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
                 padding: '2px 7px',
                 borderRadius: '4px',
-                backgroundColor: '#FEF3C7',
-                color: '#92400E',
-                border: '1px solid #FCD34D',
+                backgroundColor: '#ffffff',
+                color: '#334155',
+                border: '1px solid #E2E8F0',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '3.5px',
@@ -419,7 +421,7 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
               }}
             >
               <span className="lock-icon-blink" style={{ display: 'inline-flex', alignItems: 'center', gap: '3.5px' }}>
-                <Lock size={10.5} color="#92400E" />
+                <Lock size={10.5} color="#334155" />
                 <span>Locked</span>
               </span>
             </span>
@@ -434,9 +436,9 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
                 fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
                 padding: '2px 7px',
                 borderRadius: '4px',
-                backgroundColor: '#FEF3C7',
-                color: '#92400E',
-                border: '1px solid #FCD34D',
+                backgroundColor: '#ffffff',
+                color: '#334155',
+                border: '1px solid #E2E8F0',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '3.5px',
@@ -446,7 +448,7 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
               }}
               title={readOnlyReason || 'Read Only: Functional Domain Restriction'}
             >
-              <Lock size={10.5} color="#92400E" />
+              <Eye size={10.5} color="#334155" />
               <span>Read Only</span>
             </span>
           )}

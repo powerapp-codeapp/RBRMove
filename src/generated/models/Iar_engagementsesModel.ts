@@ -22,6 +22,7 @@ export type Iar_engagementsesstatuscode = keyof typeof Iar_engagementsesstatusco
 
 export interface Iar_engagementsesBase {
   "iar_AssessmentID@odata.bind": string;
+  iar_businessresponserequested: boolean;
   iar_engagementcode: string;
   iar_engagementname: string;
   iar_engagementsid: string;
@@ -42,6 +43,7 @@ export interface Iar_engagementsesBase {
 
 export interface Iar_engagementses extends Iar_engagementsesBase {
   createdon?: string;
+  iar_businessresponserequestedname?: string;
   iar_reportstatusname?: string;
   modifiedon?: string;
   ownerid: string;

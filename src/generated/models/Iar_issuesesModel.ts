@@ -16,8 +16,7 @@ export const Iar_issuesesiar_issuestatus = {
   822500005: 'Pending Director',
   822500006: 'Pending Business',
   822500007: 'Pending VP',
-  822500008: 'Completed',
-  822500009: 'Excluded'
+  822500008: 'Completed'
 } as const;
 export type Iar_issuesesiar_issuestatus = keyof typeof Iar_issuesesiar_issuestatus;
 export const Iar_issuesesstatecode = {
