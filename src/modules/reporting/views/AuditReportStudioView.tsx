@@ -86,6 +86,7 @@ export const AuditReportStudioView: React.FC = () => {
   const [isLogsOpen, setIsLogsOpen] = useState(false);
   const [logsScope, setLogsScope] = useState<'issue' | 'report'>('issue');
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
+  const [workflowScope, setWorkflowScope] = useState<'issue' | 'report'>('report');
   const [isCallbackModalOpen, setIsCallbackModalOpen] = useState(false);
   const [callbackIssueId, setCallbackIssueId] = useState<string | null>(null);
   const [isSendToModalOpen, setIsSendToModalOpen] = useState(false);
@@ -1081,6 +1082,7 @@ export const AuditReportStudioView: React.FC = () => {
     isOpen: boolean;
     title: string;
     actionLabel: string;
+    currentStatus?: string;
     targetStatus: string;
     actionType: 'submit-director' | 'submit-business' | 'submit-vp' | 'sign-off';
   } | null>(null);
@@ -1342,6 +1344,7 @@ export const AuditReportStudioView: React.FC = () => {
                       isOpen: true,
                       title: 'Submit Audit Report to Audit Director',
                       actionLabel: 'Submit to Director',
+                      currentStatus: 'Ready for Director Submission',
                       targetStatus: 'Pending Director',
                       actionType: 'submit-director',
                     });
@@ -1365,6 +1368,7 @@ export const AuditReportStudioView: React.FC = () => {
                     isOpen: true,
                     title: 'Submit Findings to Business Management',
                     actionLabel: 'Submit to Business',
+                    currentStatus: 'Pending Director',
                     targetStatus: 'Pending Business',
                     actionType: 'submit-business',
                   })
@@ -1383,6 +1387,7 @@ export const AuditReportStudioView: React.FC = () => {
                     isOpen: true,
                     title: 'Submit Audit Report to Vice President',
                     actionLabel: 'Submit to VP',
+                    currentStatus: 'Pending Director',
                     targetStatus: 'Pending VP',
                     actionType: 'submit-vp',
                   })
@@ -1406,7 +1411,8 @@ export const AuditReportStudioView: React.FC = () => {
                   setReportRemarksConfig({
                     isOpen: true,
                     title: 'Official Audit Report Sign-Off & Seal',
-                    actionLabel: 'Complete & Sign Off',
+                    actionLabel: 'Sign Off',
+                    currentStatus: 'Pending Director',
                     targetStatus: 'Completed',
                     actionType: 'sign-off',
                   })
@@ -1429,7 +1435,8 @@ export const AuditReportStudioView: React.FC = () => {
                   setReportRemarksConfig({
                     isOpen: true,
                     title: 'Executive Sign-Off & Seal (VP)',
-                    actionLabel: 'Sign Off Report',
+                    actionLabel: 'Sign Off',
+                    currentStatus: 'Pending VP',
                     targetStatus: 'Completed',
                     actionType: 'sign-off',
                   })
@@ -1482,7 +1489,10 @@ export const AuditReportStudioView: React.FC = () => {
                   key: 'workflow-stages',
                   label: 'Workflow',
                   icon: <GitBranch style={{ width: '14px', height: '14px', color: '#000099' }} />,
-                  onClick: () => setIsWorkflowModalOpen(true),
+                  onClick: () => {
+                    setWorkflowScope('report');
+                    setIsWorkflowModalOpen(true);
+                  },
                 },
                 {
                   key: 'audit-trail-logs',
@@ -1592,6 +1602,10 @@ export const AuditReportStudioView: React.FC = () => {
                   setLogsScope('issue');
                   setIsLogsOpen(true);
                 }}
+                onOpenWorkflow={() => {
+                  setWorkflowScope('issue');
+                  setIsWorkflowModalOpen(true);
+                }}
                 comments={comments}
                 onAddComment={handleAddComment}
                 onResolveComment={handleResolveComment}
@@ -1610,6 +1624,7 @@ export const AuditReportStudioView: React.FC = () => {
                 isCollapsed={isPane2Collapsed}
                 onToggleCollapse={setIsPane2Collapsed}
                 currentUser={currentUser || undefined}
+                assignedUsers={(activeEngagement as any)?.assignedUsers || []}
                 isAdmin={effectiveIsAdmin}
                 onAdvanceWorkflow={handleAdvanceWorkflow}
                 userRole={currentRole}
@@ -1716,7 +1731,9 @@ export const AuditReportStudioView: React.FC = () => {
         isOpen={isWorkflowModalOpen}
         onClose={() => setIsWorkflowModalOpen(false)}
         job={activeEngagement}
-        title="Audit Report Workflow Pipeline"
+        issue={workflowScope === 'issue' ? selectedIssue : undefined}
+        issues={issues}
+        title={workflowScope === 'issue' ? 'Issue Workflow Pipeline' : 'Audit Report Workflow Pipeline'}
         type="audit"
       />
 
@@ -1813,7 +1830,15 @@ export const AuditReportStudioView: React.FC = () => {
         onClose={() => setReportRemarksConfig(null)}
         title={reportRemarksConfig?.title || 'Report Workflow Transition'}
         actionLabel={reportRemarksConfig?.actionLabel || 'Submit'}
-        itemTitle={`Audit Report — ${(activeEngagement as any)?.fileName || (activeEngagement as any)?.engagement || selectedEngagementId || 'Audit Report'}`}
+        itemTitle={
+          (activeEngagement as any)?.engagementName ||
+          (activeEngagement as any)?.title ||
+          (activeEngagement as any)?.fileName ||
+          (activeEngagement as any)?.engagement ||
+          selectedEngagementId ||
+          'Audit Report'
+        }
+        currentStatusText={reportRemarksConfig?.currentStatus}
         targetStatusText={reportRemarksConfig?.targetStatus}
         onConfirm={async (remarks) => {
           if (!reportRemarksConfig) return;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   CheckCircle2,
@@ -7,8 +7,11 @@ import {
   Cpu,
   TrendingUp,
   GitBranch,
-  AlertCircle,
+  ArrowRight,
+  UserCheck,
+  Calendar,
 } from 'lucide-react';
+import { SharedTabs } from '../../../components/shared/tabs/SharedTabs';
 import {
   getEngagementWorkflowState,
   getUsersByEngagementAndRole,
@@ -20,6 +23,7 @@ export interface WorkflowModalProps {
   onClose: () => void;
   job?: any;
   report?: any;
+  issue?: any;
   issues?: any[];
   title?: string;
   type?: 'audit' | 'executive';
@@ -149,12 +153,22 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
   title,
   report,
   job,
+  issue,
   issues: _issuesProp,
   onClose,
   type = 'audit',
 }) => {
+  const [activeIssueTab, setActiveIssueTab] = useState<'graph' | 'details' | 'assignments'>('graph');
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveIssueTab('graph');
+    }
+  }, [isOpen, issue?.id]);
+
   if (!isOpen) return null;
 
+  const isIssueWorkflow = Boolean(issue);
   const currentJob = job || report || {};
   const jobId = currentJob.jobId || currentJob.id || currentJob.reportId || 'REP-2026-008';
   let auditTitle =
@@ -167,21 +181,28 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
 
   // Detect whether this is an Audit Report workflow or Executive Summary workflow
   const isAuditWorkflow =
+    isIssueWorkflow ||
     type === 'audit' ||
     Boolean(title && title.toLowerCase().includes('audit report')) ||
     currentJob.type === 'audit';
 
-  const defaultTitle = isAuditWorkflow
-    ? 'Audit Report Workflow Pipeline'
-    : 'Executive Summary Workflow';
+  const defaultTitle = isIssueWorkflow
+    ? 'Issue Workflow'
+    : isAuditWorkflow
+      ? 'Audit Report Workflow Pipeline'
+      : 'Executive Summary Workflow';
 
   let displayTitle = (title || defaultTitle).replace(/\s*pipeline\s*/gi, ' ').trim();
   if (!displayTitle || displayTitle.toLowerCase() === 'workflow stages') {
     displayTitle = defaultTitle;
   }
 
-  // Use efficient mock dataset to showcase both IT and FinOps pipelines + full matrix for demo approval
-  const realIssues: any[] = DEMO_SHOWCASE_ISSUES;
+  // Scope to single issue when opened from Issue Actions, or full dataset for Report Options
+  const realIssues: any[] = isIssueWorkflow
+    ? [issue]
+    : Array.isArray(_issuesProp) && _issuesProp.length > 0
+      ? _issuesProp
+      : DEMO_SHOWCASE_ISSUES;
 
   // Partition issues by domain
   const itIssues = realIssues.filter((i) => {
@@ -225,53 +246,81 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
   const leadDir = findByRole('director') || dirUsers[0]?.name || 'Marcus Vance';
   const leadVP = findByRole('vp') || vpUsers[0]?.name || 'Robert Chen';
 
-  // Helper to compute domain metrics
+  // Helper to compute domain metrics across all 6 stages
   const computeDomainMetrics = (issueArray: any[]) => {
     const activeIssueArray = issueArray.filter((iss) => !iss.isExcluded && iss.status !== 'Excluded');
     const total = activeIssueArray.length;
     if (total === 0) {
       return {
         total: 0,
+        staffCompleted: 0,
+        staffActive: 0,
         tcCompleted: 0,
         tcActive: 0,
         mgrCompleted: 0,
         mgrActive: 0,
-        bizActive: 0,
+        dirCompleted: 0,
         dirActive: 0,
+        bizCompleted: 0,
+        bizActive: 0,
+        vpCompleted: 0,
         vpActive: 0,
         isAllCleared: false,
       };
     }
+    let staffCompleted = 0;
+    let staffActive = 0;
     let tcCompleted = 0;
     let tcActive = 0;
     let mgrCompleted = 0;
     let mgrActive = 0;
-    let bizActive = 0;
+    let dirCompleted = 0;
     let dirActive = 0;
+    let bizCompleted = 0;
+    let bizActive = 0;
+    let vpCompleted = 0;
     let vpActive = 0;
 
     activeIssueArray.forEach((iss) => {
       const stage = resolveIssueStageStatuses(iss);
+      const hasBizResp = Boolean((iss.businessManagementResponse || iss.managementResponse || '').trim());
+
+      if (stage.staff.label.includes('Completed')) staffCompleted++;
+      if (stage.staff.label.includes('In Progress')) staffActive++;
+
       if (stage.tc.label.includes('Completed')) tcCompleted++;
       if (stage.tc.label.includes('In Progress')) tcActive++;
+
       if (stage.manager.label.includes('Completed') || stage.manager.label.includes('Cleared'))
         mgrCompleted++;
-      if (stage.manager.label.includes('In Progress')) mgrActive++;
-      if (stage.business.label.includes('In Progress')) bizActive++;
+      if (stage.manager.label.includes('In Progress') || stage.manager.label.includes('Biz Response'))
+        mgrActive++;
+
+      if (stage.director.label.includes('Completed')) dirCompleted++;
       if (stage.director.label.includes('In Progress')) dirActive++;
-      if (stage.vp.label.includes('In Review') || stage.vp.label.includes('Signed Off')) vpActive++;
+
+      if (hasBizResp || stage.business.label.includes('Completed')) bizCompleted++;
+      else if (stage.business.label.includes('In Progress')) bizActive++;
+
+      if (stage.vp.label.includes('Signed Off') || stage.vp.label.includes('Completed')) vpCompleted++;
+      if (stage.vp.label.includes('In Review')) vpActive++;
     });
 
     const isAllCleared = mgrCompleted === total && total > 0;
 
     return {
       total,
+      staffCompleted,
+      staffActive,
       tcCompleted,
       tcActive,
       mgrCompleted,
       mgrActive,
-      bizActive,
+      dirCompleted,
       dirActive,
+      bizCompleted,
+      bizActive,
+      vpCompleted,
       vpActive,
       isAllCleared,
     };
@@ -280,7 +329,7 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
   const itMetrics = computeDomainMetrics(itIssues);
   const finOpsMetrics = computeDomainMetrics(finOpsIssues);
 
-  // Pipeline diagram renderer component for a domain category (Exact layout & SVG nodes from Backup_JNJ_IAR/src/components/reporting/WorkflowModal.jsx)
+  // Clean Pipeline Graph Renderer: Staff -> TC -> Manager -> Director (sub-route Director -> Business -> Manager) -> VP
   const renderPipelineDiagram = ({
     domainLabel,
     metrics,
@@ -298,12 +347,17 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
   }) => {
     const {
       total,
+      staffCompleted,
+      staffActive,
       tcCompleted,
       tcActive,
       mgrCompleted,
       mgrActive,
-      bizActive,
+      dirCompleted,
       dirActive,
+      bizCompleted,
+      bizActive,
+      vpCompleted,
       vpActive,
       isAllCleared,
     } = metrics;
@@ -312,480 +366,399 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
       return (
         <div
           style={{
-            backgroundColor: '#ffffff',
-            border: '1px solid #d8d8d8',
-            borderRadius: '16px',
-            padding: '20px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            borderRadius: '10px',
+            padding: '18px 20px',
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
-            color: '#63666a',
+            color: '#64748B',
           }}
         >
-          <DomainIcon style={{ width: '20px', height: '20px', color: themeColor }} />
+          <DomainIcon style={{ width: '18px', height: '18px', color: themeColor }} />
           <div>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: '#212121' }}>
-              {domainLabel} Workflow Pipeline
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
+              {domainLabel} Workflow
             </div>
-            <div style={{ fontSize: '11.5px', color: '#63666a' }}>
-              No findings currently mapped to this functional domain for this engagement.
+            <div style={{ fontSize: '12px', color: '#64748B' }}>
+              No active findings mapped to this functional domain for this engagement.
             </div>
           </div>
         </div>
       );
     }
 
-    // Dynamic connectors
-    const isConn1Done = tcCompleted === total;
-    const isConn2Done = isAllCleared;
-    const isConn3Done = vpActive === total && total > 0;
+    const slug = domainLabel.replace(/[^a-zA-Z0-9]+/g, '-');
+    const isStaffDone = staffCompleted === total;
+    const isTcDone = tcCompleted === total;
+    const isMgrDone = isAllCleared;
+    const isDirDone = dirCompleted === total;
+    const isVpDone = vpCompleted === total;
+    const isBizDone = bizCompleted === total && total > 0;
+
+    const topStages = [
+      {
+        step: 1,
+        title: 'Staff',
+        completed: staffCompleted,
+        active: staffActive,
+        isDone: isStaffDone,
+        isActive: staffActive > 0,
+      },
+      {
+        step: 2,
+        title: 'TC',
+        completed: tcCompleted,
+        active: tcActive,
+        isDone: isTcDone,
+        isActive: tcActive > 0,
+      },
+      {
+        step: 3,
+        title: 'Manager',
+        completed: mgrCompleted,
+        active: mgrActive,
+        isDone: isMgrDone,
+        isActive: mgrActive > 0,
+      },
+      {
+        step: 4,
+        title: 'Director',
+        completed: dirCompleted,
+        active: dirActive,
+        isDone: isDirDone,
+        isActive: dirActive > 0,
+      },
+      {
+        step: 5,
+        title: 'VP',
+        completed: vpCompleted,
+        active: vpActive,
+        isDone: isVpDone,
+        isActive: vpActive > 0,
+      },
+    ];
+
+    const renderNodeCard = (node: {
+      step: number | string;
+      title: string;
+      completed: number;
+      active: number;
+      isDone: boolean;
+      isActive: boolean;
+      subtitle?: string;
+    }) => {
+      const borderColor = node.isDone
+        ? '#16A34A'
+        : node.isActive
+          ? '#000099'
+          : '#CBD5E1';
+      const headerBg = node.isDone
+        ? '#F0FDF4'
+        : node.isActive
+          ? '#EFF6FF'
+          : '#F8FAFC';
+      const statusText = node.isDone
+        ? 'Completed'
+        : node.isActive
+          ? 'In Progress'
+          : node.completed > 0
+            ? 'In Progress'
+            : 'Pending';
+      const statusColor = node.isDone
+        ? '#087D0D'
+        : node.isActive || node.completed > 0
+          ? '#000099'
+          : '#64748B';
+
+      return (
+        <div
+          style={{
+            width: '154px',
+            backgroundColor: '#FFFFFF',
+            border: `1.5px solid ${borderColor}`,
+            borderRadius: '8px',
+            overflow: 'hidden',
+            boxShadow: node.isActive
+              ? '0 4px 12px rgba(0, 0, 153, 0.1)'
+              : '0 1px 3px rgba(0, 0, 0, 0.04)',
+          }}
+        >
+          <div
+            style={{
+              padding: '8px 10px',
+              backgroundColor: headerBg,
+              borderBottom: '1px solid #E2E8F0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '6px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+              <span
+                style={{
+                  width: '20px',
+                  height: '20px',
+                  borderRadius: '50%',
+                  backgroundColor: node.isDone
+                    ? '#16A34A'
+                    : node.isActive
+                      ? '#000099'
+                      : '#94A3B8',
+                  color: '#FFFFFF',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '10.5px',
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}
+              >
+                {node.isDone ? (
+                  <CheckCircle2 style={{ width: '12px', height: '12px' }} />
+                ) : node.isActive ? (
+                  <Clock style={{ width: '12px', height: '12px' }} />
+                ) : (
+                  node.step
+                )}
+              </span>
+              <span
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: '#0F172A',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {node.title}
+              </span>
+            </div>
+
+            <span
+              style={{
+                fontSize: '10.5px',
+                fontWeight: 700,
+                color: statusColor,
+                backgroundColor: '#FFFFFF',
+                border: `1px solid ${borderColor}`,
+                padding: '1px 6px',
+                borderRadius: '999px',
+                flexShrink: 0,
+              }}
+            >
+              {node.completed}/{total}
+            </span>
+          </div>
+
+          <div
+            style={{
+              padding: '7px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '11px',
+            }}
+          >
+            <span style={{ color: '#64748B', fontWeight: 500 }}>
+              {node.subtitle || statusText}
+            </span>
+            <span style={{ fontWeight: 600, color: statusColor }}>
+              {node.active > 0 ? `${node.active} Active` : `${node.completed} Done`}
+            </span>
+          </div>
+        </div>
+      );
+    };
 
     return (
       <div
         style={{
-          backgroundColor: '#ffffff',
-          border: '1px solid #d8d8d8',
-          borderRadius: '16px',
-          padding: '22px 20px',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.05)',
+          backgroundColor: '#FFFFFF',
+          border: '1px solid #E2E8F0',
+          borderRadius: '10px',
+          padding: '18px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px',
         }}
       >
-        {/* Domain Header Row */}
+        {/* Domain Header */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            marginBottom: '18px',
-            borderBottom: '1px solid #f4f4f4',
+            borderBottom: '1px solid #F1F5F9',
             paddingBottom: '10px',
           }}
         >
           <div
             style={{
               fontSize: '13px',
-              fontWeight: 900,
-              color: themeColor,
-              textTransform: 'uppercase',
-              letterSpacing: '0.4px',
+              fontWeight: 700,
+              color: '#0F172A',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
             }}
           >
-            <DomainIcon style={{ width: '18px', height: '18px', color: themeColor }} />
-            <span>
-              {domainLabel} Workflow Pipeline ({total} Active Finding{total === 1 ? '' : 's'})
-            </span>
+            <DomainIcon style={{ width: '16px', height: '16px', color: themeColor }} />
+            <span>{domainLabel}</span>
           </div>
           <span
             style={{
               fontSize: '11px',
-              fontWeight: 800,
+              fontWeight: 700,
               color: themeColor,
               backgroundColor: themeBg,
-              padding: '3px 10px',
-              borderRadius: '9999px',
+              padding: '2px 10px',
+              borderRadius: '999px',
               border: `1px solid ${themeBorder}`,
             }}
           >
-            TC: {tcCompleted}/{total} | Manager: {mgrCompleted}/{total} | Director: {dirActive}/
-            {total}
+            Total Active Findings: {total}
           </span>
         </div>
 
-        {/* Dynamic Pipeline Canvas */}
-        <div style={{ position: 'relative', width: '100%', minHeight: '180px' }}>
-          <svg
+        {/* Graphical Flow Canvas: Top Row (Staff -> TC -> Manager -> Director -> VP) + Sub-route (Director -> Business -> Manager) */}
+        <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+          {/* Top Linear Row: Staff -> TC -> Manager -> Director -> VP */}
+          <div
             style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              pointerEvents: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              position: 'relative',
+              zIndex: 2,
             }}
           >
-            <defs>
-              <marker
-                id={`arrow-${domainLabel.replace(/\s+/g, '-')}`}
-                viewBox="0 0 10 10"
-                refX="6"
-                refY="5"
-                markerWidth="6"
-                markerHeight="6"
-                orient="auto-start-reverse"
-              >
-                <path
-                  d="M 0 0 L 10 5 L 0 10 z"
-                  fill={isConn1Done ? '#087D0D' : themeColor}
-                />
-              </marker>
-              <marker
-                id={`arrow-mgr-${domainLabel.replace(/\s+/g, '-')}`}
-                viewBox="0 0 10 10"
-                refX="6"
-                refY="5"
-                markerWidth="6"
-                markerHeight="6"
-                orient="auto-start-reverse"
-              >
-                <path
-                  d="M 0 0 L 10 5 L 0 10 z"
-                  fill={isConn2Done ? '#087D0D' : '#94A3B8'}
-                />
-              </marker>
-            </defs>
+            {topStages.map((stg, i) => (
+              <React.Fragment key={stg.title}>
+                {renderNodeCard(stg)}
+                {i < topStages.length - 1 && (
+                  <div
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: stg.isDone ? '#16A34A' : '#CBD5E1',
+                      minWidth: '18px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: '2px',
+                        flex: 1,
+                        backgroundColor: stg.isDone ? '#16A34A' : '#CBD5E1',
+                      }}
+                    />
+                    <ArrowRight
+                      style={{
+                        width: '14px',
+                        height: '14px',
+                        marginLeft: '-4px',
+                        flexShrink: 0,
+                      }}
+                    />
+                  </div>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
 
-            {/* TC to Manager */}
-            <line
-              x1="90"
-              y1="35"
-              x2="200"
-              y2="35"
-              stroke={isConn1Done ? '#087D0D' : tcActive > 0 ? themeColor : '#d8d8d8'}
-              strokeWidth={isConn1Done || tcActive > 0 ? 3 : 2}
-              markerEnd={`url(#arrow-${domainLabel.replace(/\s+/g, '-')})`}
-            />
-
-            {/* Manager to Director */}
-            <line
-              x1="340"
-              y1="35"
-              x2="430"
-              y2="35"
-              stroke={isConn2Done ? '#087D0D' : '#d8d8d8'}
-              strokeWidth={isConn2Done ? 3 : 2}
-              strokeDasharray={isConn2Done ? 'none' : '5,5'}
-              markerEnd={`url(#arrow-mgr-${domainLabel.replace(/\s+/g, '-')})`}
-            />
-
-            {/* Director to Final Report */}
-            <line
-              x1="550"
-              y1="35"
-              x2="610"
-              y2="35"
-              stroke={isConn3Done ? '#087D0D' : '#d8d8d8'}
-              strokeWidth={isConn3Done ? 3 : 2}
-              strokeDasharray={isConn3Done ? 'none' : '5,5'}
-            />
-
-            {/* Branch: Manager to Management Response */}
-            <path
-              d="M 270 55 L 270 125 L 430 125"
-              fill="none"
-              stroke={bizActive > 0 ? '#0284C7' : '#d8d8d8'}
-              strokeWidth={bizActive > 0 ? 2.5 : 2}
-              strokeDasharray={bizActive > 0 ? 'none' : '4,4'}
-            />
-          </svg>
-
-          {/* Nodes */}
-          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-            {/* Node 1: TC */}
-            <div style={{ position: 'absolute', left: '0%', top: '10px', pointerEvents: 'auto' }}>
-              <div
-                style={{
-                  backgroundColor: '#ffffff',
-                  border: isConn1Done
-                    ? '2px solid #087D0D'
-                    : tcActive > 0
-                      ? `2.5px solid ${themeColor}`
-                      : '1.5px solid #d8d8d8',
-                  borderRadius: '10px',
-                  padding: '6px 12px',
-                  boxShadow: isConn1Done
-                    ? '0 2px 8px rgba(8,125,13,0.12)'
-                    : '0 2px 6px rgba(0,0,0,0.05)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <div
-                  style={{
-                    width: '22px',
-                    height: '22px',
-                    borderRadius: '50%',
-                    backgroundColor: isConn1Done
-                      ? '#F0FDF4'
-                      : tcActive > 0
-                        ? themeBg
-                        : '#f4f4f4',
-                    color: isConn1Done
-                      ? '#087D0D'
-                      : tcActive > 0
-                        ? themeColor
-                        : '#63666a',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
+          {/* Sub-Route Loop Row: Director -> Business -> Manager */}
+          <div
+            style={{
+              position: 'relative',
+              height: '118px',
+              marginTop: '4px',
+            }}
+          >
+            <svg
+              viewBox="0 0 860 118"
+              preserveAspectRatio="none"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: 'none',
+              }}
+            >
+              <defs>
+                <marker
+                  id={`arrow-dir-biz-${slug}`}
+                  viewBox="0 0 10 10"
+                  refX="6"
+                  refY="5"
+                  markerWidth="6"
+                  markerHeight="6"
+                  orient="auto"
                 >
-                  {isConn1Done ? (
-                    <CheckCircle2 style={{ width: '14px', height: '14px' }} />
-                  ) : (
-                    <Clock style={{ width: '14px', height: '14px' }} />
-                  )}
-                </div>
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 900, color: '#212121' }}>
-                    TC Review
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '10px',
-                      fontWeight: 800,
-                      color: isConn1Done
-                        ? '#087D0D'
-                        : tcActive > 0
-                          ? themeColor
-                          : '#63666a',
-                    }}
-                  >
-                    {isConn1Done
-                      ? `Completed (${tcCompleted}/${total})`
-                      : tcActive > 0
-                        ? `In Progress (${tcActive}/${total})`
-                        : 'Pending'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Node 2: Audit Manager */}
-            <div style={{ position: 'absolute', left: '26%', top: '8px', pointerEvents: 'auto' }}>
-              <div
-                style={{
-                  backgroundColor: '#ffffff',
-                  border: isConn2Done
-                    ? '2px solid #087D0D'
-                    : mgrActive > 0
-                      ? '2.5px solid #eb1700'
-                      : '1.5px solid #d8d8d8',
-                  borderRadius: '10px',
-                  padding: '6px 12px',
-                  boxShadow:
-                    mgrActive > 0
-                      ? '0 4px 16px rgba(235,23,0,0.18)'
-                      : '0 2px 6px rgba(0,0,0,0.05)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <div
-                  style={{
-                    width: '22px',
-                    height: '22px',
-                    borderRadius: '50%',
-                    backgroundColor: isConn2Done
-                      ? '#F0FDF4'
-                      : mgrActive > 0
-                        ? '#FFF1F0'
-                        : '#f4f4f4',
-                    color: isConn2Done
-                      ? '#087D0D'
-                      : mgrActive > 0
-                        ? '#eb1700'
-                        : '#63666a',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
+                  <path
+                    d="M 0 0 L 10 5 L 0 10 z"
+                    fill={bizActive > 0 || isBizDone ? '#000099' : '#94A3B8'}
+                  />
+                </marker>
+                <marker
+                  id={`arrow-biz-mgr-${slug}`}
+                  viewBox="0 0 10 10"
+                  refX="6"
+                  refY="5"
+                  markerWidth="6"
+                  markerHeight="6"
+                  orient="auto"
                 >
-                  {isConn2Done ? (
-                    <CheckCircle2 style={{ width: '14px', height: '14px' }} />
-                  ) : (
-                    <Clock style={{ width: '14px', height: '14px' }} />
-                  )}
-                </div>
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 900, color: '#212121' }}>
-                    Audit Manager
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '10px',
-                      fontWeight: 800,
-                      color: isConn2Done
-                        ? '#087D0D'
-                        : mgrActive > 0
-                          ? '#eb1700'
-                          : '#63666a',
-                    }}
-                  >
-                    {isConn2Done
-                      ? `Cleared (${mgrCompleted}/${total})`
-                      : mgrActive > 0
-                        ? `In Progress (${mgrActive}/${total})`
-                        : `Cleared (${mgrCompleted}/${total})`}
-                  </div>
-                </div>
-              </div>
-            </div>
+                  <path
+                    d="M 0 0 L 10 5 L 0 10 z"
+                    fill={isBizDone ? '#16A34A' : '#94A3B8'}
+                  />
+                </marker>
+              </defs>
 
-            {/* Node 3: Director Clearance (Batch gate) */}
-            <div style={{ position: 'absolute', left: '56%', top: '10px', pointerEvents: 'auto' }}>
-              <div
-                style={{
-                  backgroundColor: dirActive > 0 ? '#EFF6FF' : '#F8FAFC',
-                  border: dirActive > 0 ? '2px solid #000099' : '1.5px solid #d8d8d8',
-                  borderRadius: '10px',
-                  padding: '6px 12px',
-                  boxShadow: dirActive > 0 ? '0 4px 12px rgba(0,0,153,0.15)' : 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <div
-                  style={{
-                    width: '20px',
-                    height: '20px',
-                    borderRadius: '50%',
-                    backgroundColor: dirActive > 0 ? '#DBEAFE' : '#E2E8F0',
-                    color: dirActive > 0 ? '#000099' : '#63666a',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '10px',
-                    fontWeight: 800,
-                  }}
-                >
-                  {dirActive > 0 ? <Clock style={{ width: '12px', height: '12px' }} /> : '3'}
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: '12px',
-                      fontWeight: 800,
-                      color: dirActive > 0 ? '#000099' : '#212121',
-                    }}
-                  >
-                    Director Review
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '9.5px',
-                      fontWeight: 700,
-                      color: dirActive > 0 ? '#000099' : '#63666a',
-                    }}
-                  >
-                    {dirActive > 0
-                      ? `In Review (${dirActive}/${total})`
-                      : isAllCleared
-                        ? 'Cleared for Director'
-                        : 'Waiting on All Issues'}
-                  </div>
-                </div>
-              </div>
-            </div>
+              {/* Director (x=630) down and left into Business right side (x=590, y=64) */}
+              <path
+                d="M 630 2 L 630 64 L 592 64"
+                fill="none"
+                stroke={bizActive > 0 || isBizDone ? '#000099' : '#CBD5E1'}
+                strokeWidth="2"
+                strokeDasharray={bizActive > 0 || isBizDone ? 'none' : '4,4'}
+                markerEnd={`url(#arrow-dir-biz-${slug})`}
+              />
 
-            {/* Node 4: Final Report / VP SignOff */}
-            <div style={{ position: 'absolute', right: '0%', top: '10px', pointerEvents: 'auto' }}>
-              <div
-                style={{
-                  backgroundColor: vpActive > 0 ? '#EFF6FF' : '#F8FAFC',
-                  border: vpActive > 0 ? '2px solid #000099' : '1.5px solid #d8d8d8',
-                  borderRadius: '10px',
-                  padding: '6px 12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <div
-                  style={{
-                    width: '20px',
-                    height: '20px',
-                    borderRadius: '50%',
-                    backgroundColor: vpActive > 0 ? '#DBEAFE' : '#E2E8F0',
-                    color: vpActive > 0 ? '#000099' : '#63666a',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '10px',
-                    fontWeight: 800,
-                  }}
-                >
-                  {vpActive > 0 ? <Clock style={{ width: '12px', height: '12px' }} /> : '4'}
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: '12px',
-                      fontWeight: 800,
-                      color: vpActive > 0 ? '#000099' : '#212121',
-                    }}
-                  >
-                    VP Sign-Off
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '9.5px',
-                      fontWeight: 600,
-                      color: vpActive > 0 ? '#000099' : '#63666a',
-                    }}
-                  >
-                    {vpActive > 0 ? 'VP Review' : 'Not Started'}
-                  </div>
-                </div>
-              </div>
-            </div>
+              {/* Business left side (x=420, y=64) left and up into Manager bottom (x=430, y=6) */}
+              <path
+                d="M 418 64 L 380 64 L 380 6"
+                fill="none"
+                stroke={isBizDone ? '#16A34A' : '#CBD5E1'}
+                strokeWidth="2"
+                strokeDasharray={isBizDone ? 'none' : '4,4'}
+                markerEnd={`url(#arrow-biz-mgr-${slug})`}
+              />
+            </svg>
 
-            {/* Node 5: Branch - Management Response */}
-            <div style={{ position: 'absolute', left: '52%', top: '100px', pointerEvents: 'auto' }}>
-              <div
-                style={{
-                  backgroundColor: bizActive > 0 ? '#F0F9FF' : '#F8FAFC',
-                  border: bizActive > 0 ? '2px solid #0284C7' : '1.5px solid #d8d8d8',
-                  borderRadius: '10px',
-                  padding: '6px 12px',
-                  boxShadow: bizActive > 0 ? '0 4px 12px rgba(2,132,199,0.18)' : 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <div
-                  style={{
-                    width: '20px',
-                    height: '20px',
-                    borderRadius: '50%',
-                    backgroundColor: bizActive > 0 ? '#E0F2FE' : '#E2E8F0',
-                    color: bizActive > 0 ? '#0369A1' : '#63666a',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '10px',
-                    fontWeight: 800,
-                  }}
-                >
-                  {bizActive > 0 ? <Clock style={{ width: '12px', height: '12px' }} /> : 'B'}
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: '12px',
-                      fontWeight: 800,
-                      color: bizActive > 0 ? '#075985' : '#212121',
-                    }}
-                  >
-                    Management Response
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '9.5px',
-                      fontWeight: 700,
-                      color: bizActive > 0 ? '#0284C7' : '#63666a',
-                    }}
-                  >
-                    {bizActive > 0 ? `Active: ${bizActive} Finding(s)` : 'Pending Owner Input'}
-                  </div>
-                </div>
-              </div>
+            {/* Sub-Route Node: Business (Positioned centered between Manager and Director) */}
+            <div
+              style={{
+                position: 'absolute',
+                left: '58.5%',
+                top: '26px',
+                transform: 'translateX(-50%)',
+                zIndex: 2,
+              }}
+            >
+              {renderNodeCard({
+                step: 'B',
+                title: 'Business',
+                completed: bizCompleted,
+                active: bizActive,
+                isDone: isBizDone,
+                isActive: bizActive > 0,
+                subtitle: 'Sub-Route',
+              })}
             </div>
           </div>
         </div>
@@ -793,83 +766,849 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
     );
   };
 
+  if (isIssueWorkflow && issue) {
+    const stages = resolveIssueStageStatuses(issue);
+    const domainTag = issue.function || issue.functionType || issue.tech || 'IT';
+    const isITDomain = !String(domainTag).toLowerCase().includes('fin');
+    const funcLabel = isITDomain ? 'IT' : 'FinOps';
+
+    // Resolve engagement assignees with Persona, Function, Name, and Email
+    const staffPool = getUsersByEngagementAndRole(jobId, 'it-auditor').concat(
+      getUsersByEngagementAndRole(jobId, 'finops-auditor')
+    );
+    const rawAssignments: Array<{
+      persona: string;
+      functionName: string;
+      name: string;
+      email: string;
+    }> = [];
+
+    if (Array.isArray(assignedUsers) && assignedUsers.length > 0) {
+      assignedUsers.forEach((u: any) => {
+        const { domain, baseRole } = getRoleDetails(u.roleId || u.roleName);
+        const isFinOps = String(domain || '').toLowerCase().includes('fin');
+        const personaMap: Record<string, string> = {
+          auditor: 'Staff Auditor',
+          'team-coordinator': 'Team Coordinator',
+          manager: 'Audit Manager',
+          director: 'Audit Director',
+          vp: 'Vice President',
+          'primary-business-contact': 'Primary Business Contact',
+        };
+        const uName = u.displayName || u.name || 'Assigned Auditor';
+        const uEmail =
+          u.email ||
+          `${uName.toLowerCase().replace(/[^a-z0-9]+/g, '.')}@its.jnj.com`;
+        rawAssignments.push({
+          persona: personaMap[baseRole] || u.roleName || 'Audit Team Member',
+          functionName: isFinOps ? 'FinOps' : 'IT',
+          name: uName,
+          email: uEmail,
+        });
+      });
+    } else {
+      const leadStaff = staffPool[0]?.name || issue.createdBy || 'Alex Rivera';
+      rawAssignments.push(
+        {
+          persona: 'Staff Auditor',
+          functionName: funcLabel,
+          name: leadStaff,
+          email: `${leadStaff.toLowerCase().replace(/[^a-z0-9]+/g, '.')}@its.jnj.com`,
+        },
+        {
+          persona: 'Team Coordinator',
+          functionName: funcLabel,
+          name: leadTC,
+          email: `${leadTC.toLowerCase().replace(/[^a-z0-9]+/g, '.')}@its.jnj.com`,
+        },
+        {
+          persona: 'Audit Manager',
+          functionName: funcLabel,
+          name: leadMgr,
+          email: `${leadMgr.toLowerCase().replace(/[^a-z0-9]+/g, '.')}@its.jnj.com`,
+        },
+        {
+          persona: 'Audit Director',
+          functionName: funcLabel,
+          name: leadDir,
+          email: `${leadDir.toLowerCase().replace(/[^a-z0-9]+/g, '.')}@its.jnj.com`,
+        },
+        {
+          persona: 'Vice President',
+          functionName: funcLabel,
+          name: leadVP,
+          email: `${leadVP.toLowerCase().replace(/[^a-z0-9]+/g, '.')}@its.jnj.com`,
+        }
+      );
+    }
+
+    const bizOwnerName =
+      issue.primaryBusinessOwnerName ||
+      issue.primaryContact ||
+      issue.businessContactName ||
+      issue.accountableContact;
+    if (bizOwnerName) {
+      rawAssignments.push({
+        persona: 'Primary Business Owner',
+        functionName: funcLabel,
+        name: bizOwnerName,
+        email: `${bizOwnerName.toLowerCase().replace(/[^a-z0-9]+/g, '.')}@its.jnj.com`,
+      });
+    }
+
+    const staffName =
+      rawAssignments.find((a) => a.persona.toLowerCase().includes('staff'))?.name ||
+      issue.createdBy ||
+      'Alex Rivera';
+    const tcName =
+      rawAssignments.find((a) => a.persona.toLowerCase().includes('coordinator'))?.name ||
+      leadTC;
+    const mgrName =
+      rawAssignments.find((a) => a.persona.toLowerCase().includes('manager'))?.name ||
+      leadMgr;
+    const dirName =
+      rawAssignments.find((a) => a.persona.toLowerCase().includes('director'))?.name ||
+      leadDir;
+    const vpName =
+      rawAssignments.find((a) => a.persona.toLowerCase().includes('vice president'))?.name ||
+      leadVP;
+    const bizName =
+      issue.businessResponseAddedOnBehalfBy ||
+      issue.businessResponseProvidedBy ||
+      bizOwnerName ||
+      'Business Owner';
+
+    const hasBizResponse = Boolean(
+      (issue.businessManagementResponse || issue.managementResponse || '').trim()
+    );
+
+    const isStageDone = (label: string) =>
+      label.includes('Completed') || label.includes('Cleared') || label.includes('Signed Off');
+
+    const issueStageRows = [
+      {
+        step: 1,
+        stage: 'Staff Drafting',
+        status: stages.staff.label.replace(/^[✓⏳↺]\s*/, ''),
+        rawLabel: stages.staff.label,
+        color: stages.staff.color,
+        bg: stages.staff.bg,
+        isDone: isStageDone(stages.staff.label),
+        isActive: stages.staff.label.includes('In Progress'),
+        completedBy: isStageDone(stages.staff.label) ? staffName : '—',
+        completedAt: isStageDone(stages.staff.label)
+          ? issue.createdAt || 'Oct 24, 2026, 09:30 AM'
+          : '—',
+      },
+      {
+        step: 2,
+        stage: 'TC Review',
+        status: stages.tc.label.replace(/^[✓⏳↺]\s*/, ''),
+        rawLabel: stages.tc.label,
+        color: stages.tc.color,
+        bg: stages.tc.bg,
+        isDone: isStageDone(stages.tc.label),
+        isActive: stages.tc.label.includes('In Progress'),
+        completedBy: isStageDone(stages.tc.label) ? tcName : '—',
+        completedAt: isStageDone(stages.tc.label) ? 'Oct 25, 2026, 02:15 PM' : '—',
+      },
+      {
+        step: 3,
+        stage: 'Manager Review',
+        status: stages.manager.label.replace(/^[✓⏳↺]\s*/, ''),
+        rawLabel: stages.manager.label,
+        color: stages.manager.color,
+        bg: stages.manager.bg,
+        isDone: isStageDone(stages.manager.label),
+        isActive:
+          stages.manager.label.includes('In Progress') ||
+          stages.manager.label.includes('Biz Response'),
+        completedBy: isStageDone(stages.manager.label) ? mgrName : '—',
+        completedAt: isStageDone(stages.manager.label) ? 'Oct 26, 2026, 04:45 PM' : '—',
+      },
+      {
+        step: 4,
+        stage: 'Director Review',
+        status: stages.director.label.replace(/^[✓⏳↺]\s*/, ''),
+        rawLabel: stages.director.label,
+        color: stages.director.color,
+        bg: stages.director.bg,
+        isDone: isStageDone(stages.director.label),
+        isActive: stages.director.label.includes('In Progress'),
+        completedBy: isStageDone(stages.director.label) ? dirName : '—',
+        completedAt: isStageDone(stages.director.label) ? 'Oct 27, 2026, 11:20 AM' : '—',
+      },
+      {
+        step: 5,
+        stage: 'Business Response',
+        status: hasBizResponse
+          ? 'Completed'
+          : stages.business.label.replace(/^[✓⏳↺]\s*/, ''),
+        rawLabel: hasBizResponse ? '✓ Completed' : stages.business.label,
+        color: hasBizResponse ? '#087D0D' : stages.business.color,
+        bg: hasBizResponse ? '#F0FDF4' : stages.business.bg,
+        isDone: hasBizResponse || isStageDone(stages.business.label),
+        isActive: !hasBizResponse && stages.business.label.includes('In Progress'),
+        completedBy: hasBizResponse ? bizName : '—',
+        completedAt: hasBizResponse
+          ? issue.businessResponseAddedOnBehalfAt ||
+            issue.businessResponseProvidedAt ||
+            issue.updatedAt ||
+            'Oct 28, 2026, 02:30 PM'
+          : '—',
+      },
+      {
+        step: 6,
+        stage: 'VP Sign-Off',
+        status: stages.vp.label.replace(/^[✓⏳↺]\s*/, ''),
+        rawLabel: stages.vp.label,
+        color: stages.vp.color,
+        bg: stages.vp.bg,
+        isDone: isStageDone(stages.vp.label),
+        isActive: stages.vp.label.includes('In Review'),
+        completedBy: isStageDone(stages.vp.label) ? vpName : '—',
+        completedAt: isStageDone(stages.vp.label)
+          ? issue.updatedAt || 'Oct 29, 2026, 01:00 PM'
+          : '—',
+      },
+    ];
+
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.5)',
+          backdropFilter: 'blur(2px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          zIndex: 1500,
+          fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+        }}
+        onClick={onClose}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: '920px',
+            maxWidth: '96vw',
+            maxHeight: '86vh',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '10px',
+            boxShadow: '0 24px 48px rgba(0, 0, 0, 0.2)',
+            border: '1px solid #E2E8F0',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Dialog Header */}
+          <div
+            style={{
+              padding: '18px 24px 14px 24px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: '16px',
+              backgroundColor: '#FFFFFF',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+              <div
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '8px',
+                  backgroundColor: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#000099',
+                  flexShrink: 0,
+                }}
+              >
+                <GitBranch style={{ width: '18px', height: '18px' }} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <h3
+                  className="type-modal-title"
+                  style={{
+                    margin: 0,
+                    fontSize: 'var(--type-modal-title-size, 15px)',
+                    fontWeight: 700,
+                    color: '#0F172A',
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {issue.title || issue.header || issue.id || 'Audit Finding'}
+                </h3>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginTop: '4px',
+                    fontSize: '12px',
+                    color: '#64748B',
+                  }}
+                >
+                  <span>Current Status:</span>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#000099',
+                      backgroundColor: '#EFF6FF',
+                      border: '1px solid #BFDBFE',
+                      padding: '1px 8px',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    {issue.status || 'Pending Staff'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: '6px',
+                borderRadius: '6px',
+                border: '1px solid #E2E8F0',
+                backgroundColor: '#FFFFFF',
+                color: '#64748B',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+              title="Close Dialog"
+            >
+              <X style={{ width: '16px', height: '16px' }} />
+            </button>
+          </div>
+
+          {/* 3-Tab Navigation Bar */}
+          <div style={{ padding: '0 24px', backgroundColor: '#FFFFFF' }}>
+            <SharedTabs
+              items={[
+                { id: 'graph', label: 'Workflow Graph' },
+                { id: 'details', label: 'Workflow Details' },
+                { id: 'assignments', label: 'Assignments', count: rawAssignments.length },
+              ]}
+              value={activeIssueTab}
+              onChange={(val) => setActiveIssueTab(val)}
+              variant="primary"
+              size="small"
+              marginBottom="0px"
+            />
+          </div>
+
+          {/* Tab Body */}
+          <div
+            style={{
+              padding: '20px 24px 24px 24px',
+              overflowY: 'auto',
+              backgroundColor: '#F8FAFC',
+              flex: 1,
+            }}
+          >
+            {/* TAB 1: WORKFLOW GRAPH (Graphical Stage Progression with Stage, Status, Who Completed, When Completed) */}
+            {activeIssueTab === 'graph' && (
+              <div
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '10px',
+                  padding: '20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                    gap: '16px',
+                  }}
+                >
+                  {issueStageRows.map((row, idx) => {
+                    const borderColor = row.isDone
+                      ? '#16A34A'
+                      : row.isActive
+                        ? '#000099'
+                        : '#CBD5E1';
+                    const headerBg = row.isDone
+                      ? '#F0FDF4'
+                      : row.isActive
+                        ? '#EFF6FF'
+                        : '#F8FAFC';
+
+                    return (
+                      <div
+                        key={row.step}
+                        style={{
+                          position: 'relative',
+                          display: 'flex',
+                          alignItems: 'stretch',
+                        }}
+                      >
+                        <div
+                          style={{
+                            flex: 1,
+                            backgroundColor: '#FFFFFF',
+                            border: `1.5px solid ${borderColor}`,
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                            boxShadow: row.isActive
+                              ? '0 4px 12px rgba(0, 0, 153, 0.1)'
+                              : '0 1px 3px rgba(0, 0, 0, 0.04)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                          }}
+                        >
+                          {/* Stage Card Header: Stage & Status */}
+                          <div
+                            style={{
+                              padding: '10px 12px',
+                              backgroundColor: headerBg,
+                              borderBottom: '1px solid #E2E8F0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '8px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                              <span
+                                style={{
+                                  width: '22px',
+                                  height: '22px',
+                                  borderRadius: '50%',
+                                  backgroundColor: row.isDone
+                                    ? '#16A34A'
+                                    : row.isActive
+                                      ? '#000099'
+                                      : '#94A3B8',
+                                  color: '#FFFFFF',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {row.isDone ? (
+                                  <CheckCircle2 style={{ width: '13px', height: '13px' }} />
+                                ) : row.isActive ? (
+                                  <Clock style={{ width: '13px', height: '13px' }} />
+                                ) : (
+                                  row.step
+                                )}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: '12.5px',
+                                  fontWeight: 700,
+                                  color: '#0F172A',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {row.stage}
+                              </span>
+                            </div>
+
+                            <span
+                              style={{
+                                fontSize: '10.5px',
+                                fontWeight: 700,
+                                color: row.color,
+                                backgroundColor: '#FFFFFF',
+                                border: `1px solid ${borderColor}`,
+                                padding: '2px 7px',
+                                borderRadius: '999px',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {row.status}
+                            </span>
+                          </div>
+
+                          {/* Stage Card Body: Who Completed & When Completed */}
+                          <div
+                            style={{
+                              padding: '10px 12px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '6px',
+                              fontSize: '11.5px',
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '8px',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  color: '#64748B',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                }}
+                              >
+                                <UserCheck style={{ width: '12px', height: '12px', color: '#94A3B8' }} />
+                                Who Completed
+                              </span>
+                              <span
+                                style={{
+                                  fontWeight: 600,
+                                  color: row.completedBy !== '—' ? '#1E293B' : '#94A3B8',
+                                }}
+                              >
+                                {row.completedBy}
+                              </span>
+                            </div>
+
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '8px',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  color: '#64748B',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                }}
+                              >
+                                <Calendar style={{ width: '12px', height: '12px', color: '#94A3B8' }} />
+                                When Completed
+                              </span>
+                              <span
+                                style={{
+                                  fontWeight: 500,
+                                  color: row.completedAt !== '—' ? '#334155' : '#94A3B8',
+                                }}
+                              >
+                                {row.completedAt}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Connector Arrow to next stage in row */}
+                        {idx % 3 !== 2 && idx < issueStageRows.length - 1 && (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '16px',
+                              marginRight: '-16px',
+                              zIndex: 2,
+                              color: row.isDone ? '#16A34A' : '#CBD5E1',
+                            }}
+                          >
+                            <ArrowRight style={{ width: '14px', height: '14px' }} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: WORKFLOW DETAILS (Clean Table: Stage, Status, Who Completed, When Completed) */}
+            {activeIssueTab === 'details' && (
+              <div
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                }}
+              >
+                <table
+                  style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: '12.5px',
+                    textAlign: 'left',
+                  }}
+                >
+                  <thead>
+                    <tr
+                      style={{
+                        backgroundColor: '#F8FAFC',
+                        borderBottom: '1px solid #E2E8F0',
+                        color: '#334155',
+                      }}
+                    >
+                      <th style={{ padding: '10px 16px', fontWeight: 700 }}>Stage</th>
+                      <th style={{ padding: '10px 16px', fontWeight: 700 }}>Status</th>
+                      <th style={{ padding: '10px 16px', fontWeight: 700 }}>Who Completed</th>
+                      <th style={{ padding: '10px 16px', fontWeight: 700 }}>When Completed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {issueStageRows.map((row, index) => (
+                      <tr
+                        key={row.step}
+                        style={{
+                          borderBottom:
+                            index < issueStageRows.length - 1 ? '1px solid #F1F5F9' : 'none',
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      >
+                        <td style={{ padding: '11px 16px', fontWeight: 600, color: '#0F172A' }}>
+                          {row.step}. {row.stage}
+                        </td>
+                        <td style={{ padding: '11px 16px' }}>
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              color: row.color,
+                              backgroundColor: row.bg,
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              display: 'inline-block',
+                            }}
+                          >
+                            {row.status}
+                          </span>
+                        </td>
+                        <td
+                          style={{
+                            padding: '11px 16px',
+                            fontWeight: row.completedBy !== '—' ? 600 : 400,
+                            color: row.completedBy !== '—' ? '#1E293B' : '#94A3B8',
+                          }}
+                        >
+                          {row.completedBy}
+                        </td>
+                        <td
+                          style={{
+                            padding: '11px 16px',
+                            color: row.completedAt !== '—' ? '#475569' : '#94A3B8',
+                          }}
+                        >
+                          {row.completedAt}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* TAB 3: ASSIGNMENTS (Clean Table: Persona, Function, Name Assigned with Email) */}
+            {activeIssueTab === 'assignments' && (
+              <div
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                }}
+              >
+                <table
+                  style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: '12.5px',
+                    textAlign: 'left',
+                  }}
+                >
+                  <thead>
+                    <tr
+                      style={{
+                        backgroundColor: '#F8FAFC',
+                        borderBottom: '1px solid #E2E8F0',
+                        color: '#334155',
+                      }}
+                    >
+                      <th style={{ padding: '10px 16px', fontWeight: 700 }}>Persona</th>
+                      <th style={{ padding: '10px 16px', fontWeight: 700 }}>Function</th>
+                      <th style={{ padding: '10px 16px', fontWeight: 700 }}>Assigned User</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rawAssignments.map((item, idx) => {
+                      const isITRow = item.functionName.toLowerCase() === 'it';
+                      return (
+                        <tr
+                          key={`${item.persona}-${item.name}-${idx}`}
+                          style={{
+                            borderBottom:
+                              idx < rawAssignments.length - 1 ? '1px solid #F1F5F9' : 'none',
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        >
+                          <td style={{ padding: '11px 16px', fontWeight: 600, color: '#0F172A' }}>
+                            {item.persona}
+                          </td>
+                          <td style={{ padding: '11px 16px' }}>
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                backgroundColor: isITRow ? '#EFF6FF' : '#F0FDF4',
+                                color: isITRow ? '#000099' : '#087D0D',
+                              }}
+                            >
+                              {item.functionName}
+                            </span>
+                          </td>
+                          <td style={{ padding: '11px 16px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                              <span style={{ fontWeight: 600, color: '#1E293B' }}>{item.name}</span>
+                              <span style={{ fontSize: '11.5px', color: '#64748B' }}>
+                                {item.email}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className="modal-overlay"
+      role="dialog"
+      aria-modal="true"
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(33, 33, 33, 0.55)',
-        backdropFilter: 'blur(3px)',
+        backgroundColor: 'rgba(15, 23, 42, 0.5)',
+        backdropFilter: 'blur(2px)',
         display: 'flex',
-        justifyContent: 'flex-end',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
         zIndex: 1500,
         fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
       }}
       onClick={onClose}
     >
-      {/* 820px Wide Drawer Panel (Exact Layout & Design from Backup_JNJ_IAR/src/components/reporting/WorkflowModal.jsx) */}
-      <aside
+      <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: '820px',
+          width: '960px',
           maxWidth: '96vw',
-          height: '100vh',
-          backgroundColor: '#ffffff',
-          boxShadow: '-12px 0 36px rgba(0,0,0,0.28)',
+          maxHeight: '88vh',
+          backgroundColor: '#FFFFFF',
+          borderRadius: '10px',
+          boxShadow: '0 24px 48px rgba(0, 0, 0, 0.2)',
+          border: '1px solid #E2E8F0',
           display: 'flex',
           flexDirection: 'column',
-          position: 'relative',
-          animation: 'slideInRight 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
           overflow: 'hidden',
         }}
       >
-        {/* Drawer Header */}
+        {/* Dialog Header */}
         <div
           style={{
-            padding: '18px 24px',
-            backgroundColor: '#000099',
-            color: '#ffffff',
+            padding: '18px 24px 14px 24px',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'space-between',
-            flexShrink: 0,
+            gap: '16px',
+            backgroundColor: '#FFFFFF',
+            borderBottom: '1px solid #E2E8F0',
           }}
         >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  color: '#93C5FD',
-                  letterSpacing: '0.8px',
-                }}
-              >
-                {isAuditWorkflow ? 'Audit Report Workflow Engine' : 'Executive Report Pipeline'}
-              </span>
-              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>•</span>
-              <span style={{ fontSize: '11px', color: '#E2E8F0', fontWeight: 600 }}>
-                Queue: <strong style={{ color: '#FCA5A5' }}>{workflowState.queue}</strong>
-              </span>
-            </div>
-            <h3
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+            <div
               style={{
-                fontSize: '17px',
-                fontWeight: 800,
-                margin: 0,
-                color: '#ffffff',
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                backgroundColor: '#EFF6FF',
+                border: '1px solid #BFDBFE',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
+                justifyContent: 'center',
+                color: '#000099',
+                flexShrink: 0,
               }}
             >
-              <GitBranch style={{ width: '18px', height: '18px', color: '#93C5FD' }} />
-              <span>{displayTitle}</span>
-            </h3>
-            <div style={{ fontSize: '12.5px', color: '#E2E8F0', marginTop: '2px' }}>
-              {auditTitle} ({realIssues.length} Findings)
+              <GitBranch style={{ width: '18px', height: '18px' }} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <h3
+                className="type-modal-title"
+                style={{
+                  margin: 0,
+                  fontSize: 'var(--type-modal-title-size, 15px)',
+                  fontWeight: 700,
+                  color: '#0F172A',
+                  lineHeight: 1.35,
+                }}
+              >
+                {displayTitle}
+              </h3>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginTop: '4px',
+                  fontSize: '12px',
+                  color: '#64748B',
+                }}
+              >
+                <span>
+                  {auditTitle} ({realIssues.length} Findings)
+                </span>
+                <span>•</span>
+                <span>Current Queue:</span>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#000099',
+                    backgroundColor: '#EFF6FF',
+                    border: '1px solid #BFDBFE',
+                    padding: '1px 8px',
+                    borderRadius: '4px',
+                  }}
+                >
+                  {workflowState.queue}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -878,39 +1617,39 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
             onClick={onClose}
             style={{
               padding: '6px',
-              borderRadius: '8px',
-              border: '1px solid rgba(255, 255, 255, 0.25)',
-              background: 'rgba(255, 255, 255, 0.1)',
-              color: '#ffffff',
+              borderRadius: '6px',
+              border: '1px solid #E2E8F0',
+              backgroundColor: '#FFFFFF',
+              color: '#64748B',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'background 0.15s ease',
+              flexShrink: 0,
             }}
-            title="Close Drawer"
+            title="Close Dialog"
           >
-            <X style={{ width: '18px', height: '18px' }} />
+            <X style={{ width: '16px', height: '16px' }} />
           </button>
         </div>
 
-        {/* Scrollable Workflow Content */}
+        {/* Scrollable Workflow Graphs (No multiple tabs, only graph flow, no matrix, no governance parties section) */}
         <div
           style={{
-            padding: '24px',
-            flex: 1,
+            padding: '20px 24px 24px 24px',
             overflowY: 'auto',
-            backgroundColor: '#f4f4f4',
+            backgroundColor: '#F8FAFC',
+            flex: 1,
             display: 'flex',
             flexDirection: 'column',
-            gap: '22px',
+            gap: '18px',
           }}
         >
           {isAuditWorkflow ? (
             <>
               {/* IT Issues Pipeline */}
               {renderPipelineDiagram({
-                domainLabel: 'IT & Digital Systems',
+                domainLabel: 'IT',
                 metrics: itMetrics,
                 themeColor: '#000099',
                 themeBg: '#EFF6FF',
@@ -920,912 +1659,238 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
 
               {/* FinOps Issues Pipeline */}
               {renderPipelineDiagram({
-                domainLabel: 'FinOps & Supply Chain',
+                domainLabel: 'FinOps',
                 metrics: finOpsMetrics,
                 themeColor: '#087D0D',
                 themeBg: '#F0FDF4',
                 themeBorder: '#A7F3D0',
                 icon: TrendingUp,
               })}
-
-              {/* DYNAMIC ISSUE & ROLE LEVEL WORKFLOW STATUS MATRIX */}
-              <div
-                style={{
-                  backgroundColor: '#ffffff',
-                  border: '1px solid #d8d8d8',
-                  borderRadius: '14px',
-                  padding: '20px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '18px',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    borderBottom: '1px solid #f4f4f4',
-                    paddingBottom: '8px',
-                  }}
-                >
-                  <h4
-                    style={{
-                      fontSize: '13.5px',
-                      fontWeight: 900,
-                      color: '#212121',
-                      margin: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                    }}
-                  >
-                    <ShieldCheck style={{ width: '18px', height: '18px', color: '#000099' }} />
-                    <span>Issue &amp; Role Level Workflow Status Matrix</span>
-                  </h4>
-                  <span style={{ fontSize: '11px', color: '#63666a', fontWeight: 600 }}>
-                    Total Findings: {realIssues.length}
-                  </span>
-                </div>
-
-                {realIssues.length === 0 ? (
-                  <div
-                    style={{
-                      padding: '24px',
-                      textAlign: 'center',
-                      color: '#63666a',
-                      backgroundColor: '#f4f4f4',
-                      borderRadius: '8px',
-                      border: '1px dashed #d8d8d8',
-                    }}
-                  >
-                    <AlertCircle
-                      style={{
-                        width: '24px',
-                        height: '24px',
-                        margin: '0 auto 6px auto',
-                        color: '#94A3B8',
-                      }}
-                    />
-                    <div style={{ fontSize: '12.5px', fontWeight: 700 }}>
-                      No findings drafted for this audit yet
-                    </div>
-                    <div style={{ fontSize: '11px' }}>
-                      Findings will appear dynamically in this matrix as they are created.
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table
-                      style={{
-                        width: '100%',
-                        borderCollapse: 'collapse',
-                        fontSize: '11.5px',
-                        textAlign: 'left',
-                        border: '1px solid #d8d8d8',
-                      }}
-                    >
-                      <thead>
-                        <tr
-                          style={{
-                            backgroundColor: '#f4f4f4',
-                            color: '#212121',
-                            borderBottom: '1px solid #d8d8d8',
-                          }}
-                        >
-                          <th style={{ padding: '8px 12px', fontWeight: 800 }}>
-                            Issue ID &amp; Finding Title
-                          </th>
-                          <th style={{ padding: '8px 10px', fontWeight: 800, width: '90px' }}>
-                            Domain
-                          </th>
-                          <th style={{ padding: '8px 12px', fontWeight: 800, width: '110px' }}>
-                            TC Auditor
-                          </th>
-                          <th style={{ padding: '8px 12px', fontWeight: 800, width: '130px' }}>
-                            Audit Manager
-                          </th>
-                          <th style={{ padding: '8px 12px', fontWeight: 800, width: '110px' }}>
-                            Director
-                          </th>
-                          <th style={{ padding: '8px 12px', fontWeight: 800, width: '140px' }}>
-                            Overall Status
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {realIssues.map((issue) => {
-                          const stages = resolveIssueStageStatuses(issue);
-                          const domainTag =
-                            issue.function || issue.functionType || issue.tech || 'IT';
-                          const isIT = String(domainTag).toLowerCase().includes('it');
-
-                          return (
-                            <tr
-                              key={issue.id}
-                              style={{
-                                borderBottom: '1px solid #d8d8d8',
-                                opacity: stages.isExcluded ? 0.6 : 1,
-                              }}
-                            >
-                              <td
-                                style={{
-                                  padding: '8px 12px',
-                                  fontWeight: 700,
-                                  color: '#212121',
-                                }}
-                              >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{ fontWeight: 800, color: '#000099' }}>
-                                    {issue.id}
-                                  </span>
-                                  <span>{issue.header || issue.title}</span>
-                                  {stages.isExcluded && (
-                                    <span
-                                      style={{
-                                        fontSize: '9px',
-                                        fontWeight: 800,
-                                        color: '#eb1700',
-                                        backgroundColor: '#FFF1F0',
-                                        padding: '1px 5px',
-                                        borderRadius: '4px',
-                                      }}
-                                    >
-                                      EXCLUDED
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-
-                              <td style={{ padding: '8px 10px' }}>
-                                <span
-                                  style={{
-                                    fontSize: '10px',
-                                    fontWeight: 800,
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                    backgroundColor: isIT ? '#EFF6FF' : '#F0FDF4',
-                                    color: isIT ? '#000099' : '#087D0D',
-                                  }}
-                                >
-                                  {domainTag}
-                                </span>
-                              </td>
-
-                              <td
-                                style={{
-                                  padding: '8px 12px',
-                                  color: stages.tc.color,
-                                  fontWeight: 700,
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    backgroundColor: stages.tc.bg,
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                  }}
-                                >
-                                  {stages.tc.label}
-                                </span>
-                              </td>
-
-                              <td
-                                style={{
-                                  padding: '8px 12px',
-                                  color: stages.manager.color,
-                                  fontWeight: 700,
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    backgroundColor: stages.manager.bg,
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                  }}
-                                >
-                                  {stages.manager.label}
-                                </span>
-                              </td>
-
-                              <td
-                                style={{
-                                  padding: '8px 12px',
-                                  color: stages.director.color,
-                                  fontWeight: 700,
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    backgroundColor: stages.director.bg,
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                  }}
-                                >
-                                  {stages.director.label}
-                                </span>
-                              </td>
-
-                              <td style={{ padding: '8px 12px' }}>
-                                <span
-                                  style={{
-                                    fontSize: '10.5px',
-                                    fontWeight: 700,
-                                    color: issue.status?.includes('Manager')
-                                      ? '#eb1700'
-                                      : issue.status?.includes('Director')
-                                        ? '#000099'
-                                        : '#087D0D',
-                                    backgroundColor: issue.status?.includes('Manager')
-                                      ? '#FFF1F0'
-                                      : issue.status?.includes('Director')
-                                        ? '#EFF6FF'
-                                        : '#F0FDF4',
-                                    padding: '2px 8px',
-                                    borderRadius: '4px',
-                                  }}
-                                >
-                                  {issue.status || 'Pending TC'}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
             </>
           ) : (
             /* EXECUTIVE SUMMARY WORKFLOW (4 DYNAMIC PIPELINE STAGES) */
-            <>
-              <div
-                style={{
-                  backgroundColor: '#ffffff',
-                  border: '1px solid #d8d8d8',
-                  borderRadius: '16px',
-                  padding: '24px 22px',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
-                }}
-              >
-                <div
-                  style={{
-                    position: 'relative',
-                    width: '100%',
-                    minHeight: '80px',
-                    padding: '10px 0',
-                  }}
-                >
-                  <svg
-                    style={{
-                      position: 'absolute',
-                      inset: 0,
-                      width: '100%',
-                      height: '100%',
-                      pointerEvents: 'none',
-                    }}
-                  >
-                    <defs>
-                      <marker
-                        id="arrowExec"
-                        viewBox="0 0 10 10"
-                        refX="6"
-                        refY="5"
-                        markerWidth="6"
-                        markerHeight="6"
-                        orient="auto-start-reverse"
-                      >
-                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#087D0D" />
-                      </marker>
-                    </defs>
-
-                    {/* Step 1 to 2 */}
-                    <line
-                      x1="100"
-                      y1="35"
-                      x2="220"
-                      y2="35"
-                      stroke="#087D0D"
-                      strokeWidth="3"
-                      markerEnd="url(#arrowExec)"
-                    />
-
-                    {/* Step 2 to 3 */}
-                    <line
-                      x1="380"
-                      y1="35"
-                      x2="450"
-                      y2="35"
-                      stroke={
-                        workflowState.queue === 'Vice President' ||
-                          workflowState.status === 'Completed'
-                          ? '#087D0D'
-                          : '#d8d8d8'
-                      }
-                      strokeWidth={2.5}
-                      strokeDasharray={
-                        workflowState.queue === 'Vice President' ||
-                          workflowState.status === 'Completed'
-                          ? 'none'
-                          : '5,5'
-                      }
-                    />
-
-                    {/* Step 3 to 4 */}
-                    <line
-                      x1="570"
-                      y1="35"
-                      x2="620"
-                      y2="35"
-                      stroke={workflowState.status === 'Completed' ? '#087D0D' : '#d8d8d8'}
-                      strokeWidth={2.5}
-                      strokeDasharray={workflowState.status === 'Completed' ? 'none' : '5,5'}
-                    />
-                  </svg>
-
-                  {/* HTML Node Cards */}
-                  <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-                    {/* Node 1: AI Draft */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: '0%',
-                        top: '8px',
-                        pointerEvents: 'auto',
-                      }}
-                    >
-                      <div
-                        style={{
-                          backgroundColor: '#ffffff',
-                          border: '2px solid #087D0D',
-                          borderRadius: '10px',
-                          padding: '8px 12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: '24px',
-                            height: '24px',
-                            borderRadius: '50%',
-                            backgroundColor: '#DCFCE7',
-                            color: '#087D0D',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          <CheckCircle2 style={{ width: '15px', height: '15px' }} />
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '13px', fontWeight: 900, color: '#212121' }}>
-                            AI Draft
-                          </div>
-                          <div style={{ fontSize: '10px', fontWeight: 800, color: '#087D0D' }}>
-                            Synthesized
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Node 2: Manager Review */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: '30%',
-                        top: '6px',
-                        pointerEvents: 'auto',
-                      }}
-                    >
-                      <div
-                        style={{
-                          backgroundColor: '#ffffff',
-                          border:
-                            workflowState.queue === 'Staff' ||
-                              workflowState.queue.includes('Manager')
-                              ? '2.5px solid #eb1700'
-                              : '2px solid #087D0D',
-                          borderRadius: '10px',
-                          padding: '8px 14px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: '24px',
-                            height: '24px',
-                            borderRadius: '50%',
-                            backgroundColor:
-                              workflowState.queue === 'Staff' ||
-                                workflowState.queue.includes('Manager')
-                                ? '#FFF1F0'
-                                : '#DCFCE7',
-                            color:
-                              workflowState.queue === 'Staff' ||
-                                workflowState.queue.includes('Manager')
-                                ? '#eb1700'
-                                : '#087D0D',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          {workflowState.queue === 'Staff' ||
-                            workflowState.queue.includes('Manager') ? (
-                            <Clock style={{ width: '15px', height: '15px' }} />
-                          ) : (
-                            <CheckCircle2 style={{ width: '15px', height: '15px' }} />
-                          )}
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '13px', fontWeight: 900, color: '#212121' }}>
-                            Manager Review
-                          </div>
-                          <div
-                            style={{
-                              fontSize: '10px',
-                              fontWeight: 800,
-                              color:
-                                workflowState.queue === 'Staff' ||
-                                  workflowState.queue.includes('Manager')
-                                  ? '#eb1700'
-                                  : '#087D0D',
-                            }}
-                          >
-                            {workflowState.queue === 'Staff' ||
-                              workflowState.queue.includes('Manager')
-                              ? 'Active Now'
-                              : 'Completed'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Node 3: Director Approval */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: '62%',
-                        top: '8px',
-                        pointerEvents: 'auto',
-                      }}
-                    >
-                      <div
-                        style={{
-                          backgroundColor:
-                            workflowState.queue === 'Director' ? '#EFF6FF' : '#F8FAFC',
-                          border:
-                            workflowState.queue === 'Director'
-                              ? '2.5px solid #000099'
-                              : workflowState.queue === 'Vice President' ||
-                                workflowState.status === 'Completed'
-                                ? '2px solid #087D0D'
-                                : '1.5px solid #d8d8d8',
-                          borderRadius: '10px',
-                          padding: '8px 12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: '22px',
-                            height: '22px',
-                            borderRadius: '50%',
-                            backgroundColor:
-                              workflowState.queue === 'Director' ? '#DBEAFE' : '#E2E8F0',
-                            color: workflowState.queue === 'Director' ? '#000099' : '#63666a',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '11px',
-                            fontWeight: 800,
-                          }}
-                        >
-                          {workflowState.queue === 'Director' ? (
-                            <Clock style={{ width: '13px', height: '13px' }} />
-                          ) : workflowState.queue === 'Vice President' ||
-                            workflowState.status === 'Completed' ? (
-                            <CheckCircle2
-                              style={{ width: '13px', height: '13px', color: '#087D0D' }}
-                            />
-                          ) : (
-                            '3'
-                          )}
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#212121' }}>
-                            Director Review
-                          </div>
-                          <div
-                            style={{
-                              fontSize: '10px',
-                              fontWeight: 700,
-                              color: workflowState.queue === 'Director' ? '#000099' : '#63666a',
-                            }}
-                          >
-                            {workflowState.queue === 'Director'
-                              ? 'Active Now'
-                              : workflowState.queue === 'Vice President' ||
-                                workflowState.status === 'Completed'
-                                ? 'Completed'
-                                : 'Pending'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Node 4: VP SignOff */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        right: '0%',
-                        top: '8px',
-                        pointerEvents: 'auto',
-                      }}
-                    >
-                      <div
-                        style={{
-                          backgroundColor:
-                            workflowState.queue === 'Vice President'
-                              ? '#EFF6FF'
-                              : workflowState.status === 'Completed'
-                                ? '#F0FDF4'
-                                : '#F8FAFC',
-                          border:
-                            workflowState.queue === 'Vice President'
-                              ? '2.5px solid #000099'
-                              : workflowState.status === 'Completed'
-                                ? '2px solid #087D0D'
-                                : '1.5px solid #d8d8d8',
-                          borderRadius: '10px',
-                          padding: '8px 12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: '22px',
-                            height: '22px',
-                            borderRadius: '50%',
-                            backgroundColor:
-                              workflowState.queue === 'Vice President'
-                                ? '#DBEAFE'
-                                : workflowState.status === 'Completed'
-                                  ? '#DCFCE7'
-                                  : '#E2E8F0',
-                            color:
-                              workflowState.queue === 'Vice President'
-                                ? '#000099'
-                                : workflowState.status === 'Completed'
-                                  ? '#087D0D'
-                                  : '#63666a',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '11px',
-                            fontWeight: 800,
-                          }}
-                        >
-                          {workflowState.status === 'Completed' ? (
-                            <CheckCircle2 style={{ width: '13px', height: '13px' }} />
-                          ) : workflowState.queue === 'Vice President' ? (
-                            <Clock style={{ width: '13px', height: '13px' }} />
-                          ) : (
-                            '4'
-                          )}
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#212121' }}>
-                            VP Sign-Off
-                          </div>
-                          <div
-                            style={{
-                              fontSize: '10px',
-                              fontWeight: 700,
-                              color:
-                                workflowState.status === 'Completed'
-                                  ? '#087D0D'
-                                  : workflowState.queue === 'Vice President'
-                                    ? '#000099'
-                                    : '#63666a',
-                            }}
-                          >
-                            {workflowState.status === 'Completed'
-                              ? 'Signed Off'
-                              : workflowState.queue === 'Vice President'
-                                ? 'Active Now'
-                                : 'Not Started'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* DYNAMIC STAGE AUDIT LOG & RESPONSIBLE PARTIES */}
-          <div
-            style={{
-              backgroundColor: '#ffffff',
-              border: '1px solid #d8d8d8',
-              borderRadius: '14px',
-              padding: '20px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-            }}
-          >
-            <h4
+            <div
               style={{
-                fontSize: '13.5px',
-                fontWeight: 900,
-                color: '#212121',
-                margin: '0 0 14px 0',
-                borderBottom: '1px solid #f4f4f4',
-                paddingBottom: '8px',
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #E2E8F0',
+                borderRadius: '10px',
+                padding: '20px',
                 display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
+                flexDirection: 'column',
+                gap: '16px',
               }}
             >
-              <ShieldCheck style={{ width: '16px', height: '16px', color: '#087D0D' }} />
-              <span>Engagement Governance Pipeline &amp; Responsible Parties</span>
-            </h4>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12px' }}>
-              {/* Stage 1: TC Quality Review */}
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  backgroundColor: '#F0FDF4',
-                  borderRadius: '8px',
-                  border: '1px solid #BBF7D0',
+                  borderBottom: '1px solid #F1F5F9',
+                  paddingBottom: '10px',
                 }}
               >
-                <div>
-                  <div style={{ fontWeight: 800, color: '#087D0D', fontSize: '13px' }}>
-                    1. Quality &amp; Fieldwork Review
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '11.5px',
-                      color: '#087D0D',
-                      marginTop: '2px',
-                      fontWeight: 500,
-                    }}
-                  >
-                    Responsible: <strong>{leadTC}</strong> (Team Coordinator)
-                  </div>
+                <div
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: '#0F172A',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <ShieldCheck style={{ width: '16px', height: '16px', color: '#000099' }} />
+                  <span>Executive Summary Clearance Pipeline</span>
                 </div>
                 <span
                   style={{
                     fontSize: '11px',
                     fontWeight: 700,
-                    color: '#087D0D',
-                    backgroundColor: '#DCFCE7',
-                    padding: '3px 10px',
-                    borderRadius: '6px',
+                    color: '#000099',
+                    backgroundColor: '#EFF6FF',
+                    padding: '2px 10px',
+                    borderRadius: '999px',
+                    border: '1px solid #BFDBFE',
                   }}
                 >
-                  {realIssues.length > 0 ? '✓ Fieldwork Completed' : 'In Progress'}
+                  Current Queue: {workflowState.queue}
                 </span>
               </div>
 
-              {/* Stage 2: Audit Manager Clearance */}
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  backgroundColor: workflowState.queue.includes('Manager')
-                    ? '#FFF1F0'
-                    : workflowState.queue === 'Director' ||
+                  position: 'relative',
+                }}
+              >
+                {[
+                  {
+                    step: 1,
+                    title: 'AI Draft',
+                    isDone: true,
+                    isActive: false,
+                    statusText: 'Synthesized',
+                  },
+                  {
+                    step: 2,
+                    title: 'Manager Review',
+                    isDone:
+                      workflowState.queue === 'Director' ||
                       workflowState.queue === 'Vice President' ||
-                      workflowState.status === 'Completed'
-                      ? '#F0FDF4'
-                      : '#F8FAFC',
-                  borderRadius: '8px',
-                  border: workflowState.queue.includes('Manager')
-                    ? '1.5px solid #FCA5A5'
-                    : '1px solid #d8d8d8',
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontWeight: 800,
-                      color: workflowState.queue.includes('Manager') ? '#eb1700' : '#212121',
-                      fontSize: '13px',
-                    }}
-                  >
-                    2. Audit Manager Clearance &amp; Consolidation
-                  </div>
-                  <div style={{ fontSize: '11.5px', color: '#63666a', marginTop: '2px' }}>
-                    Responsible: <strong>{leadMgr}</strong> (Audit Manager)
-                  </div>
-                </div>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    color: workflowState.queue.includes('Manager')
-                      ? '#eb1700'
-                      : workflowState.queue === 'Director' ||
-                        workflowState.queue === 'Vice President' ||
-                        workflowState.status === 'Completed'
-                        ? '#087D0D'
-                        : '#63666a',
-                    backgroundColor: workflowState.queue.includes('Manager')
-                      ? '#FFE4E6'
-                      : workflowState.queue === 'Director' ||
-                        workflowState.queue === 'Vice President' ||
-                        workflowState.status === 'Completed'
-                        ? '#DCFCE7'
-                        : '#F1F5F9',
-                    padding: '3px 10px',
-                    borderRadius: '6px',
-                  }}
-                >
-                  {workflowState.queue.includes('Manager')
-                    ? 'Active Now'
-                    : workflowState.queue === 'Director' ||
+                      workflowState.status === 'Completed',
+                    isActive:
+                      workflowState.queue === 'Staff' || workflowState.queue.includes('Manager'),
+                    statusText:
+                      workflowState.queue === 'Staff' || workflowState.queue.includes('Manager')
+                        ? 'Active Now'
+                        : 'Completed',
+                  },
+                  {
+                    step: 3,
+                    title: 'Director Review',
+                    isDone:
                       workflowState.queue === 'Vice President' ||
-                      workflowState.status === 'Completed'
-                      ? '✓ Completed'
-                      : 'Active Now'}
-                </span>
-              </div>
-
-              {/* Stage 3: Director Clearance Gate */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  backgroundColor:
-                    workflowState.queue === 'Director'
-                      ? '#EFF6FF'
-                      : workflowState.queue === 'Vice President' ||
-                        workflowState.status === 'Completed'
-                        ? '#F0FDF4'
-                        : '#F8FAFC',
-                  borderRadius: '8px',
-                  border:
-                    workflowState.queue === 'Director'
-                      ? '1.5px solid #93C5FD'
-                      : '1px solid #d8d8d8',
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontWeight: 800,
-                      color: workflowState.queue === 'Director' ? '#000099' : '#212121',
-                      fontSize: '13px',
-                    }}
-                  >
-                    3. Director Clearance Gate (Batch Clearance)
-                  </div>
-                  <div style={{ fontSize: '11.5px', color: '#63666a', marginTop: '2px' }}>
-                    Responsible: <strong>{leadDir}</strong> (Audit Director)
-                  </div>
-                </div>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    color:
+                      workflowState.status === 'Completed',
+                    isActive: workflowState.queue === 'Director',
+                    statusText:
                       workflowState.queue === 'Director'
-                        ? '#000099'
+                        ? 'Active Now'
                         : workflowState.queue === 'Vice President' ||
-                          workflowState.status === 'Completed'
-                          ? '#087D0D'
-                          : '#63666a',
-                    backgroundColor:
-                      workflowState.queue === 'Director'
-                        ? '#DBEAFE'
-                        : workflowState.queue === 'Vice President' ||
-                          workflowState.status === 'Completed'
-                          ? '#DCFCE7'
-                          : '#F1F5F9',
-                    padding: '3px 10px',
-                    borderRadius: '6px',
-                  }}
-                >
-                  {workflowState.queue === 'Director'
-                    ? 'Active Now'
-                    : workflowState.queue === 'Vice President' ||
+                            workflowState.status === 'Completed'
+                          ? 'Completed'
+                          : 'Pending',
+                  },
+                  {
+                    step: 4,
+                    title: 'VP Sign-Off',
+                    isDone: workflowState.status === 'Completed',
+                    isActive: workflowState.queue === 'Vice President',
+                    statusText:
                       workflowState.status === 'Completed'
-                      ? '✓ Completed'
-                      : 'Pending Batch Gate'}
-                </span>
-              </div>
-
-              {/* Stage 4: Vice President Sign-Off */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  backgroundColor:
-                    workflowState.queue === 'Vice President'
+                        ? 'Signed Off'
+                        : workflowState.queue === 'Vice President'
+                          ? 'Active Now'
+                          : 'Not Started',
+                  },
+                ].map((stg, i, arr) => {
+                  const borderColor = stg.isDone
+                    ? '#16A34A'
+                    : stg.isActive
+                      ? '#000099'
+                      : '#CBD5E1';
+                  const headerBg = stg.isDone
+                    ? '#F0FDF4'
+                    : stg.isActive
                       ? '#EFF6FF'
-                      : workflowState.status === 'Completed'
-                        ? '#F0FDF4'
-                        : '#F8FAFC',
-                  borderRadius: '8px',
-                  border:
-                    workflowState.queue === 'Vice President'
-                      ? '1.5px solid #93C5FD'
-                      : '1px solid #d8d8d8',
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontWeight: 800,
-                      color:
-                        workflowState.queue === 'Vice President'
-                          ? '#000099'
-                          : workflowState.status === 'Completed'
-                            ? '#087D0D'
-                            : '#212121',
-                      fontSize: '13px',
-                    }}
-                  >
-                    4. Vice President Final Sign-Off &amp; Publication
-                  </div>
-                  <div style={{ fontSize: '11.5px', color: '#63666a', marginTop: '2px' }}>
-                    Responsible: <strong>{leadVP}</strong> (Vice President)
-                  </div>
-                </div>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    color:
-                      workflowState.status === 'Completed'
-                        ? '#087D0D'
-                        : workflowState.queue === 'Vice President'
-                          ? '#000099'
-                          : '#63666a',
-                    backgroundColor:
-                      workflowState.status === 'Completed'
-                        ? '#DCFCE7'
-                        : workflowState.queue === 'Vice President'
-                          ? '#DBEAFE'
-                          : '#F1F5F9',
-                    padding: '3px 10px',
-                    borderRadius: '6px',
-                  }}
-                >
-                  {workflowState.status === 'Completed'
-                    ? '✓ Signed Off & Closed'
-                    : workflowState.queue === 'Vice President'
-                      ? 'Active Now'
-                      : 'Not Started'}
-                </span>
+                      : '#F8FAFC';
+
+                  return (
+                    <React.Fragment key={stg.title}>
+                      <div
+                        style={{
+                          width: '180px',
+                          backgroundColor: '#FFFFFF',
+                          border: `1.5px solid ${borderColor}`,
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          boxShadow: stg.isActive
+                            ? '0 4px 12px rgba(0, 0, 153, 0.1)'
+                            : '0 1px 3px rgba(0, 0, 0, 0.04)',
+                        }}
+                      >
+                        <div
+                          style={{
+                            padding: '10px 12px',
+                            backgroundColor: headerBg,
+                            borderBottom: '1px solid #E2E8F0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span
+                              style={{
+                                width: '22px',
+                                height: '22px',
+                                borderRadius: '50%',
+                                backgroundColor: stg.isDone
+                                  ? '#16A34A'
+                                  : stg.isActive
+                                    ? '#000099'
+                                    : '#94A3B8',
+                                color: '#FFFFFF',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {stg.isDone ? (
+                                <CheckCircle2 style={{ width: '13px', height: '13px' }} />
+                              ) : stg.isActive ? (
+                                <Clock style={{ width: '13px', height: '13px' }} />
+                              ) : (
+                                stg.step
+                              )}
+                            </span>
+                            <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
+                              {stg.title}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            padding: '8px 12px',
+                            fontSize: '11.5px',
+                            fontWeight: 600,
+                            color: stg.isDone ? '#087D0D' : stg.isActive ? '#000099' : '#64748B',
+                          }}
+                        >
+                          {stg.statusText}
+                        </div>
+                      </div>
+
+                      {i < arr.length - 1 && (
+                        <div
+                          style={{
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: stg.isDone ? '#16A34A' : '#CBD5E1',
+                            minWidth: '20px',
+                          }}
+                        >
+                          <div
+                            style={{
+                              height: '2px',
+                              flex: 1,
+                              backgroundColor: stg.isDone ? '#16A34A' : '#CBD5E1',
+                            }}
+                          />
+                          <ArrowRight
+                            style={{
+                              width: '14px',
+                              height: '14px',
+                              marginLeft: '-4px',
+                              flexShrink: 0,
+                            }}
+                          />
+                        </div>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </div>
             </div>
-          </div>
+          )}
         </div>
-      </aside>
+      </div>
     </div>
   );
 };

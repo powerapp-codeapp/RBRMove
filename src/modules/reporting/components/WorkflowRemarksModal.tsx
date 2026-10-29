@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Send, X, AlertCircle } from 'lucide-react';
+import { Send, ArrowRight } from 'lucide-react';
 import { SharedButton } from '../../../components/shared/buttons/SharedButton';
 import { SharedTextArea } from '../../../components/shared/inputs/SharedTextArea';
 
@@ -9,6 +9,7 @@ export interface WorkflowRemarksModalProps {
   title: string;
   actionLabel: string;
   itemTitle?: string;
+  currentStatusText?: string;
   targetStatusText?: string;
   initialRemarks?: string;
   onConfirm: (remarks: string) => Promise<void> | void;
@@ -20,6 +21,7 @@ export const WorkflowRemarksModal: React.FC<WorkflowRemarksModalProps> = ({
   title,
   actionLabel,
   itemTitle,
+  currentStatusText,
   targetStatusText,
   initialRemarks = '',
   onConfirm,
@@ -60,8 +62,8 @@ export const WorkflowRemarksModal: React.FC<WorkflowRemarksModalProps> = ({
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        backgroundColor: 'rgba(15, 23, 42, 0.6)',
-        backdropFilter: 'blur(3px)',
+        backgroundColor: 'rgba(15, 23, 42, 0.5)',
+        backdropFilter: 'blur(2px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -73,164 +75,126 @@ export const WorkflowRemarksModal: React.FC<WorkflowRemarksModalProps> = ({
         style={{
           backgroundColor: '#FFFFFF',
           borderRadius: '8px',
-          maxWidth: '520px',
+          maxWidth: '500px',
           width: '100%',
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.16)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          border: '1px solid #D8D8D8',
+          border: '1px solid #E2E8F0',
+          padding: '20px 24px',
+          gap: '18px',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Modal Header */}
+        {/* Modal Header: Only Icon and Issue Name, no background, no separator, no close icon */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '16px 20px',
-            borderBottom: '1px solid #E2E8F0',
-            backgroundColor: '#F8FAFC',
+            gap: '10px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '6px',
-                backgroundColor: '#EEF2FF',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#000099',
-              }}
-            >
-              <Send size={16} />
-            </div>
-            <div>
-              <h3
-                style={{
-                  margin: 0,
-                  fontSize: '15px',
-                  fontWeight: 600,
-                  color: '#0F172A',
-                  fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-                }}
-              >
-                {title}
-              </h3>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: '11px',
-                  color: '#64748B',
-                  fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-                }}
-              >
-                {targetStatusText ? `Transitioning to ${targetStatusText}` : 'Audit workflow transition'}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
+          <div
             style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: '#64748B',
-              padding: '4px',
-              borderRadius: '4px',
+              width: '32px',
+              height: '32px',
+              borderRadius: '6px',
+              backgroundColor: '#EFF6FF',
+              border: '1px solid #BFDBFE',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              color: '#000099',
+              flexShrink: 0,
             }}
           >
-            <X size={18} />
-          </button>
+            <Send style={{ width: '15px', height: '15px' }} />
+          </div>
+          <h3
+            className="type-modal-title"
+            style={{
+              margin: 0,
+              fontSize: 'var(--type-modal-title-size, 15px)',
+              fontWeight: 700,
+              color: '#0F172A',
+              lineHeight: 1.35,
+            }}
+          >
+            {itemTitle || title}
+          </h3>
         </div>
 
-        {/* Modal Body */}
-        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {itemTitle && (
-            <div
-              style={{
-                backgroundColor: '#F8FAFC',
-                border: '1px solid #E2E8F0',
-                borderRadius: '6px',
-                padding: '10px 14px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px',
-              }}
-            >
-              <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>
-                Item Under Review
-              </span>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: '#1E293B' }}>
-                {itemTitle}
+        {/* Modal Body: Current Stage -> Submitting To (no container background) + Optional Remarks input */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+            {currentStatusText && (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>Current Stage</span>
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: '#334155',
+                      backgroundColor: '#FFFFFF',
+                      padding: '3px 10px',
+                      borderRadius: '4px',
+                      border: '1px solid #CBD5E1',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                    }}
+                  >
+                    {currentStatusText}
+                  </span>
+                </div>
+
+                <ArrowRight size={15} color="#94A3B8" style={{ marginTop: '16px' }} />
+              </>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>Submitting To</span>
+              <span
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#000099',
+                  backgroundColor: '#EFF6FF',
+                  padding: '3px 10px',
+                  borderRadius: '4px',
+                  border: '1px solid #BFDBFE',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                }}
+              >
+                {targetStatusText || 'Next Review Stage'}
               </span>
             </div>
-          )}
-
-          <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: '12px',
-                fontWeight: 600,
-                color: '#334155',
-                marginBottom: '6px',
-                fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-              }}
-            >
-              Reviewer Remarks (Optional)
-            </label>
-            <SharedTextArea
-              value={remarks}
-              onChange={(val) => setRemarks(val)}
-              placeholder="Enter any context, notes, or instructions for the next reviewer (optional)..."
-              rows={4}
-              fullWidth
-            />
-            <span style={{ display: 'block', marginTop: '4px', fontSize: '11px', color: '#64748B' }}>
-              These remarks will be permanently recorded in the Dataverse audit trail log (<code>iar_issuelogses</code>).
-            </span>
           </div>
 
-          {errorMessage && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                backgroundColor: '#FEF2F2',
-                border: '1px solid #FCA5A5',
-                borderRadius: '6px',
-                padding: '8px 12px',
-                color: '#DC2626',
-                fontSize: '12px',
-              }}
-            >
-              <AlertCircle size={15} style={{ flexShrink: 0 }} />
-              <span>{errorMessage}</span>
-            </div>
-          )}
+          <SharedTextArea
+            label="Remarks"
+            value={remarks}
+            onChange={(val) => {
+              setRemarks(val);
+              if (errorMessage) setErrorMessage('');
+            }}
+            placeholder="Enter any review notes or remarks for the next stage (optional)..."
+            rows={4}
+            error={Boolean(errorMessage)}
+            errorMessage={errorMessage || undefined}
+            disabled={isSubmitting}
+          />
         </div>
 
-        {/* Modal Footer */}
+        {/* Modal Footer: No background, no horizontal line/border, only Cancel and Submit buttons */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-end',
             gap: '10px',
-            padding: '14px 20px',
-            borderTop: '1px solid #E2E8F0',
-            backgroundColor: '#F8FAFC',
           }}
         >
           <SharedButton
@@ -238,7 +202,6 @@ export const WorkflowRemarksModal: React.FC<WorkflowRemarksModalProps> = ({
             size="small"
             onClick={onClose}
             disabled={isSubmitting}
-            style={{ minHeight: '32px', padding: '0 14px' }}
           >
             Cancel
           </SharedButton>
@@ -246,11 +209,9 @@ export const WorkflowRemarksModal: React.FC<WorkflowRemarksModalProps> = ({
             variant="primary"
             size="small"
             onClick={handleConfirm}
-            loading={isSubmitting}
-            startIcon={<Send size={13} />}
-            style={{ minHeight: '32px', padding: '0 16px', backgroundColor: '#000099', borderColor: '#000099' }}
+            disabled={isSubmitting}
           >
-            {actionLabel}
+            {isSubmitting ? 'Submitting...' : actionLabel || 'Submit'}
           </SharedButton>
         </div>
       </div>

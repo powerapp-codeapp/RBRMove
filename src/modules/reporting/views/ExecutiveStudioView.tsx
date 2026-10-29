@@ -115,17 +115,48 @@ export const ExecutiveStudioView: React.FC = () => {
     severity: 'success' | 'info' | 'warning' | 'error';
   } | null>(null);
 
-  // Available users for tagging in comments
-  const availableUsers: CommentUser[] = useMemo(
-    () => [
+  // Available users for tagging in comments (scoped strictly to users assigned to this engagement)
+  const availableUsers: CommentUser[] = useMemo(() => {
+    const colors = ['#000099', '#eb1700', '#059669', '#0D9488', '#D97706', '#7C3AED'];
+    const engAssigned = (activeEngagement as any)?.assignedUsers;
+    if (Array.isArray(engAssigned) && engAssigned.length > 0) {
+      const seen = new Set<string>();
+      const engagementMembers: CommentUser[] = [];
+      engAssigned.forEach((u: any, idx: number) => {
+        const cleanName = (u.displayName || u.name || '').trim();
+        if (!cleanName) return;
+        const uniqueKey = (u.email || u.userId || u.id || cleanName).toLowerCase().trim();
+        if (seen.has(uniqueKey)) return;
+        seen.add(uniqueKey);
+        const initials =
+          u.initials ||
+          cleanName
+            .split(' ')
+            .map((p: string) => p[0])
+            .filter(Boolean)
+            .join('')
+            .slice(0, 2)
+            .toUpperCase() ||
+          'U';
+        engagementMembers.push({
+          userId: u.userId || u.id || u.email || `ENG-USR-${idx + 1}`,
+          name: cleanName,
+          role: u.roleName || u.roleAbbr || u.roleId || 'Auditor',
+          avatar: initials,
+          avatarBg: colors[engagementMembers.length % colors.length],
+        });
+      });
+      if (engagementMembers.length > 0) {
+        return engagementMembers;
+      }
+    }
+    return [
       { userId: 'USR-001', name: currentUser?.name || 'Current Auditor', role: activeRole?.label || 'Auditor', avatar: 'CA', avatarBg: '#000099' },
       { userId: 'USR-002', name: 'Sarah Jenkins', role: 'IT Audit Manager', avatar: 'SJ', avatarBg: '#eb1700' },
       { userId: 'USR-003', name: 'Brian Cox', role: 'IT Audit Director', avatar: 'BC', avatarBg: '#059669' },
       { userId: 'USR-004', name: 'Elena Rostova', role: 'VP Global Audit', avatar: 'ER', avatarBg: '#0D9488' },
-      { userId: 'USR-005', name: 'Chen Wei', role: 'Suzhou Plant Controller', avatar: 'CW', avatarBg: '#D97706' },
-    ],
-    [currentUser, activeRole]
-  );
+    ];
+  }, [activeEngagement, currentUser, activeRole]);
 
   const currentCommentUser: CommentUser = useMemo(
     () => ({

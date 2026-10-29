@@ -122,6 +122,11 @@ export interface Issue {
   businessManagementReason?: string;
   businessManagementResponse?: string;
   businessManagementAttachment?: string;
+  businessResponseProvidedBy?: string;
+  businessResponseProvidedAt?: string;
+  businessResponseAddedOnBehalfBy?: string;
+  businessResponseAddedOnBehalfRole?: string;
+  businessResponseAddedOnBehalfAt?: string;
 
   // Active AI Version Tracking
   activeAiVersionId?: string;
@@ -201,6 +206,7 @@ export interface IssueComment {
   content: string;
   authorId: string;
   authorName: string;
+  authorRole?: string;
   authorAvatar?: string;
   taggedUserId?: string | null;
   taggedUserName?: string | null;

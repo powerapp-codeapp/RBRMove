@@ -3,6 +3,7 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Box from '@mui/material/Box';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import { SharedTooltip } from '../feedback/SharedTooltip';
 
 export interface SharedSelectButtonItem {
   key?: string;
@@ -82,56 +83,60 @@ export const SharedSelectButton: React.FC<SharedSelectButtonProps> = ({
 
   return (
     <>
-      <button
-        ref={buttonRef}
-        type="button"
-        disabled={disabled}
-        onClick={handleOpen}
-        onMouseEnter={() => !disabled && setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        title={title}
-        className={className}
-        style={{
-          height,
-          padding,
-          fontSize: '14px',
-          fontWeight: 400,
-          fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-          color: disabled ? '#94A3B8' : '#000099',
-          backgroundColor: disabled ? '#F8FAFC' : isOpen ? '#E6EDFF' : isHovered ? '#F0F4FF' : '#ffffff',
-          border: disabled ? '1px solid #CBD5E1' : isOpen ? '1px solid #000066' : isHovered ? '1px solid #000080' : '1px solid #000099',
-          borderRadius: '4px',
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '6px',
-          boxSizing: 'border-box',
-          whiteSpace: 'nowrap',
-          transition: 'all 0.15s ease',
-          outline: 'none',
-          ...style,
-        }}
+      <SharedTooltip
+        title={!isOpen && title ? title : ''}
+        placement="top"
       >
-        {startIcon && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
-            {startIcon}
-          </span>
-        )}
-
-        <span>{label}</span>
-
-        <KeyboardArrowDownIcon
+        <button
+          ref={buttonRef}
+          type="button"
+          disabled={disabled}
+          onClick={handleOpen}
+          onMouseEnter={() => !disabled && setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          className={className}
           style={{
-            width: '16px',
-            height: '16px',
-            flexShrink: 0,
-            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.15s ease',
+            height,
+            padding,
+            fontSize: '14px',
+            fontWeight: 400,
+            fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
             color: disabled ? '#94A3B8' : '#000099',
+            backgroundColor: disabled ? '#F8FAFC' : isOpen ? '#E6EDFF' : isHovered ? '#F0F4FF' : '#ffffff',
+            border: disabled ? '1px solid #CBD5E1' : isOpen ? '1px solid #000066' : isHovered ? '1px solid #000080' : '1px solid #000099',
+            borderRadius: '4px',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            boxSizing: 'border-box',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.15s ease',
+            outline: 'none',
+            ...style,
           }}
-        />
-      </button>
+        >
+          {startIcon && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+              {startIcon}
+            </span>
+          )}
+
+          <span>{label}</span>
+
+          <KeyboardArrowDownIcon
+            style={{
+              width: '16px',
+              height: '16px',
+              flexShrink: 0,
+              transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.15s ease',
+              color: disabled ? '#94A3B8' : '#000099',
+            }}
+          />
+        </button>
+      </SharedTooltip>
 
       <Menu
         anchorEl={anchorEl}
@@ -176,51 +181,57 @@ export const SharedSelectButton: React.FC<SharedSelectButtonProps> = ({
 
           return (
             <React.Fragment key={itemKey}>
-              <MenuItem
-                disabled={item.disabled}
-                onClick={() => handleItemClick(item)}
-                title={item.title}
-                sx={{
-                  pointerEvents: 'auto',
-                  cursor: item.disabled ? 'not-allowed !important' : 'pointer',
-                  color: item.disabled
-                    ? '#94A3B8'
-                    : item.danger
-                    ? '#991B1B !important'
-                    : '#334155',
-                  '&:hover': {
-                    backgroundColor: item.disabled
-                      ? 'transparent'
-                      : item.danger
-                      ? '#FEF2F2 !important'
-                      : '#f1f5f9 !important',
+              <SharedTooltip
+                title={item.title || ''}
+                placement="left"
+                wrapperStyle={{ display: 'block', width: '100%' }}
+              >
+                <MenuItem
+                  disabled={item.disabled}
+                  onClick={() => handleItemClick(item)}
+                  sx={{
+                    width: '100%',
+                    pointerEvents: 'auto',
+                    cursor: item.disabled ? 'not-allowed !important' : 'pointer',
                     color: item.disabled
                       ? '#94A3B8'
                       : item.danger
-                      ? '#7F1D1D !important'
-                      : '#1E293B',
-                  },
-                }}
-              >
-                {item.icon && (
-                  <Box
-                    sx={{
-                      width: '16px',
-                      height: '16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {item.icon}
-                  </Box>
-                )}
+                      ? '#991B1B !important'
+                      : '#334155',
+                    '&:hover': {
+                      backgroundColor: item.disabled
+                        ? 'transparent'
+                        : item.danger
+                        ? '#FEF2F2 !important'
+                        : '#f1f5f9 !important',
+                      color: item.disabled
+                        ? '#94A3B8'
+                        : item.danger
+                        ? '#7F1D1D !important'
+                        : '#1E293B',
+                    },
+                  }}
+                >
+                  {item.icon && (
+                    <Box
+                      sx={{
+                        width: '16px',
+                        height: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {item.icon}
+                    </Box>
+                  )}
 
-                <Box component="span" sx={{ flex: 1, whiteSpace: 'nowrap' }}>
-                  {item.label}
-                </Box>
-              </MenuItem>
+                  <Box component="span" sx={{ flex: 1, whiteSpace: 'nowrap' }}>
+                    {item.label}
+                  </Box>
+                </MenuItem>
+              </SharedTooltip>
 
               {item.dividerAfter && (
                 <Box

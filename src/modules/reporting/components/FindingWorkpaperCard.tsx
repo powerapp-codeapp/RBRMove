@@ -11,6 +11,7 @@ import {
   SharedCheckbox,
   SharedListBoxFilter,
   SharedTooltip,
+  SharedFieldLabel,
   AIInput,
   ReferenceComponent,
 } from '../../../components/shared';
@@ -34,6 +35,7 @@ import {
   FileText,
   Trash2,
   BookOpen,
+  GitBranch,
 } from 'lucide-react';
 import { synthesizeAiDraft } from '../utils/aiSynthesisHelper';
 import { getRoleDetails } from '../utils/reportingWorkflowEngine';
@@ -45,6 +47,7 @@ import {
 } from './BusinessOwnerCommentsDrawer';
 import { WorkflowSubmitButton } from './WorkflowSubmitButton';
 import { WorkflowRemarksModal } from './WorkflowRemarksModal';
+import type { AssignedTeamMember } from './SendToModal';
 import { SystemusersService } from '../../../generated/services/SystemusersService';
 
 interface FindingWorkpaperCardProps {
@@ -52,6 +55,7 @@ interface FindingWorkpaperCardProps {
   onUpdateIssue: (updated: Issue) => void;
   onOpenAiCompare?: () => void;
   onOpenLogs: () => void;
+  onOpenWorkflow?: () => void;
   onOpenComments?: (fieldKey: string, fieldLabel: string) => void;
   commentCounts?: Record<string, number>;
   comments?: IssueComment[];
@@ -71,6 +75,7 @@ interface FindingWorkpaperCardProps {
   isCollapsed?: boolean;
   onToggleCollapse?: (collapsed: boolean) => void;
   currentUser?: { name?: string; role?: string; avatar?: string; userId?: string; email?: string; isAdmin?: boolean };
+  assignedUsers?: AssignedTeamMember[];
   isAdmin?: boolean;
   onAdvanceWorkflow?: (targetStatus: IssueStatus, remarks?: string) => void;
   userRole?: string;
@@ -224,6 +229,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
   onUpdateIssue,
   onOpenAiCompare: _onOpenAiCompare,
   onOpenLogs,
+  onOpenWorkflow,
   onOpenComments: _onOpenComments,
   commentCounts: _commentCounts = {},
   comments = [],
@@ -243,6 +249,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
   isCollapsed = false,
   onToggleCollapse,
   currentUser,
+  assignedUsers = [],
   isAdmin = false,
   onAdvanceWorkflow,
   userRole = 'Manager',
@@ -449,41 +456,74 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Available users for tagging in comments
+  // Available users for tagging in comments (scoped strictly to users assigned to this engagement)
   const availableUsers: CommentUser[] = useMemo(() => {
-    if (systemUsers.length > 0) {
-      return systemUsers.map((u, idx) => {
-        const cleanName = u.label.split('(')[0].trim();
-        const initials = cleanName
-          .split(' ')
-          .map((p) => p[0])
-          .filter(Boolean)
-          .join('')
-          .slice(0, 2)
-          .toUpperCase() || 'U';
-        const colors = ['#000099', '#eb1700', '#059669', '#0D9488', '#D97706', '#7C3AED'];
-        return {
-          userId: u.value,
+    const colors = ['#000099', '#eb1700', '#059669', '#0D9488', '#D97706', '#7C3AED'];
+    if (Array.isArray(assignedUsers) && assignedUsers.length > 0) {
+      const seen = new Set<string>();
+      const engagementMembers: CommentUser[] = [];
+
+      assignedUsers.forEach((u, idx) => {
+        const cleanName = (u.displayName || u.name || '').trim();
+        if (!cleanName) return;
+        const uniqueKey = (u.email || u.userId || u.id || cleanName).toLowerCase().trim();
+        if (seen.has(uniqueKey)) return;
+        seen.add(uniqueKey);
+
+        const initials =
+          u.initials ||
+          cleanName
+            .split(' ')
+            .map((p) => p[0])
+            .filter(Boolean)
+            .join('')
+            .slice(0, 2)
+            .toUpperCase() ||
+          'U';
+
+        engagementMembers.push({
+          userId: u.userId || u.id || u.email || `ENG-USR-${idx + 1}`,
           name: cleanName,
-          role: u.label.includes('(') ? u.label.substring(u.label.indexOf('(') + 1, u.label.indexOf(')')) : 'Auditor',
+          role: u.roleName || u.roleAbbr || u.roleId || 'Auditor',
           avatar: initials,
-          avatarBg: colors[idx % colors.length],
-        };
+          avatarBg: colors[engagementMembers.length % colors.length],
+        });
       });
+
+      if (engagementMembers.length > 0) {
+        return engagementMembers;
+      }
     }
+
     return [
       { userId: 'USR-001', name: currentUser?.name || 'Current Auditor', role: userRole || 'Auditor', avatar: 'CA', avatarBg: '#000099' },
       { userId: 'USR-002', name: 'Sarah Jenkins', role: 'IT Audit Manager', avatar: 'SJ', avatarBg: '#eb1700' },
       { userId: 'USR-003', name: 'Brian Cox', role: 'IT Audit Director', avatar: 'BC', avatarBg: '#059669' },
       { userId: 'USR-004', name: 'Elena Rostova', role: 'VP Global Audit', avatar: 'ER', avatarBg: '#0D9488' },
     ];
-  }, [systemUsers, currentUser, userRole]);
+  }, [assignedUsers, currentUser, userRole]);
 
-  const currentCommentUser: CommentUser = useMemo(
-    () => ({
-      userId: currentUser?.userId || 'USR-001',
-      name: currentUser?.name || 'Current Auditor',
-      role: userRole || 'Internal Audit',
+  const currentCommentUser: CommentUser = useMemo(() => {
+    const cId = (currentUser?.userId || '').trim().toLowerCase();
+    const cName = (currentUser?.name || '').trim().toLowerCase();
+    const cEmail = (currentUser?.email || '').trim().toLowerCase();
+    const matchedMember = Array.isArray(assignedUsers)
+      ? assignedUsers.find((u) => {
+          const uId = (u.userId || u.id || '').trim().toLowerCase();
+          const uEmail = (u.email || '').trim().toLowerCase();
+          const uName = (u.displayName || u.name || '').trim().toLowerCase();
+          return (
+            (cEmail && uEmail && cEmail === uEmail) ||
+            (cId && uId && cId === uId) ||
+            (cName && uName && (cName === uName || uName.includes(cName) || cName.includes(uName)))
+          );
+        })
+      : undefined;
+
+    return {
+      userId: currentUser?.userId || matchedMember?.userId || matchedMember?.id || 'USR-001',
+      name: currentUser?.name || matchedMember?.displayName || matchedMember?.name || 'Current Auditor',
+      role: matchedMember?.roleName || currentUser?.role || userRole || 'Internal Audit',
       avatar: (currentUser?.name || 'CA')
         .split(' ')
         .map((n) => n[0])
@@ -492,9 +532,8 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
         .slice(0, 2)
         .toUpperCase() || 'CA',
       avatarBg: '#000099',
-    }),
-    [currentUser, userRole]
-  );
+    };
+  }, [assignedUsers, currentUser, userRole]);
 
   // Determine if function is IT or FinOps
   const isIT = (() => {
@@ -640,10 +679,91 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
     recommendation: '',
   });
 
+  // In-Place "Add Business Response On-Behalf" toggle state
+  const [isEditingBizOnBehalf, setIsEditingBizOnBehalf] = useState(false);
+  const [bizOnBehalfDraft, setBizOnBehalfDraft] = useState({
+    reason: '',
+    response: '',
+    attachment: '',
+  });
+  const [bizOnBehalfErrors, setBizOnBehalfErrors] = useState<{
+    reason?: string;
+    response?: string;
+    attachment?: string;
+  }>({});
+
+  const canAddBizOnBehalf =
+    canEdit &&
+    !isExcluded &&
+    issue.status !== 'Completed' &&
+    issue.status !== 'Signed Off' &&
+    (!isLocked || isLockedByCurrentUser);
+
+  const isBizResponseEmpty = !(issue.businessManagementResponse || issue.managementResponse || '').trim();
+
+  const handleToggleBizOnBehalf = (checked: boolean) => {
+    if (checked) {
+      setBizOnBehalfDraft({
+        reason: issue.businessManagementReason || '',
+        response: issue.businessManagementResponse || issue.managementResponse || '',
+        attachment: issue.businessManagementAttachment || '',
+      });
+      setBizOnBehalfErrors({});
+      setIsEditingBizOnBehalf(true);
+    } else {
+      setIsEditingBizOnBehalf(false);
+      setBizOnBehalfErrors({});
+    }
+  };
+
+  const handleSaveBizOnBehalf = () => {
+    const errors: {
+      reason?: string;
+      response?: string;
+      attachment?: string;
+    } = {};
+
+    if (!bizOnBehalfDraft.response.trim()) {
+      errors.response = 'Please enter the Business Management Response.';
+    }
+    if (!bizOnBehalfDraft.reason.trim()) {
+      errors.reason = 'Please provide the reason for adding this response on behalf of the Business Manager.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setBizOnBehalfErrors(errors);
+      return;
+    }
+
+    const nowFormatted = new Date().toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    onUpdateIssue({
+      ...issue,
+      businessManagementReason: bizOnBehalfDraft.reason.trim(),
+      businessManagementResponse: bizOnBehalfDraft.response.trim(),
+      managementResponse: bizOnBehalfDraft.response.trim(),
+      businessManagementAttachment: bizOnBehalfDraft.attachment.trim(),
+      businessResponseAddedOnBehalfBy: currentCommentUser.name || currentUser?.name || 'Auditor',
+      businessResponseAddedOnBehalfRole: currentCommentUser.role || currentUser?.role || userRole || 'Auditor',
+      businessResponseAddedOnBehalfAt: nowFormatted,
+    });
+
+    setBizOnBehalfErrors({});
+    setIsEditingBizOnBehalf(false);
+  };
+
   // Initialize or reset tracking params when issue ID changes
   useEffect(() => {
     setIsBannerDismissed(false);
     setIsCompareOpen(false);
+    setIsEditingBizOnBehalf(false);
+    setBizOnBehalfErrors({});
     setLastGeneratedParams({
       originalIssue: (issue.originalIssue || issue.description || issue.title || '').trim(),
       function: isIT ? 'IT' : 'FinOps',
@@ -1364,8 +1484,34 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 label="Issue Actions"
                 size="small"
                 menuWidth={240}
-                title="Issue actions (Send To, Call Back, Track Changes, Functional Scope, Exclusion)"
+                title="Issue actions (Call Back, Send To, Functional Scope, Exclusion, Track Changes, Workflow)"
                 items={[
+                  ...(onOpenCallback
+                    ? [
+                      {
+                        key: 'call-back',
+                        label: 'Call Back',
+                        icon: (
+                          <RotateCcw
+                            style={{
+                              width: '13px',
+                              height: '13px',
+                              color: canCallBack ? '#7C3AED' : '#94A3B8',
+                            }}
+                          />
+                        ),
+                        onClick: () => {
+                          if (canCallBack) onOpenCallback(issue.id);
+                        },
+                        disabled: !canCallBack,
+                        title: !canCallBack
+                          ? !canEdit
+                            ? 'Call Back is not available for Non-Function issues.'
+                            : `Call Back is not valid: this finding is currently in ${issue.status || 'current stage'}, which has not progressed past your review tier (${userRole || 'Reviewer'}).`
+                          : 'Call back this finding from higher review stage to your review bucket',
+                      },
+                    ]
+                    : []),
                   ...(onOpenSendTo
                     ? [
                       {
@@ -1384,50 +1530,15 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                           if (canSendTo) onOpenSendTo(issue.id);
                         },
                         disabled: !canSendTo,
-                        dividerAfter: !onOpenCallback,
                         title: !canSendTo
                           ? 'Send To is not available for this finding in its current state.'
                           : 'Hand over this finding to another assigned team member on this engagement',
                       },
                     ]
                     : []),
-                  ...(onOpenCallback
-                    ? [
-                      {
-                        key: 'call-back',
-                        label: 'Call Back Issue',
-                        icon: (
-                          <RotateCcw
-                            style={{
-                              width: '13px',
-                              height: '13px',
-                              color: canCallBack ? '#7C3AED' : '#94A3B8',
-                            }}
-                          />
-                        ),
-                        onClick: () => {
-                          if (canCallBack) onOpenCallback(issue.id);
-                        },
-                        disabled: !canCallBack,
-                        dividerAfter: true,
-                        title: !canCallBack
-                          ? !canEdit
-                            ? 'Call Back is not available for Non-Function issues.'
-                            : `Call Back is not valid: this finding is currently in ${issue.status || 'current stage'}, which has not progressed past your review tier (${userRole || 'Reviewer'}).`
-                          : 'Call back this finding from higher review stage to your review bucket',
-                      },
-                    ]
-                    : []),
-                  {
-                    key: 'track-changes',
-                    label: 'Track Changes',
-                    icon: <History style={{ width: '13px', height: '13px', color: '#eb1700' }} />,
-                    onClick: () => onOpenLogs(),
-                    dividerAfter: true,
-                  },
                   {
                     key: 'not-my-function',
-                    label: `Mark Not my Function Issue (Switch to ${(issue.function || (issue.tech === 'FinOps' ? 'FinOps' : 'IT')) === 'IT' ? 'FinOps' : 'IT'})`,
+                    label: 'Mark Not my Function Issue',
                     icon: (
                       <CheckCircle2
                         style={{
@@ -1465,7 +1576,6 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                         }}
                       />
                     ),
-                    danger: !isExcluded && canExclude,
                     disabled: isExcluded ? !canEdit : !canExclude,
                     title: !(isExcluded ? canEdit : canExclude)
                       ? 'Exclude / Include is not available while this finding is read-only.'
@@ -1479,6 +1589,20 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                         if (canExclude) onExcludeIssue?.(issue.id);
                       }
                     },
+                  },
+                  {
+                    key: 'track-changes',
+                    label: 'Track Changes',
+                    icon: <History style={{ width: '13px', height: '13px', color: '#eb1700' }} />,
+                    onClick: () => onOpenLogs(),
+                    title: 'View audit trail history and field-level track changes for this finding',
+                  },
+                  {
+                    key: 'workflow',
+                    label: 'Workflow',
+                    icon: <GitBranch style={{ width: '13px', height: '13px', color: '#000099' }} />,
+                    onClick: () => onOpenWorkflow?.(),
+                    title: 'View workflow pipeline and review stage progression for this finding',
                   },
                 ]}
               />
@@ -2194,6 +2318,21 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               disabled={isFieldDisabled}
               extraHeaderActions={renderCommentTrigger('secondaryBusinessOwnerIds', 'Supporting Business Contact(s)')}
             />
+
+            {/* 26. Agreed Remediation Date */}
+            <div style={{ maxWidth: '320px' }}>
+              <SharedTextInput
+                label="Agreed Remediation Date"
+                type="date"
+                value={issue.agreedRemediationDate || issue.remediationTargetDate || ''}
+                onChange={(val) => {
+                  handleFieldChange('agreedRemediationDate', val);
+                  handleFieldChange('remediationTargetDate', val);
+                }}
+                disabled={isFieldDisabled}
+                extraHeaderActions={renderCommentTrigger('agreedRemediationDate', 'Agreed Remediation Date')}
+              />
+            </div>
           </div>
         )}
 
@@ -2209,54 +2348,231 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
               flexShrink: 0,
             }}
           >
-            {/* 1. Business Management Reason */}
+            {/* Case 1: Business Response is empty -> Show only the "Add Business Response On-Behalf" toggle */}
+            {isBizResponseEmpty ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '4px 0',
+                }}
+              >
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isEditingBizOnBehalf}
+                  disabled={!canAddBizOnBehalf}
+                  onClick={() => {
+                    if (canAddBizOnBehalf) {
+                      handleToggleBizOnBehalf(!isEditingBizOnBehalf);
+                    }
+                  }}
+                  style={{
+                    width: '36px',
+                    height: '20px',
+                    borderRadius: '999px',
+                    backgroundColor: isEditingBizOnBehalf ? '#000099' : '#CBD5E1',
+                    border: 'none',
+                    padding: '2px',
+                    cursor: canAddBizOnBehalf ? 'pointer' : 'not-allowed',
+                    opacity: canAddBizOnBehalf ? 1 : 0.6,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    transition: 'background-color 0.18s ease',
+                    flexShrink: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '50%',
+                      backgroundColor: '#FFFFFF',
+                      transform: isEditingBizOnBehalf ? 'translateX(16px)' : 'translateX(0)',
+                      transition: 'transform 0.18s ease',
+                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.2)',
+                    }}
+                  />
+                </button>
+                <span
+                  onClick={() => {
+                    if (canAddBizOnBehalf) {
+                      handleToggleBizOnBehalf(!isEditingBizOnBehalf);
+                    }
+                  }}
+                  style={{
+                    fontSize: '12.5px',
+                    fontWeight: 600,
+                    color: '#1E293B',
+                    cursor: canAddBizOnBehalf ? 'pointer' : 'not-allowed',
+                    opacity: canAddBizOnBehalf ? 1 : 0.6,
+                    userSelect: 'none',
+                  }}
+                >
+                  Add Business Response On-Behalf
+                </span>
+              </div>
+            ) : (
+              /* Case 2: Business Response is present -> Show read-only field + attribution text at the bottom */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <SharedTextArea
+                  label="Business Management Response"
+                  value={issue.businessManagementResponse || issue.managementResponse || ''}
+                  onChange={() => {}}
+                  placeholder="Enter official management response, operational commitments, and corrective action plan (CAP)..."
+                  rows={4}
+                  disabled
+                  extraHeaderActions={renderCommentTrigger('businessManagementResponse', 'Business Management Response')}
+                />
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: '#64748B',
+                    fontWeight: 500,
+                    paddingLeft: '2px',
+                  }}
+                >
+                  {Boolean(issue.businessResponseAddedOnBehalfBy || issue.businessManagementReason) ? (
+                    <span>
+                      Business response added on-behalf by{' '}
+                      <strong style={{ color: '#334155', fontWeight: 600 }}>
+                        {issue.businessResponseAddedOnBehalfBy || currentCommentUser.name || currentUser?.name || 'Auditor'}
+                      </strong>{' '}
+                      <span style={{ color: '#64748B', fontWeight: 400 }}>
+                        ({issue.businessResponseAddedOnBehalfRole || currentCommentUser.role || currentUser?.role || userRole || 'Auditor'})
+                      </span>{' '}
+                      on{' '}
+                      <strong style={{ color: '#334155', fontWeight: 600 }}>
+                        {issue.businessResponseAddedOnBehalfAt || issue.updatedAt || issue.createdAt || 'Oct 29, 2026, 01:30 PM'}
+                      </strong>
+                    </span>
+                  ) : (
+                    <span>
+                      Business response provided by{' '}
+                      <strong style={{ color: '#334155', fontWeight: 600 }}>
+                        {issue.businessResponseProvidedBy ||
+                          issue.primaryBusinessOwnerName ||
+                          issue.primaryContact ||
+                          issue.businessContactName ||
+                          issue.accountableContact ||
+                          'Business Owner'}
+                      </strong>{' '}
+                      on{' '}
+                      <strong style={{ color: '#334155', fontWeight: 600 }}>
+                        {issue.businessResponseProvidedAt || issue.updatedAt || issue.createdAt || 'Oct 28, 2026, 02:30 PM'}
+                      </strong>
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Add Business Response On-Behalf Dialog */}
+      {isEditingBizOnBehalf && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: 'rgba(15, 23, 42, 0.5)',
+            backdropFilter: 'blur(2px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={() => handleToggleBizOnBehalf(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '8px',
+              maxWidth: '540px',
+              width: '100%',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.16)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              border: '1px solid #E2E8F0',
+              padding: '20px 24px',
+              gap: '16px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Dialog Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '6px',
+                  backgroundColor: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#000099',
+                  flexShrink: 0,
+                }}
+              >
+                <FileText style={{ width: '15px', height: '15px' }} />
+              </div>
+              <h3
+                className="type-modal-title"
+                style={{
+                  margin: 0,
+                  fontSize: 'var(--type-modal-title-size, 15px)',
+                  fontWeight: 700,
+                  color: '#0F172A',
+                  lineHeight: 1.35,
+                  wordBreak: 'break-word',
+                }}
+              >
+                {issue.title || issue.testProcedureCode || issue.id || 'Finding'}
+              </h3>
+            </div>
+
+            {/* 1. Reason */}
             <SharedTextArea
-              label="Business Management Reason"
-              value={issue.businessManagementReason || ''}
-              onChange={(val) => handleFieldChange('businessManagementReason', val)}
-              placeholder="Provide business management rationale, root cause acceptance or disagreement rationale..."
+              label="Reason"
+              required
+              value={bizOnBehalfDraft.reason}
+              onChange={(val) => {
+                setBizOnBehalfDraft((prev) => ({ ...prev, reason: val }));
+                if (bizOnBehalfErrors.reason) {
+                  setBizOnBehalfErrors((prev) => ({ ...prev, reason: undefined }));
+                }
+              }}
               rows={3}
-              disabled={isFieldDisabled}
-              extraHeaderActions={renderCommentTrigger('businessManagementReason', 'Business Management Reason')}
+              error={Boolean(bizOnBehalfErrors.reason)}
+              errorMessage={bizOnBehalfErrors.reason}
             />
 
             {/* 2. Business Management Response */}
             <SharedTextArea
               label="Business Management Response"
-              value={issue.businessManagementResponse || issue.managementResponse || ''}
+              required
+              value={bizOnBehalfDraft.response}
               onChange={(val) => {
-                handleFieldChange('businessManagementResponse', val);
-                handleFieldChange('managementResponse', val);
+                setBizOnBehalfDraft((prev) => ({ ...prev, response: val }));
+                if (bizOnBehalfErrors.response) {
+                  setBizOnBehalfErrors((prev) => ({ ...prev, response: undefined }));
+                }
               }}
-              placeholder="Enter official management response, operational commitments, and corrective action plan (CAP)..."
               rows={4}
-              disabled={isFieldDisabled}
-              extraHeaderActions={renderCommentTrigger('businessManagementResponse', 'Business Management Response')}
+              error={Boolean(bizOnBehalfErrors.response)}
+              errorMessage={bizOnBehalfErrors.response}
             />
 
-            {/* 3. Agreed Remediation Date */}
-            <div style={{ maxWidth: '320px' }}>
-              <SharedTextInput
-                label="Agreed Remediation Date"
-                type="date"
-                value={issue.agreedRemediationDate || issue.remediationTargetDate || ''}
-                onChange={(val) => {
-                  handleFieldChange('agreedRemediationDate', val);
-                  handleFieldChange('remediationTargetDate', val);
-                }}
-                disabled={isFieldDisabled}
-                extraHeaderActions={renderCommentTrigger('agreedRemediationDate', 'Agreed Remediation Date')}
-              />
-            </div>
-
-            {/* 4. Business Management Attachment */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
-                <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Business Management Attachment
-                </label>
-                {renderCommentTrigger('businessManagementAttachment', 'Business Management Attachment')}
-              </div>
+            {/* 3. Attachment (Proof of Offline Conversation) */}
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <SharedFieldLabel>Attachment</SharedFieldLabel>
 
               <input
                 ref={fileInputRef}
@@ -2265,12 +2581,15 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    handleFieldChange('businessManagementAttachment', file.name);
+                    setBizOnBehalfDraft((prev) => ({ ...prev, attachment: file.name }));
+                    if (bizOnBehalfErrors.attachment) {
+                      setBizOnBehalfErrors((prev) => ({ ...prev, attachment: undefined }));
+                    }
                   }
                 }}
               />
 
-              {issue.businessManagementAttachment ? (
+              {bizOnBehalfDraft.attachment ? (
                 <div
                   style={{
                     display: 'flex',
@@ -2301,52 +2620,46 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                     </div>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: '13px', fontWeight: 600, color: '#1E293B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {issue.businessManagementAttachment}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#64748B' }}>
-                        Attached Evidence Document
+                        {bizOnBehalfDraft.attachment}
                       </div>
                     </div>
                   </div>
 
-                  {!isFieldDisabled && (
-                    <button
-                      type="button"
-                      onClick={() => handleFieldChange('businessManagementAttachment', undefined)}
-                      style={{
-                        border: 'none',
-                        background: 'none',
-                        color: '#EF4444',
-                        cursor: 'pointer',
-                        padding: '4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '12px',
-                      }}
-                      title="Remove attachment"
-                    >
-                      <Trash2 size={14} />
-                      <span>Remove</span>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setBizOnBehalfDraft((prev) => ({ ...prev, attachment: '' }))}
+                    style={{
+                      border: 'none',
+                      background: 'none',
+                      color: '#EF4444',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '12px',
+                    }}
+                    title="Remove attachment"
+                  >
+                    <Trash2 size={14} />
+                    <span>Remove</span>
+                  </button>
                 </div>
               ) : (
                 <div
                   onClick={() => {
-                    if (!isFieldDisabled) {
-                      fileInputRef.current?.click();
-                    }
+                    fileInputRef.current?.click();
                   }}
                   style={{
-                    border: '1.5px dashed #CBD5E1',
+                    border: bizOnBehalfErrors.attachment
+                      ? '1.5px dashed #DC2626'
+                      : '1.5px dashed #CBD5E1',
                     borderRadius: '6px',
-                    padding: '16px',
+                    padding: '14px',
                     textAlign: 'center',
-                    backgroundColor: isFieldDisabled ? '#FAFAFA' : '#FFFFFF',
-                    cursor: isFieldDisabled ? 'not-allowed' : 'pointer',
+                    backgroundColor: '#FFFFFF',
+                    cursor: 'pointer',
                     display: 'flex',
-                    flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '6px',
@@ -2356,18 +2669,39 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                   <div style={{ color: '#000099', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Upload size={16} />
                     <span style={{ fontSize: '12.5px', fontWeight: 600 }}>
-                      {isFieldDisabled ? 'No Attachment Provided' : 'Click to Upload Management Attachment'}
+                      Click to upload the offline response
                     </span>
                   </div>
-                  <span style={{ fontSize: '11px', color: '#64748B' }}>
-                    PDF, DOCX, XLSX, or evidence zip package
-                  </span>
                 </div>
               )}
+
+              {bizOnBehalfErrors.attachment && (
+                <span style={{ fontSize: '11.5px', color: '#DC2626', fontWeight: 500, marginTop: '4px' }}>
+                  {bizOnBehalfErrors.attachment}
+                </span>
+              )}
+            </div>
+
+            {/* Dialog Footer Actions */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '4px' }}>
+              <SharedButton
+                variant="secondary"
+                size="small"
+                onClick={() => handleToggleBizOnBehalf(false)}
+              >
+                Cancel
+              </SharedButton>
+              <SharedButton
+                variant="primary"
+                size="small"
+                onClick={handleSaveBizOnBehalf}
+              >
+                Submit Response
+              </SharedButton>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* AI Version Comparison & Merge Dialog */}
       <AiVersionCompareDialog
@@ -2387,6 +2721,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
         title={remarksModalConfig?.title || 'Submit Finding'}
         actionLabel={remarksModalConfig?.actionLabel || 'Submit'}
         itemTitle={issue.title || issue.testProcedureCode || issue.id || 'Finding'}
+        currentStatusText={issue.status || 'Pending Staff'}
         targetStatusText={remarksModalConfig?.targetStatus}
         onConfirm={async (remarks) => {
           if (onAdvanceWorkflow && remarksModalConfig?.targetStatus) {

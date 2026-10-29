@@ -1,13 +1,13 @@
-import React, { useState, useRef } from 'react';
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
-import { ChevronDown, Send, CheckCircle2, MessageSquare } from 'lucide-react';
+import React from 'react';
+import { Send, CheckCircle2 } from 'lucide-react';
 import CircularProgress from '@mui/material/CircularProgress';
+import { SharedTooltip } from '../../../components/shared/feedback/SharedTooltip';
 
 export interface WorkflowSubmitButtonProps {
   label: string;
   onClickDirect: () => void;
   onOpenRemarks: () => void;
+  directOnly?: boolean;
   variant?: 'primary' | 'success' | 'secondary' | 'outline';
   size?: 'small' | 'medium';
   disabled?: boolean;
@@ -21,6 +21,7 @@ export const WorkflowSubmitButton: React.FC<WorkflowSubmitButtonProps> = ({
   label,
   onClickDirect,
   onOpenRemarks,
+  directOnly = false,
   variant = 'primary',
   size = 'small',
   disabled = false,
@@ -29,37 +30,15 @@ export const WorkflowSubmitButton: React.FC<WorkflowSubmitButtonProps> = ({
   title,
   style,
 }) => {
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const isOpen = Boolean(anchorEl);
-
-  const handleOpenMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     if (!disabled && !loading) {
-      setAnchorEl(e.currentTarget);
+      if (directOnly) {
+        onClickDirect();
+      } else {
+        onOpenRemarks();
+      }
     }
-  };
-
-  const handleCloseMenu = () => {
-    setAnchorEl(null);
-  };
-
-  const handleDirectClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation();
-    if (!disabled && !loading) {
-      onClickDirect();
-    }
-  };
-
-  const handleItemClickDirect = () => {
-    handleCloseMenu();
-    onClickDirect();
-  };
-
-  const handleItemClickWithRemarks = () => {
-    handleCloseMenu();
-    onOpenRemarks();
   };
 
   // Color schemes
@@ -69,26 +48,26 @@ export const WorkflowSubmitButton: React.FC<WorkflowSubmitButtonProps> = ({
   const bgColor = disabled
     ? '#94A3B8'
     : isSuccess
-    ? '#059669'
-    : isSecondary
-    ? '#475569'
-    : '#000099';
+      ? '#059669'
+      : isSecondary
+        ? '#475569'
+        : '#000099';
 
   const hoverBgColor = disabled
     ? '#94A3B8'
     : isSuccess
-    ? '#047857'
-    : isSecondary
-    ? '#334155'
-    : '#000080';
+      ? '#047857'
+      : isSecondary
+        ? '#334155'
+        : '#000080';
 
   const borderColor = disabled
     ? '#94A3B8'
     : isSuccess
-    ? '#059669'
-    : isSecondary
-    ? '#475569'
-    : '#000099';
+      ? '#059669'
+      : isSecondary
+        ? '#475569'
+        : '#000099';
 
   const defaultIcon = isSuccess ? <CheckCircle2 size={12} /> : <Send size={12} />;
   const effectiveIcon = startIcon !== undefined ? startIcon : defaultIcon;
@@ -97,156 +76,60 @@ export const WorkflowSubmitButton: React.FC<WorkflowSubmitButtonProps> = ({
   const fontSize = size === 'small' ? '12px' : '13px';
 
   return (
-    <div
-      ref={containerRef}
-      title={title}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'stretch',
-        borderRadius: '4px',
-        boxShadow: disabled ? 'none' : '0 1px 2px rgba(0,0,0,0.06)',
-        opacity: disabled ? 0.65 : 1,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        ...style,
-      }}
-    >
-      {/* Primary Action Button */}
-      <button
-        type="button"
-        disabled={disabled || loading}
-        onClick={handleDirectClick}
+    <SharedTooltip title={title || ''} placement="top" arrow>
+      <div
         style={{
           display: 'inline-flex',
-          alignItems: 'center',
-          gap: '6px',
-          minHeight,
-          padding: '0 10px',
-          backgroundColor: bgColor,
-          borderColor,
-          borderStyle: 'solid',
-          borderWidth: '1px 0 1px 1px',
-          borderRadius: '4px 0 0 4px',
-          color: '#FFFFFF',
-          fontSize,
-          fontWeight: 600,
-          fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-          cursor: disabled || loading ? 'not-allowed' : 'pointer',
-          whiteSpace: 'nowrap',
-          transition: 'background-color 150ms ease-in-out',
-        }}
-        onMouseEnter={(e) => {
-          if (!disabled && !loading) {
-            e.currentTarget.style.backgroundColor = hoverBgColor;
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!disabled && !loading) {
-            e.currentTarget.style.backgroundColor = bgColor;
-          }
+          alignItems: 'stretch',
+          borderRadius: '4px',
+          boxShadow: disabled ? 'none' : '0 1px 2px rgba(0,0,0,0.06)',
+          opacity: disabled ? 0.65 : 1,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          ...style,
         }}
       >
-        {loading ? (
-          <CircularProgress size={12} style={{ color: '#FFFFFF' }} />
-        ) : (
-          effectiveIcon
-        )}
-        <span>{label}</span>
-      </button>
-
-      {/* Split Dropdown Trigger */}
-      <button
-        type="button"
-        disabled={disabled || loading}
-        onClick={handleOpenMenu}
-        aria-haspopup="true"
-        aria-expanded={isOpen}
-        aria-label={`${label} options`}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight,
-          padding: '0 6px',
-          backgroundColor: bgColor,
-          borderColor,
-          borderStyle: 'solid',
-          borderWidth: '1px 1px 1px 1px',
-          borderLeft: '1px solid rgba(255, 255, 255, 0.25)',
-          borderRadius: '0 4px 4px 0',
-          color: '#FFFFFF',
-          cursor: disabled || loading ? 'not-allowed' : 'pointer',
-          transition: 'background-color 150ms ease-in-out',
-        }}
-        onMouseEnter={(e) => {
-          if (!disabled && !loading) {
-            e.currentTarget.style.backgroundColor = hoverBgColor;
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!disabled && !loading) {
-            e.currentTarget.style.backgroundColor = bgColor;
-          }
-        }}
-      >
-        <ChevronDown size={14} />
-      </button>
-
-      {/* Dropdown Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={isOpen}
-        onClose={handleCloseMenu}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-        slotProps={{
-          paper: {
-            sx: {
-              mt: '4px',
-              minWidth: '220px',
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
-              borderRadius: '6px',
-              border: '1px solid #E2E8F0',
-            },
-          },
-        }}
-      >
-        <MenuItem
-          onClick={handleItemClickDirect}
+        <button
+          type="button"
+          disabled={disabled || loading}
+          onClick={handleClick}
           style={{
-            fontSize: '12px',
-            fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-            color: '#1E293B',
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
-            gap: '8px',
-            padding: '8px 12px',
+            gap: '6px',
+            minHeight,
+            padding: '0 12px',
+            backgroundColor: bgColor,
+            borderColor,
+            borderStyle: 'solid',
+            borderWidth: '1px',
+            borderRadius: '4px',
+            color: '#FFFFFF',
+            fontSize,
+            fontWeight: 600,
+            fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+            cursor: disabled || loading ? 'not-allowed' : 'pointer',
+            whiteSpace: 'nowrap',
+            transition: 'background-color 150ms ease-in-out',
+          }}
+          onMouseEnter={(e) => {
+            if (!disabled && !loading) {
+              e.currentTarget.style.backgroundColor = hoverBgColor;
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!disabled && !loading) {
+              e.currentTarget.style.backgroundColor = bgColor;
+            }
           }}
         >
-          {effectiveIcon}
-          <span>{label} (Direct Submit)</span>
-        </MenuItem>
-        <MenuItem
-          onClick={handleItemClickWithRemarks}
-          style={{
-            fontSize: '12px',
-            fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-            color: '#1E293B',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '8px 12px',
-          }}
-        >
-          <MessageSquare size={13} style={{ color: '#000099' }} />
-          <span>{label} with Remarks...</span>
-        </MenuItem>
-      </Menu>
-    </div>
+          {loading ? (
+            <CircularProgress size={12} style={{ color: '#FFFFFF' }} />
+          ) : (
+            effectiveIcon
+          )}
+          <span>{label}</span>
+        </button>
+      </div>
+    </SharedTooltip>
   );
 };

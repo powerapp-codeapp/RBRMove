@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   MessageSquare,
@@ -22,6 +22,28 @@ export interface CommentUser {
   avatar?: string;
   avatarBg?: string;
 }
+
+const formatDisplayRoleName = (rawRole?: string): string => {
+  if (!rawRole) return 'Auditor';
+  const r = rawRole.trim();
+  const rLower = r.toLowerCase();
+  if (rLower === 'it-auditor' || rLower === 'ita') return 'IT Auditor';
+  if (rLower === 'finops-auditor' || rLower === 'fia') return 'Financial Auditor';
+  if (rLower === 'auditor' || rLower === 'staff') return 'Staff Auditor';
+  if (rLower === 'it-team-coordinator' || rLower === 'ittc') return 'IT Team Coordinator';
+  if (rLower === 'finops-team-coordinator' || rLower === 'fitc') return 'Financial Team Coordinator';
+  if (rLower === 'team-coordinator' || rLower === 'tc') return 'Team Coordinator';
+  if (rLower === 'it-manager' || rLower === 'itm') return 'IT Audit Manager';
+  if (rLower === 'finops-manager' || rLower === 'fim') return 'Financial Audit Manager';
+  if (rLower === 'manager' || rLower === 'mgr') return 'Audit Manager';
+  if (rLower === 'it-director' || rLower === 'itd') return 'IT Audit Director';
+  if (rLower === 'finops-director' || rLower === 'fid') return 'Financial Audit Director';
+  if (rLower === 'director' || rLower === 'dir') return 'Audit Director';
+  if (rLower === 'it-vp' || rLower === 'itv') return 'IT Vice President';
+  if (rLower === 'finops-vp' || rLower === 'fvp') return 'Financial Audit VP';
+  if (rLower === 'vp') return 'Vice President';
+  return r;
+};
 
 interface FieldCommentPopoverProps {
   isOpen: boolean;
@@ -68,43 +90,6 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Group available users by role categories with clean names
-  const groupedUsers = useMemo(() => {
-    const groups: { groupName: string; users: CommentUser[] }[] = [
-      { groupName: 'Audit Team', users: [] },
-      { groupName: 'Audit Leadership', users: [] },
-      { groupName: 'Business Stakeholders', users: [] },
-      { groupName: 'Other Assignees', users: [] },
-    ];
-
-    availableUsers.forEach((u) => {
-      const role = (u.role || '').toLowerCase();
-      if (role.includes('vp') || role.includes('director')) {
-        groups[1].users.push(u);
-      } else if (
-        role.includes('business') ||
-        role.includes('owner') ||
-        role.includes('controller') ||
-        role.includes('finops')
-      ) {
-        groups[2].users.push(u);
-      } else if (
-        role.includes('auditor') ||
-        role.includes('manager') ||
-        role.includes('coordinator') ||
-        role.includes('tc') ||
-        role.includes('contributor') ||
-        role.includes('it')
-      ) {
-        groups[0].users.push(u);
-      } else {
-        groups[3].users.push(u);
-      }
-    });
-
-    return groups.filter((g) => g.users.length > 0);
-  }, [availableUsers]);
-
   if (!isOpen) return null;
 
   const handlePost = () => {
@@ -129,6 +114,8 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
           alignItems: 'center',
           justifyContent: 'space-between',
           flexShrink: 0,
+          borderTopLeftRadius: isDrawerMode ? 0 : '7px',
+          borderTopRightRadius: isDrawerMode ? 0 : '7px',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1, marginRight: '8px' }}>
@@ -255,6 +242,38 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
               c.taggedUserId && (c.taggedUserId === currentUser.userId || c.taggedUserName === currentUser.name);
             const canResolve = !c.taggedUserId || isTaggedToCurrentUser;
 
+            // Resolve actual role of the comment author from engagement availableUsers or currentUser
+            const authorIdLower = (c.authorId || '').trim().toLowerCase();
+            const authorNameLower = (c.authorName || '').trim().toLowerCase();
+            const matchedAuthor = availableUsers.find((u) => {
+              const uIdLower = (u.userId || '').trim().toLowerCase();
+              const uNameLower = (u.name || '').trim().toLowerCase();
+              if (authorIdLower && uIdLower && authorIdLower === uIdLower) return true;
+              if (
+                authorNameLower &&
+                uNameLower &&
+                (authorNameLower === uNameLower ||
+                  uNameLower.includes(authorNameLower) ||
+                  authorNameLower.includes(uNameLower))
+              ) {
+                return true;
+              }
+              return false;
+            });
+
+            const isCurrentUserAuthor =
+              (authorIdLower && authorIdLower === (currentUser.userId || '').trim().toLowerCase()) ||
+              (authorNameLower &&
+                (authorNameLower === (currentUser.name || '').trim().toLowerCase() ||
+                  authorNameLower.includes((currentUser.name || '').trim().toLowerCase())));
+
+            const resolvedAuthorRole = formatDisplayRoleName(
+              matchedAuthor?.role ||
+                c.authorRole ||
+                (isCurrentUserAuthor ? currentUser.role : undefined) ||
+                'Auditor'
+            );
+
             return (
               <div
                 key={c.commentId}
@@ -275,7 +294,7 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
                     {c.authorName || 'Reviewer'}
                   </div>
                   <div style={{ fontSize: '10px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <span>Audit Contributor</span>
+                    <span>{resolvedAuthorRole}</span>
                     <span style={{ color: '#CBD5E1' }}>•</span>
                     <span>
                       {c.createdAt
@@ -395,6 +414,8 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
           display: 'flex',
           flexDirection: 'column',
           gap: '7px',
+          borderBottomLeftRadius: isDrawerMode ? 0 : '7px',
+          borderBottomRightRadius: isDrawerMode ? 0 : '7px',
         }}
       >
         {/* Tag Picker Row */}
@@ -443,78 +464,71 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
             </SharedButton>
           )}
 
-          {/* Tag Dropdown Menu (Grouped with clean names only) */}
+          {/* Tag Dropdown Menu (Flat list with role name in brackets) */}
           {isTagDropdownOpen && availableUsers.length > 0 && (
             <div
               className="slim-light-scrollbar"
               style={{
                 position: 'absolute',
-                bottom: 'calc(100% + 4px)',
+                bottom: 'calc(100% + 6px)',
                 left: 0,
-                width: '230px',
+                width: '260px',
                 backgroundColor: '#ffffff',
                 border: '1px solid #CBD5E1',
                 borderRadius: '6px',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+                boxShadow: '0 10px 28px rgba(15, 23, 42, 0.18), 0 2px 6px rgba(15, 23, 42, 0.08)',
                 zIndex: 600,
-                maxHeight: '220px',
+                maxHeight: '200px',
                 overflowY: 'auto',
-                padding: '3px 0',
+                padding: '4px 0',
                 scrollbarWidth: 'thin',
                 scrollbarColor: '#CBD5E1 transparent',
               }}
             >
-              {groupedUsers.map((group) => (
-                <div key={group.groupName}>
-                  <div
-                    style={{
-                      padding: '4px 10px 2px 10px',
-                      fontSize: '9px',
-                      fontWeight: 700,
-                      color: '#64748B',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
-                      backgroundColor: '#F8FAFC',
-                      borderTop: '1px solid #F1F5F9',
-                      borderBottom: '1px solid #F1F5F9',
-                    }}
-                  >
-                    {group.groupName}
-                  </div>
-                  {group.users.map((u) => (
-                    <button
-                      key={u.userId}
-                      type="button"
-                      onClick={() => {
-                        setSelectedTaggedUser(u);
-                        setIsTagDropdownOpen(false);
-                      }}
+              {availableUsers.map((u) => (
+                <button
+                  key={u.userId}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTaggedUser(u);
+                    setIsTagDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '6px 12px',
+                    border: 'none',
+                    background: 'none',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '11.5px',
+                    fontWeight: 500,
+                    color: '#1E293B',
+                    display: 'block',
+                    transition: 'background-color 0.1s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#EEF2FF';
+                    e.currentTarget.style.color = '#000099';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#1E293B';
+                  }}
+                >
+                  <span>{u.name}</span>
+                  {u.role && (
+                    <span
                       style={{
-                        width: '100%',
-                        padding: '4px 12px',
-                        border: 'none',
-                        background: 'none',
-                        textAlign: 'left',
-                        cursor: 'pointer',
+                        fontWeight: 400,
+                        color: '#64748B',
                         fontSize: '11px',
-                        fontWeight: 500,
-                        color: '#1E293B',
-                        display: 'block',
-                        transition: 'background-color 0.1s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#EEF2FF';
-                        e.currentTarget.style.color = '#000099';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                        e.currentTarget.style.color = '#1E293B';
+                        marginLeft: '5px',
                       }}
                     >
-                      {u.name}
-                    </button>
-                  ))}
-                </div>
+                      ({formatDisplayRoleName(u.role)})
+                    </span>
+                  )}
+                </button>
               ))}
             </div>
           )}
@@ -639,7 +653,7 @@ export const FieldCommentPopover: React.FC<FieldCommentPopoverProps> = ({
         zIndex: 500,
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden',
+        overflow: 'visible',
         textAlign: 'left',
         animation: 'fadeIn 0.15s ease',
       }}
