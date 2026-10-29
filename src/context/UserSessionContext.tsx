@@ -175,49 +175,156 @@ export const UserSessionProvider: React.FC<{ children: React.ReactNode }> = ({ c
           }
         });
 
-        // 1. Index systemusers by email and by systemuserid for fast lookup
-        const normalizeGuid = (val: any): string =>
-          String(val || '').toLowerCase().replace(/[{}]/g, '').trim();
+        // 1. Index systemusers by email, domainname, username prefix, and systemuserid for fast lookup
+        const normalizeGuid = (val: any): string => {
+          if (!val) return '';
+          if (typeof val === 'object') {
+            const candidate = val.systemuserid || val.id || val._id || val.guid;
+            if (candidate) return String(candidate).toLowerCase().replace(/[{}]/g, '').trim();
+            return '';
+          }
+          const s = String(val).trim();
+          if (s.startsWith('[object')) return '';
+          return s.toLowerCase().replace(/[{}]/g, '').trim();
+        };
 
         const userByEmail = new Map<string, any>();
         const userById = new Map<string, any>();
         liveUsersRaw.forEach((u: any) => {
           const em = String(u.internalemailaddress || '').toLowerCase().trim();
-          if (em) userByEmail.set(em, u);
+          if (em) {
+            userByEmail.set(em, u);
+            if (em.includes('@')) {
+              const emPrefix = em.split('@')[0]?.trim();
+              if (emPrefix && !userByEmail.has(emPrefix)) userByEmail.set(emPrefix, u);
+            }
+          }
+          const dom = String(u.domainname || '').toLowerCase().trim();
+          if (dom) {
+            if (!userByEmail.has(dom)) userByEmail.set(dom, u);
+            if (dom.includes('\\')) {
+              const part = dom.split('\\').pop()?.trim();
+              if (part && !userByEmail.has(part)) userByEmail.set(part, u);
+            }
+            if (dom.includes('@')) {
+              const part = dom.split('@')[0]?.trim();
+              if (part && !userByEmail.has(part)) userByEmail.set(part, u);
+            }
+          }
           const uid = normalizeGuid(u.systemuserid);
           if (uid) userById.set(uid, u);
         });
 
+        const searchEmail = activeEmail.toLowerCase().trim();
+        const searchUserPrefix = searchEmail.includes('@') ? searchEmail.split('@')[0] : searchEmail;
+
         const matchedRealSysUser =
-          userByEmail.get(activeEmail.toLowerCase().trim()) ||
+          userByEmail.get(searchEmail) ||
+          userByEmail.get(searchUserPrefix) ||
+          liveUsersRaw.find((u: any) => {
+            const uEmail = String(u.internalemailaddress || '').toLowerCase().trim();
+            const uDom = String(u.domainname || '').toLowerCase().trim();
+            return (
+              (uEmail && (uEmail === searchEmail || uEmail.startsWith(searchUserPrefix + '@'))) ||
+              (uDom && (uDom === searchEmail || uDom.endsWith('\\' + searchUserPrefix) || uDom.startsWith(searchUserPrefix + '@')))
+            );
+          }) ||
           liveUsersRaw.find((u: any) =>
             u.fullname && activeName && u.fullname.toLowerCase().includes(activeName.toLowerCase().split(' ')[0])
-          ) ||
-          liveUsersRaw[0];
+          );
 
         const resolvedRealUserId = normalizeGuid(matchedRealSysUser?.systemuserid);
         const resolvedRealEmail = String(
-          matchedRealSysUser?.internalemailaddress || activeEmail || ''
+          matchedRealSysUser?.internalemailaddress || matchedRealSysUser?.domainname || activeEmail || ''
         ).toLowerCase().trim();
+
+        // Helper to extract admin GUID, email, domain, and display text from various Dataverse representations
+        const resolveAdminDetails = (adm: any) => {
+          let guid = '';
+          let email = '';
+          let domain = '';
+          let name = '';
+
+          const rawLookup = adm.iar_admin || adm.iar_Admin;
+          if (rawLookup && typeof rawLookup === 'object') {
+            guid = normalizeGuid(rawLookup);
+            email = String(rawLookup.internalemailaddress || '').toLowerCase().trim();
+            domain = String(rawLookup.domainname || '').toLowerCase().trim();
+            name = String(rawLookup.fullname || '').trim();
+          }
+
+          if (!guid) {
+            guid = normalizeGuid(
+              getProp(adm, '_iar_admin_value', '_iar_Admin_value', 'iar_admin_value', 'iar_adminid')
+            );
+          }
+
+          if (guid && !email) {
+            const sysUser = userById.get(guid);
+            if (sysUser) {
+              email = String(sysUser.internalemailaddress || sysUser.domainname || '').toLowerCase().trim();
+              domain = String(sysUser.domainname || '').toLowerCase().trim();
+              name = name || String(sysUser.fullname || '').trim();
+            }
+          }
+
+          const adminIdText = String(
+            getProp(adm, 'iar_administratorid', 'iar_AdministratorId', 'iar_name', 'name', 'email') || ''
+          ).trim();
+          if (!email && adminIdText.includes('@')) {
+            email = adminIdText.toLowerCase().trim();
+          }
+          if (!name && adminIdText && !adminIdText.includes('@')) {
+            name = adminIdText;
+          }
+
+          return { guid, email, domain, name, adminIdText };
+        };
 
         // Strictly check Dataverse table iar_administratorses (active records only, no hardcoded emails)
         let isUserAdmin = false;
         if (liveAdmins.length > 0) {
           isUserAdmin = liveAdmins.some((a: any) => {
-            if (a.statecode !== undefined && a.statecode !== 0) return false;
-            const adminGuid = normalizeGuid(
-              getProp(a, '_iar_admin_value', 'iar_admin', 'iar_Admin')
-            );
+            // 1. Status check: only skip if explicitly marked inactive
+            const state = a.statecode;
+            const isInactive = state === 1 || state === '1' || state === 'Inactive' || state === 'inactive';
+            if (isInactive) return false;
+
+            const { guid: adminGuid, email: adminEmail, domain: adminDomain, adminIdText } = resolveAdminDetails(a);
+
+            // 2. Direct match by GUID if resolved
             if (resolvedRealUserId && adminGuid && adminGuid === resolvedRealUserId) {
               return true;
             }
-            const adminSysUser = adminGuid ? userById.get(adminGuid) : null;
-            const adminEmail = String(
-              a.iar_admin?.internalemailaddress ||
-              adminSysUser?.internalemailaddress ||
-              ''
-            ).toLowerCase().trim();
-            return Boolean(resolvedRealEmail && adminEmail && adminEmail === resolvedRealEmail);
+
+            // 3. Direct match by email or domain
+            const targetEmail = activeEmail.toLowerCase().trim();
+            const resolvedEmail = resolvedRealEmail.toLowerCase().trim();
+            if (adminEmail && (adminEmail === targetEmail || adminEmail === resolvedEmail)) {
+              return true;
+            }
+            if (adminDomain && (adminDomain === targetEmail || adminDomain === resolvedEmail)) {
+              return true;
+            }
+
+            // 4. Match prefix if username (e.g. TN4)
+            if (searchUserPrefix) {
+              if (adminEmail && adminEmail.split('@')[0] === searchUserPrefix) return true;
+              if (adminDomain && (adminDomain.split('@')[0] === searchUserPrefix || adminDomain.endsWith('\\' + searchUserPrefix))) return true;
+            }
+
+            // 5. Match by primary column text (iar_administratorid)
+            if (adminIdText) {
+              const cleanAdminIdText = adminIdText.toLowerCase().trim();
+              if (cleanAdminIdText === targetEmail || cleanAdminIdText === resolvedEmail) {
+                return true;
+              }
+              if (searchUserPrefix && (cleanAdminIdText === searchUserPrefix || cleanAdminIdText.includes(searchUserPrefix))) {
+                return true;
+              }
+            }
+
+            return false;
           });
         }
 
@@ -300,16 +407,12 @@ export const UserSessionProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         // 3. Include Administrators from iar_administratorses
         liveAdmins.forEach((adm: any) => {
-          let admEmail = String(
-            adm.iar_admin?.internalemailaddress ||
-            (adm._iar_admin_value ? userById.get(String(adm._iar_admin_value).toLowerCase())?.internalemailaddress : '') ||
-            ''
-          ).toLowerCase().trim();
+          const state = adm.statecode;
+          const isInactive = state === 1 || state === '1' || state === 'Inactive' || state === 'inactive';
+          if (isInactive) return;
 
-          if (!admEmail && adm._iar_admin_value) {
-            const u = userById.get(String(adm._iar_admin_value).toLowerCase());
-            if (u?.internalemailaddress) admEmail = u.internalemailaddress.toLowerCase().trim();
-          }
+          const { guid: adminGuid, email: resolvedAdmEmail, name: resolvedAdmName, adminIdText } = resolveAdminDetails(adm);
+          const admEmail = resolvedAdmEmail || (adminIdText.includes('@') ? adminIdText.toLowerCase().trim() : '');
 
           if (admEmail) {
             if (distinctAuditorsMap.has(admEmail)) {
@@ -317,14 +420,14 @@ export const UserSessionProvider: React.FC<{ children: React.ReactNode }> = ({ c
               existing.isAdmin = true;
               existing.role = 'Global Audit Administrator';
             } else {
-              const admSysUser = userByEmail.get(admEmail);
-              const admName = admSysUser?.fullname || admEmail.split('@')[0];
+              const admSysUser = userByEmail.get(admEmail) || (adminGuid ? userById.get(adminGuid) : null);
+              const admName = admSysUser?.fullname || resolvedAdmName || admEmail.split('@')[0];
               const admInitials =
                 (admSysUser?.firstname?.[0] || '') + (admSysUser?.lastname?.[0] || '') ||
-                admName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
+                admName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'AD';
 
               distinctAuditorsMap.set(admEmail, {
-                userId: admSysUser?.systemuserid || adm.iar_administratorsid || admEmail,
+                userId: admSysUser?.systemuserid || adminGuid || adm.iar_administratorsid || admEmail,
                 name: admName,
                 email: admSysUser?.internalemailaddress || admEmail,
                 role: 'Global Audit Administrator',
