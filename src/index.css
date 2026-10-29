@@ -1188,3 +1188,27 @@ textarea::placeholder,
 .MuiInputBase-input::placeholder {
   font-weight: 400 !important;
 }
+
+
+/* -------------------------------------------------------------------------- */
+/* Enterprise SaaS Skeleton Shimmer Wave Animation                            */
+/* -------------------------------------------------------------------------- */
+@keyframes skeletonShimmerWave {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.shared-skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    #F1F5F9 25%,
+    #E2E8F0 50%,
+    #F1F5F9 75%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmerWave 1.5s ease-in-out infinite;
+}

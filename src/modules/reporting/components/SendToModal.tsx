@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Send, X, CheckCircle2 } from 'lucide-react';
+import { Send } from 'lucide-react';
 import type { Issue } from '../../../types/dataverse.types';
 import { SharedButton } from '../../../components/shared/buttons/SharedButton';
 import { SharedTextArea } from '../../../components/shared/inputs/SharedTextArea';
+import { SharedRecipientSelect } from '../../../components/shared/inputs/SharedRecipientSelect';
 import { deriveTargetStatusForRole } from '../../../services/dataverseReportingService';
 
 export interface AssignedTeamMember {
@@ -87,7 +88,7 @@ export const SendToModal: React.FC<SendToModalProps> = ({
     }
   ], []);
 
-  // Compute available peers (only users assigned to this engagement)
+  // Compute available peers (only users assigned to this engagement, excluding the logged-in user)
   const peerList = useMemo(() => {
     const source = (Array.isArray(assignedUsers) && assignedUsers.length > 0)
       ? assignedUsers
@@ -97,42 +98,37 @@ export const SendToModal: React.FC<SendToModalProps> = ({
     const currentName = (currentUser?.name || '').toLowerCase().trim();
     const currentId = (currentUser?.userId || '').toLowerCase().trim();
 
-    return source.map((u) => {
-      const uEmail = (u.email || '').toLowerCase().trim();
-      const uName = (u.displayName || u.name || '').toLowerCase().trim();
-      const uId = (u.id || u.userId || '').toLowerCase().trim();
+    return source
+      .map((u) => {
+        const uEmail = (u.email || '').toLowerCase().trim();
+        const uName = (u.displayName || u.name || '').toLowerCase().trim();
+        const uId = (u.id || u.userId || '').toLowerCase().trim();
 
-      const isCurrent = Boolean(
-        (currentEmail && uEmail && currentEmail === uEmail) ||
-        (currentId && uId && currentId === uId) ||
-        (currentName && uName && (currentName === uName || currentName.includes(uName.split(' ')[0])))
-      );
+        const isCurrent = Boolean(
+          (currentEmail && uEmail && currentEmail === uEmail) ||
+          (currentId && uId && currentId === uId) ||
+          (currentName && uName && (currentName === uName || currentName.includes(uName.split(' ')[0])))
+        );
 
-      const targetInfo = deriveTargetStatusForRole(u.roleName || u.roleId);
+        const targetInfo = deriveTargetStatusForRole(u.roleName || u.roleId);
 
-      return {
-        ...u,
-        isCurrent,
-        targetStatus: targetInfo.statusText,
-      };
-    });
+        return {
+          ...u,
+          isCurrent,
+          targetStatus: targetInfo.statusText,
+        };
+      })
+      .filter((u) => !u.isCurrent);
   }, [assignedUsers, defaultRoster, currentUser]);
 
   useEffect(() => {
     if (isOpen) {
+      setSelectedRecipientId('');
       setRemarks('');
       setError('');
       setIsSubmitting(false);
-
-      // Auto-select first non-current peer
-      const firstAvailable = peerList.find(p => !p.isCurrent);
-      if (firstAvailable) {
-        setSelectedRecipientId(firstAvailable.id || firstAvailable.userId || firstAvailable.email || '');
-      } else {
-        setSelectedRecipientId('');
-      }
     }
-  }, [isOpen, peerList]);
+  }, [isOpen]);
 
   if (!isOpen || !issue) return null;
 
@@ -142,11 +138,11 @@ export const SendToModal: React.FC<SendToModalProps> = ({
 
   const handleConfirm = async () => {
     if (!selectedPeer) {
-      setError('Please select an engagement peer to route this issue to.');
+      setError('Please select an assigned team member to route this issue to.');
       return;
     }
     if (!remarks.trim()) {
-      setError('Please enter mandatory handover instructions / remarks.');
+      setError('Please enter handover notes.');
       return;
     }
 
@@ -155,7 +151,7 @@ export const SendToModal: React.FC<SendToModalProps> = ({
       await onConfirmSendTo(issue.id, selectedPeer, remarks.trim());
       onClose();
     } catch (e: any) {
-      setError(e?.message || 'Failed to send issue to peer reviewer. Please try again.');
+      setError(e?.message || 'Failed to send issue. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -169,8 +165,8 @@ export const SendToModal: React.FC<SendToModalProps> = ({
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        backgroundColor: 'rgba(15, 23, 42, 0.6)',
-        backdropFilter: 'blur(3px)',
+        backgroundColor: 'rgba(15, 23, 42, 0.5)',
+        backdropFilter: 'blur(2px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -182,304 +178,122 @@ export const SendToModal: React.FC<SendToModalProps> = ({
         style={{
           backgroundColor: '#FFFFFF',
           borderRadius: '8px',
-          maxWidth: '580px',
+          maxWidth: '520px',
           width: '100%',
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.16)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
           maxHeight: '90vh',
-          border: '1px solid #D8D8D8',
+          border: '1px solid #E2E8F0',
+          padding: '20px 24px',
+          gap: '18px',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Header: Icon + Issue Name + Current Status underneath, no background, no separator, no close icon */}
         <div
           style={{
-            padding: '16px 20px',
-            borderBottom: '1px solid #E2E8F0',
             display: 'flex',
             alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            backgroundColor: '#F8FAFC',
+            gap: '10px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '6px',
-                backgroundColor: '#EFF6FF',
-                border: '1px solid #BFDBFE',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#000099',
-                flexShrink: 0,
-              }}
-            >
-              <Send style={{ width: '18px', height: '18px' }} />
-            </div>
-            <div>
-              <h3
-                className="type-modal-title"
-                style={{
-                  margin: 0,
-                  fontSize: 'var(--type-modal-title-size, 15px)',
-                  fontWeight: 800,
-                  color: '#0F172A',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                Send To Peer Reviewer
-                <span
-                  className="type-badge"
-                  style={{
-                    fontSize: 'var(--type-badge-size, 11px)',
-                    fontWeight: 700,
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    backgroundColor: '#EFF6FF',
-                    color: '#000099',
-                    border: '1px solid #BFDBFE',
-                  }}
-                >
-                  {issue.testProcedureCode || issue.id}
-                </span>
-              </h3>
-              <p className="type-caption" style={{ margin: '2px 0 0', fontSize: 'var(--type-caption-size, 11.5px)', color: '#64748B' }}>
-                Hand over active finding review to another assigned team member on this audit engagement.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close Send To dialog"
+          <div
             style={{
-              background: 'none',
-              border: 'none',
-              color: '#94A3B8',
-              cursor: 'pointer',
-              padding: '4px',
-              borderRadius: '4px',
+              width: '32px',
+              height: '32px',
+              borderRadius: '6px',
+              backgroundColor: '#EFF6FF',
+              border: '1px solid #BFDBFE',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: '28px',
-              height: '28px',
-              transition: 'all 0.15s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#000099';
-              e.currentTarget.style.backgroundColor = '#E2E8F0';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = '#94A3B8';
-              e.currentTarget.style.backgroundColor = 'transparent';
-            }}
-            title="Close"
-          >
-            <X style={{ width: '18px', height: '18px' }} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div style={{ padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Finding Context Card */}
-          <div
-            style={{
-              backgroundColor: '#F8FAFC',
-              borderRadius: '6px',
-              border: '1px solid #E2E8F0',
-              padding: '10px 14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '12px',
+              color: '#000099',
+              flexShrink: 0,
+              marginTop: '2px',
             }}
           >
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: '10px', color: '#64748B', textTransform: 'uppercase', fontWeight: 600 }}>
-                Current Finding
-              </div>
-              <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E293B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {issue.title || 'Untitled Finding'}
-              </div>
-            </div>
-            <div style={{ flexShrink: 0, textAlign: 'right' }}>
-              <div style={{ fontSize: '10px', color: '#64748B', textTransform: 'uppercase', fontWeight: 600 }}>
-                Current Status
-              </div>
+            <Send style={{ width: '16px', height: '16px' }} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
+            <h3
+              className="type-modal-title"
+              style={{
+                margin: 0,
+                fontSize: 'var(--type-modal-title-size, 15px)',
+                fontWeight: 700,
+                color: '#0F172A',
+                lineHeight: 1.35,
+              }}
+            >
+              {issue.title || 'Untitled Issue'}
+            </h3>
+            <div>
               <span
                 style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  color: '#92400E',
-                  backgroundColor: '#FEF3C7',
+                  fontSize: '11.5px',
+                  fontWeight: 600,
+                  color: '#334155',
+                  backgroundColor: '#FFFFFF',
                   padding: '2px 8px',
                   borderRadius: '4px',
-                  border: '1px solid #FDE68A',
-                  display: 'inline-block',
+                  border: '1px solid #E2E8F0',
+                  display: 'inline-flex',
+                  alignItems: 'center',
                 }}
               >
                 {issue.status || 'In Review'}
               </span>
             </div>
           </div>
+        </div>
 
-          {/* Assigned Engagement Peers Selection */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Select Recipient (Assigned to Engagement) *
-              </label>
-              <span style={{ fontSize: '11px', color: '#64748B' }}>
-                {peerList.length} Team Members
-              </span>
-            </div>
+        {/* Body */}
+        <div className="no-scrollbar" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Assigned To Selectable Dropdown */}
+          <SharedRecipientSelect
+            label="Assigned To"
+            required
+            value={selectedRecipientId}
+            onChange={(val) => {
+              setSelectedRecipientId(val);
+              if (error) setError('');
+            }}
+            options={peerList.map((peer) => ({
+              id: peer.id || peer.userId || peer.email || peer.name,
+              name: peer.name,
+              displayName: peer.displayName,
+              email: peer.email,
+              roleName: peer.roleName,
+              roleAbbr: peer.roleAbbr,
+              targetStatus: peer.targetStatus,
+              isCurrent: peer.isCurrent,
+            }))}
+            disabled={isSubmitting}
+          />
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {peerList.map((peer) => {
-                const pKey = peer.id || peer.userId || peer.email || peer.name;
-                const isSelected = selectedRecipientId === pKey;
-                const isCurrent = peer.isCurrent;
-
-                return (
-                  <div
-                    key={pKey}
-                    onClick={() => {
-                      if (!isCurrent) {
-                        setSelectedRecipientId(pKey);
-                        if (error) setError('');
-                      }
-                    }}
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: '6px',
-                      border: isSelected ? '1.5px solid #000099' : '1px solid #E2E8F0',
-                      backgroundColor: isSelected ? '#EFF6FF' : isCurrent ? '#F8FAFC' : '#FFFFFF',
-                      cursor: isCurrent ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '10px',
-                      transition: 'all 0.15s ease',
-                      opacity: isCurrent ? 0.6 : 1,
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                      {/* Avatar */}
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          backgroundColor: isSelected ? '#000099' : '#E2E8F0',
-                          color: isSelected ? '#FFFFFF' : '#475569',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {peer.initials || peer.name.slice(0, 2).toUpperCase()}
-                      </div>
-
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '13px', fontWeight: 700, color: '#1E293B' }}>
-                            {peer.displayName || peer.name}
-                          </span>
-                          {isCurrent && (
-                            <span style={{ fontSize: '10px', fontWeight: 600, color: '#64748B', backgroundColor: '#E2E8F0', padding: '1px 6px', borderRadius: '4px' }}>
-                              You
-                            </span>
-                          )}
-                          <span
-                            style={{
-                              fontSize: '10.5px',
-                              fontWeight: 600,
-                              padding: '1px 6px',
-                              borderRadius: '4px',
-                              backgroundColor: '#E0E7FF',
-                              color: '#3730A3',
-                            }}
-                          >
-                            {peer.roleName || peer.roleAbbr || 'Auditor'}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {peer.email || 'No email registered'}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Destination Transition Preview Badge */}
-                    <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '9.5px', color: '#64748B' }}>Target Review Stage</div>
-                        <span
-                          style={{
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            color: '#000099',
-                            backgroundColor: isSelected ? '#DBEAFE' : '#F1F5F9',
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                          }}
-                        >
-                          {peer.targetStatus}
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          width: '18px',
-                          height: '18px',
-                          borderRadius: '50%',
-                          border: isSelected ? '5px solid #000099' : '1.5px solid #CBD5E1',
-                          backgroundColor: '#FFFFFF',
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Handover Transition Summary */}
+          {/* Routing & Target Workflow Stage Info Container */}
           {selectedPeer && (
             <div
               style={{
-                backgroundColor: '#EFF6FF',
+                backgroundColor: '#F0F7FF',
                 borderRadius: '6px',
-                border: '1px solid #BFDBFE',
+                border: '1px solid #DBEAFE',
                 padding: '10px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '11.5px',
-                color: '#1E3A8A',
+                fontSize: '12px',
+                color: '#334155',
+                lineHeight: 1.45,
+                fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
               }}
             >
-              <CheckCircle2 size={16} color="#000099" style={{ flexShrink: 0 }} />
-              <div>
-                Routing finding to <strong>{selectedPeer.displayName || selectedPeer.name}</strong> ({selectedPeer.roleName}).
-                Issue status will automatically transition from <strong>{issue.status}</strong> to <strong>{selectedPeer.targetStatus}</strong>.
-              </div>
+              Issue is routing to <strong>{selectedPeer.displayName || selectedPeer.name}</strong> and workflow stage is going to become <strong>{selectedPeer.targetStatus}</strong>.
             </div>
           )}
 
-          {/* Mandatory Remarks */}
+          {/* Hand over notes */}
           <SharedTextArea
-            label="Handover Notes & Instructions"
+            label="Hand over notes"
             required
             value={remarks}
             onChange={(val) => {
@@ -494,12 +308,9 @@ export const SendToModal: React.FC<SendToModalProps> = ({
           />
         </div>
 
-        {/* Footer */}
+        {/* Footer: No background, no separator, two buttons */}
         <div
           style={{
-            padding: '12px 20px',
-            backgroundColor: '#F8FAFC',
-            borderTop: '1px solid #E2E8F0',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-end',
@@ -517,11 +328,10 @@ export const SendToModal: React.FC<SendToModalProps> = ({
           <SharedButton
             variant="primary"
             size="small"
-            startIcon={<Send size={13} />}
             onClick={handleConfirm}
             disabled={isSubmitting || !selectedPeer}
           >
-            {isSubmitting ? 'Routing...' : 'Confirm & Send'}
+            {isSubmitting ? 'Sending...' : 'Send'}
           </SharedButton>
         </div>
       </div>

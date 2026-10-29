@@ -95,6 +95,7 @@ export const SharedTextArea: React.FC<SharedTextAreaProps> = ({
   };
 
   const charCount = value?.length ?? 0;
+  const { sx: customInputBaseSx, ...restInputBaseProps } = slotProps?.inputBase || {};
 
   return (
     <div className={`${fullWidth ? 'w-full' : 'inline-block'} ${className}`}>
@@ -146,70 +147,77 @@ export const SharedTextArea: React.FC<SharedTextAreaProps> = ({
             className: `${resizeClass[resize]} ${textareaClassName}`,
           }}
           className="w-full font-normal"
-          sx={{
-            fontSize: 'var(--type-input-text-size, 12.5px)',
-            fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
-            fontWeight: 'var(--type-input-text-weight, 400)',
-            color: 'var(--type-input-text-color, #1E293B)',
-            lineHeight: 'var(--type-input-text-leading, 1.45)',
-            width: '100%',
-            '&:hover textarea, &:focus-within textarea': {
-              scrollbarColor: '#CBD5E1 transparent !important',
-            },
-            '&:hover textarea::-webkit-scrollbar-thumb, &:focus-within textarea::-webkit-scrollbar-thumb': {
-              backgroundColor: '#CBD5E1 !important',
-            },
-            '&.Mui-disabled': {
-              color: '#1E293B !important',
-              WebkitTextFillColor: '#1E293B !important',
-            },
-            '& textarea': {
-              padding: '8px 12px',
-              cursor: disabled ? 'default' : undefined,
+          {...restInputBaseProps}
+          sx={[
+            {
               fontSize: 'var(--type-input-text-size, 12.5px)',
               fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
-              fontWeight: 'var(--type-input-text-weight, 400)',
-              color: 'var(--type-input-text-color, #1E293B) !important',
+              fontWeight: 400,
+              color: 'var(--type-input-text-color, #1E293B)',
               lineHeight: 'var(--type-input-text-leading, 1.45)',
-              resize: 'none',
-              scrollbarWidth: 'thin',
-              scrollbarColor: 'transparent transparent',
-              transition: 'scrollbar-color 0.15s ease',
-              '&::-webkit-scrollbar': {
-                width: '4px',
-                height: '4px',
+              width: '100%',
+              '&:hover textarea, &:focus-within textarea': {
+                scrollbarColor: '#CBD5E1 transparent !important',
               },
-              '&::-webkit-scrollbar-track': {
-                background: 'transparent',
-              },
-              '&::-webkit-scrollbar-thumb': {
-                backgroundColor: 'transparent',
-                borderRadius: '4px',
-                transition: 'background-color 0.15s ease',
-              },
-              '&:hover, &:focus, &:active': {
-                scrollbarColor: '#CBD5E1 transparent',
-              },
-              '&:hover::-webkit-scrollbar-thumb, &:focus::-webkit-scrollbar-thumb, &:active::-webkit-scrollbar-thumb': {
-                backgroundColor: '#CBD5E1',
-              },
-              '&::-webkit-scrollbar-thumb:hover': {
-                backgroundColor: '#94A3B8',
+              '&:hover textarea::-webkit-scrollbar-thumb, &:focus-within textarea::-webkit-scrollbar-thumb': {
+                backgroundColor: '#CBD5E1 !important',
               },
               '&.Mui-disabled': {
                 color: '#1E293B !important',
                 WebkitTextFillColor: '#1E293B !important',
               },
-              '&::placeholder': {
-                opacity: 1,
-                color: '#94a3b8',
-                fontSize: '14px',
-                fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
+              '& textarea': {
+                padding: '8px 12px',
+                cursor: disabled ? 'default' : undefined,
+                fontSize: 'var(--type-input-text-size, 12.5px)',
+                fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
                 fontWeight: 400,
+                color: 'var(--type-input-text-color, #1E293B) !important',
+                lineHeight: 'var(--type-input-text-leading, 1.45)',
+                resize: 'none',
+                scrollbarWidth: 'thin',
+                scrollbarColor: 'transparent transparent',
+                transition: 'scrollbar-color 0.15s ease',
+                '&::-webkit-scrollbar': {
+                  width: '4px',
+                  height: '4px',
+                },
+                '&::-webkit-scrollbar-track': {
+                  background: 'transparent',
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  backgroundColor: 'transparent',
+                  borderRadius: '4px',
+                  transition: 'background-color 0.15s ease',
+                },
+                '&:hover, &:focus, &:active': {
+                  scrollbarColor: '#CBD5E1 transparent',
+                },
+                '&:hover::-webkit-scrollbar-thumb, &:focus::-webkit-scrollbar-thumb, &:active::-webkit-scrollbar-thumb': {
+                  backgroundColor: '#CBD5E1',
+                },
+                '&::-webkit-scrollbar-thumb:hover': {
+                  backgroundColor: '#94A3B8',
+                },
+                '&.Mui-disabled': {
+                  color: '#1E293B !important',
+                  WebkitTextFillColor: '#1E293B !important',
+                },
+                '&::placeholder': {
+                  opacity: 1,
+                  color: '#94A3B8',
+                  fontSize: 'var(--type-input-text-size, 12.5px)',
+                  fontFamily: 'var(--type-font-family, "jj-circular", Arial, Helvetica, sans-serif)',
+                  fontWeight: '300 !important',
+                },
               },
             },
-          }}
-          {...slotProps?.inputBase}
+            ...(Array.isArray(customInputBaseSx)
+              ? customInputBaseSx
+              : customInputBaseSx
+              ? [customInputBaseSx]
+              : []),
+          ]}
         />
       </div>
 

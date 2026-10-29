@@ -29,6 +29,7 @@ import {
   SharedButton,
   PageHeader,
   SharedToast,
+  SharedAuditQueueSkeleton,
   type ToastSeverity
 } from '../../../components/shared';
 
@@ -689,25 +690,8 @@ export const AuditQueueView: React.FC = () => {
           </div>
 
           {/* Cards List, Loading Skeleton, or Empty State */}
-          {isInitialLoading ? (
-            <div
-              style={{
-                padding: '64px 32px',
-                textAlign: 'center',
-                backgroundColor: '#ffffff',
-                borderRadius: '8px',
-                border: '1px solid #d8d8d8',
-                color: '#000099'
-              }}
-            >
-              <RefreshCw size={26} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
-              <p style={{ fontWeight: 600, fontSize: '13px', color: '#1E293B', fontFamily: '"jj-circular", Arial, sans-serif', marginBottom: '4px' }}>
-                Connecting to Microsoft Dataverse...
-              </p>
-              <p style={{ fontSize: '11px', color: '#64748B' }}>
-                Loading audit engagements, portfolio assessments, and team assignments
-              </p>
-            </div>
+          {isInitialLoading || (isRefreshing && jobs.length === 0) ? (
+            <SharedAuditQueueSkeleton rows={6} auditTab={auditTab} />
           ) : filteredJobs.length === 0 ? (
             <div
               style={{

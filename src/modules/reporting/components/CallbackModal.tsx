@@ -183,18 +183,6 @@ export const CallbackModal: React.FC<CallbackModalProps> = ({
             error={Boolean(error)}
             errorMessage={error || undefined}
             disabled={isSubmitting}
-            slotProps={{
-              inputBase: {
-                sx: {
-                  '& textarea::placeholder': {
-                    fontWeight: '400 !important',
-                    fontSize: 'var(--type-input-text-size, 12.5px)',
-                    color: '#94A3B8',
-                    opacity: 1,
-                  },
-                },
-              },
-            }}
           />
         </div>
 

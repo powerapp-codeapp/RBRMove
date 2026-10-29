@@ -1370,7 +1370,7 @@ export const FindingWorkpaperCard: React.FC<FindingWorkpaperCardProps> = ({
                     ? [
                       {
                         key: 'send-to-peer',
-                        label: 'Send To Peer Reviewer',
+                        label: 'Send To',
                         icon: (
                           <Send
                             style={{
