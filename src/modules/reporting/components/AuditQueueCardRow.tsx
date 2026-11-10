@@ -14,8 +14,11 @@ import {
   SharedTooltip,
   SharedButton,
   QueueRolePillGroup,
-  UserTablePill
+  UserTablePill,
+  StatusDotPill
 } from '../../../components/shared';
+import { QueueMetricsBar } from './QueueMetricsBar';
+import { FindingRowActions } from './FindingRowActions';
 import { useUserSession } from '../../../context/UserSessionContext';
 import {
   getEngagementWorkflowState,
@@ -37,12 +40,9 @@ export interface AuditQueueCardRowProps {
   onToggleExpand: () => void;
   expandedInnerTab: string;
   onChangeInnerTab: (tabId: string) => void;
-  sendToDropdownIssueId: string | null;
-  setSendToDropdownIssueId: (id: string | null) => void;
   onWorkOnReport: (job: any, type: 'audit' | 'executive') => void;
   onOpenCreateForJob: (job: any) => void;
   onSelectReportingJob?: (jobId: string) => void;
-  onSendToRole: (jobId: string, issueId: string, targetStageObj: any, e: React.MouseEvent) => void;
 }
 
 export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
@@ -54,12 +54,9 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
   onToggleExpand,
   expandedInnerTab,
   onChangeInnerTab,
-  sendToDropdownIssueId: _sendToDropdownIssueId,
-  setSendToDropdownIssueId: _setSendToDropdownIssueId,
   onWorkOnReport,
   onOpenCreateForJob,
   onSelectReportingJob: _onSelectReportingJob,
-  onSendToRole: _onSendToRole
 }) => {
   const { currentUser } = useUserSession();
   const [workflowModalIssue, setWorkflowModalIssue] = useState<any | null>(null);
@@ -89,8 +86,8 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
   };
 
   const getIssueOwner = (iss: any, currentJob: any): string => {
-    if (iss.owner && typeof iss.owner === 'string' && iss.owner !== 'Amanda Palmer') return iss.owner;
-    if (iss.currentOwner && typeof iss.currentOwner === 'string' && iss.currentOwner !== 'Amanda Palmer') return iss.currentOwner;
+    if (iss.owner && typeof iss.owner === 'string') return iss.owner;
+    if (iss.currentOwner && typeof iss.currentOwner === 'string') return iss.currentOwner;
     const s = (iss.status || '').toLowerCase();
     const lvl = (iss.currentLevel || '').toLowerCase();
 
@@ -130,48 +127,10 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
   const isNotStarted = wf.status === 'Not Started';
   const bd = getIssueBreakdown(job, userRole, auditTab === 'my-actions');
 
-  // Status / Strength Indication Dot Renderer (Harmonized with AccordionGroup: 13px font-medium text-slate-700)
-  const renderEngagementStatusPill = (statusText: string) => {
-    const s = statusText || 'Not Started';
-    let dotColor = '#94A3B8';
-    let isDash = false;
-
-    if (s === 'Completed') {
-      dotColor = '#087D0D';
-    } else if (s === 'Audit Report Inprogress' || s.includes('Audit')) {
-      dotColor = '#000099';
-    } else if (s === 'Executive Report Inprogress' || s.includes('Executive')) {
-      dotColor = '#E67300';
-    } else if (s === 'Not Started') {
-      isDash = true;
-    }
-
-    if (isDash) {
-      return (
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
-          <span style={{ fontSize: 'var(--type-table-row-size, 12.5px)', fontWeight: 400, color: '#94A3B8' }}>—</span>
-          <span style={{ fontSize: 'var(--type-table-row-size, 12.5px)', fontWeight: 400, color: '#64748B' }}>Not Started</span>
-        </div>
-      );
-    }
-
-    return (
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
-        <span
-          style={{
-            width: '9px',
-            height: '9px',
-            borderRadius: '50%',
-            backgroundColor: dotColor,
-            flexShrink: 0
-          }}
-        />
-        <span style={{ fontSize: 'var(--type-table-row-size, 12.5px)', fontWeight: 400, color: '#334155' }}>
-          {s}
-        </span>
-      </div>
-    );
-  };
+  // Status / Strength Indication Dot Renderer
+  const renderEngagementStatusPill = (statusText: string) => (
+    <StatusDotPill status={statusText} />
+  );
 
   // Issues Breakdown Cell (Used for Action Issues on My Actions or Total Issues on All Associated)
   const renderIssuesBreakdownCell = () => (
@@ -376,101 +335,26 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
       width: '230px',
       render: (iss: any) => {
         const editable = canEditIssue(iss);
-
         return (
-          <div
-            className="inner-row-action-buttons"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}
-          >
-            {!editable ? (
-              /* View Only for different function */
-              <SharedTooltip title="View Issue (Read-Only)" placement="top">
-                <SharedButton
-                  variant="secondary"
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onWorkOnReport(job, 'audit');
-                  }}
-                  style={{
-                    minHeight: 'var(--control-min-height-compact, 1.625rem)',
-                    padding: '2px 8px',
-                    fontSize: 'var(--type-caption-size, 11px)',
-                    fontWeight: 700,
-                  }}
-                  aria-label="View Issue (Read-Only)"
-                >
-                  View
-                </SharedButton>
-              </SharedTooltip>
-            ) : (
-              /* Same Function: Order = Edit, Workflow, Track Changes */
-              <>
-                {/* 1. Edit */}
-                <SharedTooltip title="Edit Issue in Studio" placement="top">
-                  <SharedButton
-                    variant="outline"
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onWorkOnReport(job, 'audit');
-                    }}
-                    style={{
-                      minHeight: 'var(--control-min-height-compact, 1.625rem)',
-                      padding: '2px 8px',
-                      fontSize: 'var(--type-caption-size, 11px)',
-                      fontWeight: 700,
-                    }}
-                    aria-label="Edit Issue in Studio"
-                  >
-                    Edit
-                  </SharedButton>
-                </SharedTooltip>
-
-                {/* 2. Workflow */}
-                <SharedTooltip title="View Workflow Pipeline" placement="top">
-                  <SharedButton
-                    variant="secondary"
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setWorkflowModalIssue(iss);
-                    }}
-                    style={{
-                      minHeight: 'var(--control-min-height-compact, 1.625rem)',
-                      padding: '2px 8px',
-                      fontSize: 'var(--type-caption-size, 11px)',
-                      fontWeight: 700,
-                    }}
-                    aria-label="View Workflow Pipeline"
-                  >
-                    Workflow
-                  </SharedButton>
-                </SharedTooltip>
-
-                {/* 3. Track Changes */}
-                <SharedTooltip title="Track Changes & Event History" placement="top">
-                  <SharedButton
-                    variant="secondary"
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setTrackChangesIssue(iss);
-                    }}
-                    style={{
-                      minHeight: 'var(--control-min-height-compact, 1.625rem)',
-                      padding: '2px 8px',
-                      fontSize: 'var(--type-caption-size, 11px)',
-                      fontWeight: 700,
-                    }}
-                    aria-label="Track Changes & Event History"
-                  >
-                    Track Changes
-                  </SharedButton>
-                </SharedTooltip>
-              </>
-            )}
-          </div>
+          <FindingRowActions
+            editable={editable}
+            onView={(e) => {
+              e.stopPropagation();
+              onWorkOnReport(job, 'audit');
+            }}
+            onEdit={(e) => {
+              e.stopPropagation();
+              onWorkOnReport(job, 'audit');
+            }}
+            onWorkflow={(e) => {
+              e.stopPropagation();
+              setWorkflowModalIssue(iss);
+            }}
+            onTrackChanges={(e) => {
+              e.stopPropagation();
+              setTrackChangesIssue(iss);
+            }}
+          />
         );
       }
     }
@@ -557,7 +441,7 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
         </SharedTooltip>
       )}
 
-        <SharedTooltip title="Open Executive Summary" placement="top">
+      <SharedTooltip title="Open Executive Summary" placement="top">
         <SharedButton
           variant="outline"
           size="small"
@@ -781,124 +665,7 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
                 size="small"
                 tabGap="28px"
                 ariaLabel="Finding category filter tabs"
-                rightAction={
-                  <div
-                    className="audit-queue-expanded-metrics-bar"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '16px',
-                      padding: '3px 10px',
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '5px',
-                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
-                      marginBottom: '3px'
-                    }}
-                  >
-                    {/* 1. Total Issues Metric */}
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                      <span
-                        style={{
-                          fontSize: '10.5px',
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          color: '#64748B',
-                          letterSpacing: '0.04em'
-                        }}
-                      >
-                        Total Issues:
-                      </span>
-                      <span style={{ fontSize: 'var(--type-table-row-size, 12px)', fontWeight: 400, color: '#334155' }}>
-                        {bd.total}
-                      </span>
-                      {(bd.totalIT > 0 || bd.totalFin > 0) && (
-                        <div style={{ display: 'inline-flex', gap: '3px' }}>
-                          {bd.totalIT > 0 && (
-                            <span className="type-badge" style={{ padding: '1px 4px', borderRadius: '3px', fontSize: 'var(--type-badge-size, 9.5px)', fontWeight: 700, backgroundColor: '#f1f4ff', color: '#000099', border: '1px solid #c5dbfc' }}>
-                              {bd.totalIT} IT
-                            </span>
-                          )}
-                          {bd.totalFin > 0 && (
-                            <span className="type-badge" style={{ padding: '1px 4px', borderRadius: '3px', fontSize: 'var(--type-badge-size, 9.5px)', fontWeight: 700, backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fef3c7' }}>
-                              {bd.totalFin} Fin
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Divider */}
-                    <div style={{ width: '1px', height: '14px', backgroundColor: '#e2e8f0' }} />
-
-                    {/* 2. In-Progress Metric */}
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                      <span
-                        style={{
-                          fontSize: '10.5px',
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          color: '#64748B',
-                          letterSpacing: '0.04em'
-                        }}
-                      >
-                        In-Progress:
-                      </span>
-                      <span style={{ fontSize: 'var(--type-table-row-size, 12px)', fontWeight: 400, color: '#334155' }}>
-                        {bd.inProgress}
-                      </span>
-                      {(bd.inProgressIT > 0 || bd.inProgressFin > 0) && (
-                        <div style={{ display: 'inline-flex', gap: '3px' }}>
-                          {bd.inProgressIT > 0 && (
-                            <span className="type-badge" style={{ padding: '1px 4px', borderRadius: '3px', fontSize: 'var(--type-badge-size, 9.5px)', fontWeight: 700, backgroundColor: '#f1f4ff', color: '#000099', border: '1px solid #c5dbfc' }}>
-                              {bd.inProgressIT} IT
-                            </span>
-                          )}
-                          {bd.inProgressFin > 0 && (
-                            <span className="type-badge" style={{ padding: '1px 4px', borderRadius: '3px', fontSize: 'var(--type-badge-size, 9.5px)', fontWeight: 700, backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fef3c7' }}>
-                              {bd.inProgressFin} Fin
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Divider */}
-                    <div style={{ width: '1px', height: '14px', backgroundColor: '#e2e8f0' }} />
-
-                    {/* 3. Completed Metric */}
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                      <span
-                        style={{
-                          fontSize: '10.5px',
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          color: '#64748B',
-                          letterSpacing: '0.04em'
-                        }}
-                      >
-                        Completed:
-                      </span>
-                      <span style={{ fontSize: 'var(--type-table-row-size, 12px)', fontWeight: 400, color: '#334155' }}>
-                        {bd.completed}
-                      </span>
-                      {(bd.completedIT > 0 || bd.completedFin > 0) && (
-                        <div style={{ display: 'inline-flex', gap: '3px' }}>
-                          {bd.completedIT > 0 && (
-                            <span className="type-badge" style={{ padding: '1px 4px', borderRadius: '3px', fontSize: 'var(--type-badge-size, 9.5px)', fontWeight: 700, backgroundColor: '#ecfdf5', color: '#087d0d', border: '1px solid #a7f3d0' }}>
-                              {bd.completedIT} IT
-                            </span>
-                          )}
-                          {bd.completedFin > 0 && (
-                            <span className="type-badge" style={{ padding: '1px 4px', borderRadius: '3px', fontSize: 'var(--type-badge-size, 9.5px)', fontWeight: 700, backgroundColor: '#ecfdf5', color: '#087d0d', border: '1px solid #a7f3d0' }}>
-                              {bd.completedFin} Fin
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                }
+                rightAction={<QueueMetricsBar breakdown={bd} />}
               />
             </div>
           )}
@@ -926,6 +693,8 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
           isOpen={!!workflowModalIssue}
           onClose={() => setWorkflowModalIssue(null)}
           job={job}
+          issue={workflowModalIssue}
+          issues={job.issuesList || job.issues || []}
           title={`Workflow Pipeline — ${workflowModalIssue.title || workflowModalIssue.header || job.fileName}`}
           type="audit"
         />
@@ -938,7 +707,9 @@ export const AuditQueueCardRow: React.FC<AuditQueueCardRowProps> = ({
           onClose={() => setTrackChangesIssue(null)}
           issueId={trackChangesIssue.id || 'ISSUE-001'}
           issueTitle={trackChangesIssue.title || trackChangesIssue.header || 'Finding'}
-          logs={[]}
+          issue={trackChangesIssue}
+          engagementId={job.id || job.engagementId}
+          engagementTitle={job.engagementName || job.fileName}
         />
       )}
     </div>

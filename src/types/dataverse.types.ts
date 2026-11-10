@@ -124,6 +124,8 @@ export interface Issue {
   businessManagementAttachment?: string;
   businessResponseProvidedBy?: string;
   businessResponseProvidedAt?: string;
+  businessResponseStatus?: 'Not Started' | 'Pending with Business' | 'Completed' | number;
+  businessResponseBy?: 'Business Owner' | 'Audit Team' | number;
   businessResponseAddedOnBehalfBy?: string;
   businessResponseAddedOnBehalfRole?: string;
   businessResponseAddedOnBehalfAt?: string;

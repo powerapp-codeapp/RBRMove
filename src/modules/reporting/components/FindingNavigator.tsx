@@ -1,15 +1,13 @@
 import React, { useState } from 'react';
 import type { Issue } from '../../../types/dataverse.types';
-import {
-  Plus,
-  PanelLeftClose,
-  PanelLeftOpen,
-} from 'lucide-react';
-import { SharedButton } from '../../../components/shared/buttons/SharedButton';
-import { IssueNavCard, SharedListBoxFilter } from '../../../components/shared';
+import { PanelLeftOpen } from 'lucide-react';
+import { IssueNavCard } from '../../../components/shared';
 import type { ListBoxFilterOption } from '../../../components/shared';
+import { FindingNavigatorHeader } from './FindingNavigatorHeader';
+import { useFindingReorder } from '../hooks/useFindingReorder';
+import { isITIssue } from '../utils/reportingWorkflowEngine';
 
-interface FindingNavigatorProps {
+export interface FindingNavigatorProps {
   issues: Issue[];
   selectedIssueId: string | null;
   onSelectIssue: (issueId: string | null) => void;
@@ -28,28 +26,13 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
   onReorderIssues,
   onOpenCreateDialog,
   onIncludeIssue,
-  userRole = 'it-manager',
+  userRole,
   isCollapsed = false,
   onToggleCollapse,
 }) => {
   const [filterDomain, setFilterDomain] = useState<'all' | 'IT' | 'FinOps'>('all');
-  const [draggedIssueId, setDraggedIssueId] = useState<string | null>(null);
-  const [dragOverIssueId, setDragOverIssueId] = useState<string | null>(null);
-  const [draggableCardId, setDraggableCardId] = useState<string | null>(null);
 
-  // Helper to test if an issue is IT
-  const isItemIT = (item: Issue) => {
-    const fn = (item.function || (item as any).functionType || '').toUpperCase();
-    if (fn.includes('FINOPS') || fn.includes('FIN')) return false;
-    if (fn.includes('IT')) return true;
-    const testProc = (item.testProcedureCode || (item as any).testProcedure || '').toUpperCase();
-    const acct = (item.accountableFunction || '').toUpperCase();
-    if (acct.includes('FINOPS') || acct.includes('FINANCE')) return false;
-    if (acct.includes('IT')) return true;
-    return testProc.includes('TP-101') || testProc.includes('TP-102') || testProc.includes('TP-110');
-  };
-
-  const itCount = issues.filter(isItemIT).length;
+  const itCount = issues.filter(isITIssue).length;
   const finOpsCount = issues.length - itCount;
 
   const filterOptions: ListBoxFilterOption<'all' | 'IT' | 'FinOps'>[] = [
@@ -71,18 +54,35 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
   // Filtered list (maintaining ascending Ref # order)
   const filteredIssues = sortedIssues.filter((issue) => {
     if (filterDomain === 'all') return true;
-    const isIT = isItemIT(issue);
+    const isIT = isITIssue(issue);
     if (filterDomain === 'IT') return isIT;
     return !isIT;
+  });
+
+  const {
+    draggedIssueId,
+    dragOverIssueId,
+    draggableCardId,
+    setDraggableCardId,
+    handleMoveIssueById,
+    handleDragStart,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleDragEnd,
+  } = useFindingReorder({
+    sortedIssues,
+    filteredIssues,
+    onReorderIssues,
   });
 
   // Check editability restriction by role and review tier
   const checkIssueEditability = (item: Issue) => {
     const roleStr = (userRole || '').toLowerCase();
-    if (roleStr.includes('vp') || roleStr.includes('head')) {
+    if (roleStr.includes('vp') || roleStr.includes('head') || roleStr.includes('admin')) {
       return { canEdit: true, reason: null };
     }
-    const isIT = isItemIT(item);
+    const isIT = isITIssue(item);
     const isITRole = roleStr.includes('it');
     const isFinOpsRole = roleStr.includes('finops') || roleStr.includes('fin');
 
@@ -132,89 +132,6 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
     }
 
     return { canEdit: true, reason: null };
-  };
-
-  // Reorder helper with priority change detection
-  const performReorder = (draggedId: string, targetId: string) => {
-    const dragIdx = sortedIssues.findIndex((i) => i.id === draggedId);
-    const targetIdx = sortedIssues.findIndex((i) => i.id === targetId);
-    if (dragIdx === -1 || targetIdx === -1 || dragIdx === targetIdx) return;
-
-    const currentItem = sortedIssues[dragIdx];
-    const targetItem = sortedIssues[targetIdx];
-    // Prevent reordering active issues into excluded issues or vice versa
-    const isCurrentExcluded = Boolean(currentItem.isExcluded || currentItem.status === 'Excluded');
-    const isTargetExcluded = Boolean(targetItem.isExcluded || targetItem.status === 'Excluded');
-    if (isCurrentExcluded || isTargetExcluded) return;
-
-    const isCrossPriority = currentItem.criticality !== targetItem.criticality;
-
-    const updated = [...sortedIssues];
-    const [moved] = updated.splice(dragIdx, 1);
-    updated.splice(targetIdx, 0, moved);
-
-    // Keep active issues above excluded issues and realign sequential Ref numbers
-    const activePart = updated.filter((i) => !i.isExcluded && i.status !== 'Excluded');
-    const excludedPart = updated.filter((i) => i.isExcluded || i.status === 'Excluded');
-    const sequenced = [...activePart, ...excludedPart].map((item, idx) => ({
-      ...item,
-      reportRef: idx + 1,
-      reportReference: idx + 1,
-    }));
-
-    onReorderIssues(sequenced, isCrossPriority, currentItem.criticality, targetItem.criticality);
-  };
-
-  // Arrow button reorder helper
-  const handleMoveIssueById = (issueId: string, direction: 'up' | 'down') => {
-    const currentFilteredIdx = filteredIssues.findIndex((i) => i.id === issueId);
-    if (currentFilteredIdx === -1) return;
-    const targetFilteredIdx = direction === 'up' ? currentFilteredIdx - 1 : currentFilteredIdx + 1;
-    if (targetFilteredIdx < 0 || targetFilteredIdx >= filteredIssues.length) return;
-
-    const targetIssueId = filteredIssues[targetFilteredIdx].id;
-    performReorder(issueId, targetIssueId);
-  };
-
-  // Drag and Drop handlers
-  const handleDragStart = (e: React.DragEvent, issueId: string) => {
-    setDraggedIssueId(issueId);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', issueId);
-  };
-
-  const handleDragOver = (e: React.DragEvent, issueId: string) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (dragOverIssueId !== issueId) {
-      setDragOverIssueId(issueId);
-    }
-  };
-
-  const handleDragLeave = (_e: React.DragEvent, issueId: string) => {
-    if (dragOverIssueId === issueId) {
-      setDragOverIssueId(null);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent, targetIssueId: string) => {
-    e.preventDefault();
-    if (!draggedIssueId || draggedIssueId === targetIssueId) {
-      setDraggedIssueId(null);
-      setDragOverIssueId(null);
-      setDraggableCardId(null);
-      return;
-    }
-    performReorder(draggedIssueId, targetIssueId);
-    setDraggedIssueId(null);
-    setDragOverIssueId(null);
-    setDraggableCardId(null);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedIssueId(null);
-    setDragOverIssueId(null);
-    setDraggableCardId(null);
   };
 
   // If collapsed, render 36px rail
@@ -298,84 +215,13 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
       }}
     >
       {/* Pane 1 Header Toolbar */}
-      <div
-        style={{
-          padding: '10px 12px 6px 12px',
-          borderBottom: 'none',
-          backgroundColor: '#F4F6F8',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '8px',
-          flexShrink: 0,
-        }}
-      >
-        {/* Left End: Collapse Button + List Box Filter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flexWrap: 'wrap' }}>
-          {onToggleCollapse && (
-            <button
-              type="button"
-              onClick={() => onToggleCollapse(true)}
-              title="Collapse Issues List"
-              aria-label="Collapse Issues List"
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '4px',
-                color: '#64748B',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                borderRadius: '4px',
-                width: '28px',
-                height: '28px',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = '#000099';
-                e.currentTarget.style.backgroundColor = '#E2E8F0';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = '#64748B';
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-            >
-              <PanelLeftClose style={{ width: '16px', height: '16px' }} />
-            </button>
-          )}
-
-          <SharedListBoxFilter<'all' | 'IT' | 'FinOps'>
-            options={filterOptions}
-            value={filterDomain}
-            onChange={(val) => setFilterDomain(val)}
-            size="small"
-            ariaLabel="Filter issues by domain"
-          />
-        </div>
-
-        {/* Right End: Add Option */}
-        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-          <SharedButton
-            variant="outline"
-            size="small"
-            startIcon={<Plus size={12} color="#000099" />}
-            onClick={onOpenCreateDialog}
-            style={{
-              minHeight: 'var(--control-min-height-compact, 1.625rem)',
-              fontSize: 'var(--type-caption-size, 11px)',
-              padding: '0 10px',
-              backgroundColor: '#ffffff',
-              border: '1px solid #000099',
-              color: '#000099',
-              fontWeight: 700,
-            }}
-          >
-            Add
-          </SharedButton>
-        </div>
-      </div>
+      <FindingNavigatorHeader
+        filterDomain={filterDomain}
+        onChangeFilterDomain={setFilterDomain}
+        filterOptions={filterOptions}
+        onOpenCreateDialog={onOpenCreateDialog}
+        onToggleCollapse={onToggleCollapse}
+      />
 
       {/* Cards List */}
       <div
@@ -421,27 +267,29 @@ export const FindingNavigator: React.FC<FindingNavigatorProps> = ({
                 isOver={dragOverIssueId === item.id}
                 draggable={!isItemExcluded && (draggableCardId === item.id || true)}
                 onSelect={() => onSelectIssue(selectedIssueId === item.id ? null : item.id)}
-              onMoveUp={() => handleMoveIssueById(item.id, 'up')}
-              onMoveDown={() => handleMoveIssueById(item.id, 'down')}
-              onInclude={() => onIncludeIssue?.(item.id)}
-              onDragStart={(e) => handleDragStart(e, item.id)}
-              onDragOver={(e) => handleDragOver(e, item.id)}
-              onDragLeave={(e) => handleDragLeave(e, item.id)}
-              onDrop={(e) => handleDrop(e, item.id)}
-              onDragEnd={handleDragEnd}
-              onDragHandleMouseEnter={() => setDraggableCardId(item.id)}
-              onDragHandleMouseLeave={() => {
-                if (!draggedIssueId) setDraggableCardId(null);
-              }}
-              onDragHandleMouseDown={(e) => {
-                e.stopPropagation();
-                setDraggableCardId(item.id);
-              }}
-            />
-          );
-        })
+                onMoveUp={() => handleMoveIssueById(item.id, 'up')}
+                onMoveDown={() => handleMoveIssueById(item.id, 'down')}
+                onInclude={() => onIncludeIssue?.(item.id)}
+                onDragStart={(e) => handleDragStart(e, item.id)}
+                onDragOver={(e) => handleDragOver(e, item.id)}
+                onDragLeave={(e) => handleDragLeave(e, item.id)}
+                onDrop={(e) => handleDrop(e, item.id)}
+                onDragEnd={handleDragEnd}
+                onDragHandleMouseEnter={() => setDraggableCardId(item.id)}
+                onDragHandleMouseLeave={() => {
+                  if (!draggedIssueId) setDraggableCardId(null);
+                }}
+                onDragHandleMouseDown={(e) => {
+                  e.stopPropagation();
+                  setDraggableCardId(item.id);
+                }}
+              />
+            );
+          })
         )}
       </div>
     </aside>
   );
 };
+
+export default FindingNavigator;

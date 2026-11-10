@@ -3,21 +3,13 @@
 // Johnson & Johnson Internal Audit Reporting (IAR)
 // ==============================================================================
 
-import assessmentsData from '../data/assessments.json';
-import engagementsData from '../data/engagements.json';
-import issuesData from '../data/issues.json';
-import assignmentsData from '../data/assignments.json';
-import testProceduresData from '../data/testProcedures.json';
-import usersData from '../data/users.json';
-import rolesData from '../data/roles.json';
-
-export const assessments = assessmentsData;
-export const engagements = engagementsData;
-export const issues = issuesData;
-export const assignments = assignmentsData;
-export const testProcedures = testProceduresData;
-export const users = usersData;
-export const roles = rolesData;
+export const assessments: any[] = [];
+export const engagements: any[] = [];
+export const issues: any[] = [];
+export const assignments: any[] = [];
+export const testProcedures: any[] = [];
+export const users: any[] = [];
+export const roles: any[] = [];
 
 export const userMap = Object.fromEntries(users.map((u: any) => [u.id, u]));
 export const roleMap = Object.fromEntries(roles.map((r: any) => [r.id, r]));
@@ -186,7 +178,7 @@ export const getEngagementWorkflowState = (job: any) => {
   // Assigned fallback names from real Dataverse users on the job
   const assignedFallback = (Array.isArray(job.assignedUsers) && job.assignedUsers.length > 0)
     ? job.assignedUsers.map((u: any) => u.displayName || u.name)
-    : (job.leadOwner && job.leadOwner !== 'Amanda Palmer' ? [job.leadOwner] : []);
+    : (job.leadOwner ? [job.leadOwner] : []);
 
   const defaultStaff = staffUsers.length > 0 ? staffUsers.map((u: any) => u.displayName || u.name) : (assignedFallback.length > 0 ? assignedFallback : ['Unassigned']);
   const defaultTC = tcUsers.length > 0 ? tcUsers.map((u: any) => u.displayName || u.name) : (assignedFallback.length > 0 ? assignedFallback : ['Unassigned']);
@@ -388,12 +380,17 @@ export const getRoleDetails = (roleId?: string) => {
 };
 
 export const isITIssue = (iss: any): boolean => {
-  const tech = (iss.tech || '').toUpperCase();
-  const func = (iss.functionType || iss.function || '').toUpperCase();
+  if (!iss) return false;
+  const func = (iss.function || iss.functionType || iss.tech || '').trim().toUpperCase();
+  if (func.includes('FINOPS') || func.includes('FIN')) return false;
+  if (func.includes('IT')) return true;
+
+  const acct = (iss.accountableFunction || '').toUpperCase();
+  if (acct.includes('FINOPS') || acct.includes('FINANCE')) return false;
+  if (acct.includes('IT')) return true;
+
   const title = (iss.title || iss.header || '').toLowerCase();
   return (
-    tech === 'IT' ||
-    func === 'IT' ||
     title.includes('firmware') ||
     title.includes('software') ||
     title.includes('sox') ||
@@ -678,7 +675,7 @@ export const getEngagementAssignees = (job: any): EngagementAssignee[] => {
         if (u.email) seenUserIds.add(u.email.toLowerCase().trim());
         if (u.name) seenUserIds.add(u.name.toLowerCase().trim());
         const roleAbbr = u.roleAbbr || getRoleAbbreviation(u.roleId || u.roleName);
-        const displayName = u.displayName || (u.name?.includes('Tamilselvan') ? 'Tamilselvan' : u.name);
+        const displayName = u.displayName || u.name;
         assignees.push({
           id: u.id || '',
           name: u.name,
@@ -704,7 +701,7 @@ export const getEngagementAssignees = (job: any): EngagementAssignee[] => {
             if (u.email) seenUserIds.add(u.email.toLowerCase().trim());
             if (u.name) seenUserIds.add(u.name.toLowerCase().trim());
             const roleAbbr = u.roleAbbr || getRoleAbbreviation(u.roleId || u.roleName || r.role);
-            const displayName = u.displayName || (u.name?.includes('Tamilselvan') ? 'Tamilselvan' : u.name);
+            const displayName = u.displayName || u.name;
             assignees.push({
               id: u.id || '',
               name: u.name,
@@ -722,7 +719,7 @@ export const getEngagementAssignees = (job: any): EngagementAssignee[] => {
         if (!seenUserIds.has(uKey)) {
           seenUserIds.add(uKey);
           const roleAbbr = getRoleAbbreviation(r.role);
-          const displayName = r.name.includes('Tamilselvan') ? 'Tamilselvan' : r.name;
+          const displayName = r.displayName || r.name;
           assignees.push({
             id: r.id || r.name,
             name: r.name,
@@ -751,7 +748,7 @@ export const getEngagementAssignees = (job: any): EngagementAssignee[] => {
         const uKey = (u.id || u.email || u.name || '').toLowerCase().trim();
         if (uKey && !seenUserIds.has(uKey)) {
           seenUserIds.add(uKey);
-          const displayName = u.name?.includes('Tamilselvan') ? 'Tamilselvan' : u.name;
+          const displayName = u.displayName || u.name;
           assignees.push({
             id: u.id || '',
             name: u.name,
@@ -779,7 +776,7 @@ export const resolveEngagementQueueAvatars = (
   const allAssignees = getEngagementAssignees(job);
 
   if (allAssignees.length === 0) {
-    const rawOwner = job?.leadOwner && job.leadOwner !== 'Amanda Palmer' ? job.leadOwner : '';
+    const rawOwner = job?.leadOwner || '';
     const defaultName = rawOwner || (auditTab === 'my-actions' ? (currentUser?.name || 'Unassigned') : 'Unassigned');
     const defaultInitials = defaultName !== 'Unassigned'
       ? defaultName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
@@ -791,7 +788,7 @@ export const resolveEngagementQueueAvatars = (
     return {
       primaryUser: {
         name: defaultName,
-        displayName: defaultName.includes('Tamilselvan') ? 'Tamilselvan' : defaultName,
+        displayName: defaultName,
         initials: defaultInitials,
         roleAbbr: defaultName !== 'Unassigned' ? defaultRoleAbbr : ''
       },
@@ -806,8 +803,7 @@ export const resolveEngagementQueueAvatars = (
   const userAssignee = allAssignees.find(a =>
     (a.email && a.email.toLowerCase().trim() === currentEmail) ||
     (a.id && a.id === currentId) ||
-    (a.name && a.name.toLowerCase().trim() === currentName) ||
-    (currentName.includes('tamilselvan') && a.name.toLowerCase().includes('tamilselvan'))
+    (a.name && currentName && a.name.toLowerCase().trim() === currentName)
   );
 
   const isUserInCurrentQueue = Boolean(
@@ -840,7 +836,7 @@ export const resolveEngagementQueueAvatars = (
       primary = {
         id: currentId,
         name: currentUser?.name || 'Logged In User',
-        displayName: currentUser?.name?.includes('Tamilselvan') ? 'Tamilselvan' : (currentUser?.name || 'Logged In User'),
+        displayName: currentUser?.name || 'Logged In User',
         email: currentEmail,
         initials: currentUser?.avatar || 'TN',
         roleId: 'admin',

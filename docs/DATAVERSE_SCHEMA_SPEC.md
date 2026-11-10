@@ -240,8 +240,24 @@ These 9 entities are active in the environment and have models/services in `src/
     - **Stale Lock Lease Expiry Safety Net**: In the event of a sudden client crash or disconnected state, locks older than 1 hour without active heartbeat are evaluated as expired and automatically evicted when another user accesses the finding.
     - **Debounced Auto-Save (Zero New Columns Required)**: Continuous debounced auto-save (1.5s–2s) patches finding changes directly to `iar_issueses`. Native Dataverse system fields (`modifiedon`, `_modifiedby_value`) automatically record the save timestamp and user identity, while the UI displays a clean status indicator (*"Saving..."* / *"All changes saved"*). Submissions remain strictly manual. GxP audit trail logs in `iar_issuelogses` (`iar_logtype: 3 Field Edits`) are triggered on field blur or submission rather than on every raw auto-save keystroke.
   - `iar_exceptionremedcomments`, `iar_exceptionremeddate`: Exception & remediation timelines.
+- **Official Business Management Response (Single Official Response on Primary Table)**:
+  - *Architectural Principle*: Rather than maintaining a separate table (`iar_issuesbusinessresponses`), the **single official, currently active Management Response resides directly on `iar_issueses`**, while historical iterations, revisions, and audits are maintained in `iar_issuelogses`.
+  - **Existing Columns on `iar_issueses`**:
+    - `iar_businessmanagementresponse`: Multiple Lines of Text (nvarchar(max)) — Auditee leadership's formal management response narrative (including corrective action steps).
+    - `iar_businessmanagementreason`: Multiple Lines of Text (nvarchar(max)) — Contextual rationale, background reasoning, or root cause commentary from auditee leadership.
+    - `iar_businessmanagementattachment`: File Column — Primary supporting evidence document uploaded by the business owner.
+    - `iar_businessmanagementattachment_name`: Single Line of Text (nvarchar(255)) — File name of the attached evidence document.
+    - `iar_agreedremediationdate`: Date Only — Target implementation deadline agreed upon by business leadership.
+  - **New Columns to Add to `iar_issueses` (Streamlined 4 Columns)**:
+    - `iar_businessresponsestatus`: Choice (`1`: `Not Started`, `2`: `Pending with Business`, `3`: `Completed`) — Dedicated status isolating the business response lifecycle from the overall 5-tier audit review state machine.
+    - `iar_businessresponseby`: Choice (`1`: `Business Owner`, `2`: `Audit Team`) — Indicates whether the response was submitted directly by the auditee via Canvas App or entered offline on behalf by the audit team in the Code App.
+    - `iar_businessresponseprovidedby`: Single Line of Text (nvarchar(150)) — User name or email of the individual who submitted/recorded the response.
+    - `iar_businessresponseprovidedat`: Date and Time (User Local) — Timestamp when the response was submitted or recorded.
+    *(Note: No separate role column is needed as the auditor's role is dynamically resolved from `iar_securityassignmentses`).*
 - **Roadmap & Schema Evolution Notes**:
-  - Some UI fields in the issue workpaper are yet to be created in Dataverse and will be added later.
+  - The single official business response columns above reside directly on `iar_issueses`.
+  - Every update, revision, or on-behalf entry generates a permanent audit trail entry in `iar_issuelogses` (`iar_logsubtype: 10 Business Response`) with full prior (`iar_fromdata`) and new (`iar_todata`) snapshots.
+  - Business comments table (`iar_businesscomments`) is currently on hold pending finalized dialogue requirements.
   - Taxonomy-driven fields (`Process Area`, `Issue Type`, `Issue Cause Type`, `Issue Source`, `Key Theme`, `Repeat Finding`, `IT Asset Accountable Sector`, `Impacted Region`, `Impacted Sector`, `Impacted MRC`, `Quarter Impacted`, `Criticality`) bind to `iar_taxonomieses` and will be hooked to UI controls.
   - Operational column `iar_workflowremarks` is recommended for addition to `iar_issueses` to mirror the column already existing in `iar_issuelogses`.
 
@@ -469,7 +485,17 @@ These 9 entities are active in the environment and have models/services in `src/
   - `iar_issuelogid`: Unique issue log code.
   - `iar_modules`: Module scope choice (`822500000`: `Issues`, `822500001`: `Audit Report`, `822500002`: `Executive Report`).
   - `iar_logtype`: Primary log classification (`1`: `Created`, `2`: `Workflow`, `3`: `Field Edits`).
-  - `iar_logsubtype`: Granular event subtype (`1`: `Submit`, `2`: `Call Back`, `3`: `Send To`, `4`: `Locking`, `5`: `Exclude`, `6`: `Report Download`, `7`: `AI Field`, `8`: `Normal Field`, `9`: `Created`).
+  - `iar_logsubtype`: Granular event subtype:
+    - `1` $\rightarrow$ `Submit`
+    - `2` $\rightarrow$ `Call Back`
+    - `3` $\rightarrow$ `Send To`
+    - `4` $\rightarrow$ `Locking`
+    - `5` $\rightarrow$ `Exclude`
+    - `6` $\rightarrow$ `Report Download`
+    - `7` $\rightarrow$ `AI Field`
+    - `8` $\rightarrow$ `Normal Field`
+    - `9` $\rightarrow$ `Created`
+    - `10` $\rightarrow$ `Business Response` *(New Choice: Tracks official business management responses, on-behalf submissions, and revisions)*
   - `iar_functiontype`: Optional function type (`1`: `AI Generated`, `2`: `Scope Modified`).
   - `iar_fieldreference`: Field name modified during edit events.
   - `iar_fromdata`: Prior value / status.
@@ -557,10 +583,10 @@ The following tables are on the roadmap to be created and loaded into Dataverse 
 | **2** | **`iar_summaryreportlogs`** | Summary Report Logs | `iar_summaryreportlogid` | `iar_executivesummaryreports` | Executive summary report review progression, Director/VP sign-offs, and edit history. |
 | **3** | **`iar_aisummaryreportgenerations`** | AI Summary Report Generation | `iar_aisummaryreportgenerationid` | `iar_executivesummaryreports` | AI generation logs, executive summary drafts, thematic insights, and token telemetry for executive synthesis. |
 | **4** | **`iar_summaryreportcomments`** | Summary Report Comments | `iar_summaryreportcommentid` | `iar_executivesummaryreports` | Section-level leadership commentary, review notes, and resolution tracking. |
-| **5** | **`iar_businesscomments`** | Business User Comments | `iar_businesscommentid` | `iar_issueses` | Auditee comments submitted via the dedicated Power Apps Canvas App connected to SharePoint. |
-| **6** | **`iar_issuesbusinessresponses`**| Issues Business Response | `iar_issuesbusinessresponseid` | `iar_issueses` | Formal business auditee CAP submissions, root cause acceptance, mitigating actions, and target remediation dates. |
-| **7** | **`iar_userlogs`** | User Activity Logs | `iar_userlogid` | `systemusers` | Enterprise user activity, login sessions, screen navigation telemetry, and compliance audit trail. |
-| **8** | **`iar_auditreportlogs`** | Audit Report Logs | `iar_auditreportlogid` | `iar_engagementses` | Engagement-level audit report stage transitions, submissions, and approvals. |
+| *On Hold* | *`iar_businesscomments`* | *Business Dialogue Comments* | `iar_businesscommentid` | `iar_issueses` | **On Hold**: Two-way conversational channel between Business Contacts (Canvas App) and Audit Team (Code App); held pending finalized dialogue requirements. |
+| *Consolidated* | *`iar_issuesbusinessresponses`* | *(Consolidated into `iar_issueses`)* | N/A | `iar_issueses` | **Architectural Decision**: Consolidated directly onto `iar_issueses` (single official active response). All iterations and revisions are archived in `iar_issuelogses`. |
+| **6** | **`iar_userlogs`** | User Activity Logs | `iar_userlogid` | `systemusers` | Enterprise user activity, login sessions, screen navigation telemetry, and compliance audit trail. |
+| **7** | **`iar_auditreportlogs`** | Audit Report Logs | `iar_auditreportlogid` | `iar_engagementses` | Engagement-level audit report stage transitions, submissions, and approvals. |
 
 ---
 
@@ -690,39 +716,52 @@ The following tables are on the roadmap to be created and loaded into Dataverse 
   - `iar_resolvedat`: Date and Time.
   - `iar_createdon`: Date and Time.
 
-#### 9. `iar_businesscomments` (Business User In-Between Comments)
+#### 9. `iar_businesscomments` (Business & Audit Team Two-Way Dialogue — ON HOLD)
+- **Status**: **ON HOLD** pending finalized requirements from business stakeholders.
 - **Primary Key**: `iar_businesscommentid` (GUID)
 - **Lookups / Foreign Keys**:
   - `iar_IssueID@odata.bind` $\rightarrow$ `iar_issueses`
   - `iar_EngagementID@odata.bind` $\rightarrow$ `iar_engagementses`
-  - `iar_BusinessContactID@odata.bind` $\rightarrow$ `systemusers` (Primary Business Owner)
-- **Key Columns**:
-  - `iar_commenttext`: Multiple Lines of Text (business comment submitted via Canvas App).
-  - `iar_sharepointitemid`: Single Line of Text (reference ID from `IAR_Issues_List`).
-  - `iar_submittedat`: Date and Time.
-  - `iar_isreadbyauditor`: Two Options (boolean).
+- **Key Columns (Planned)**:
+  - `iar_senderpersona`: Choice (`1`: `Business Contact`, `2`: `Audit Team`) — Identifies whether the comment originated from the Auditee in Canvas App or the Auditor in Code App.
+  - `iar_commenttext`: Multiple Lines of Text (nvarchar(max)) — The conversational feedback or inquiry.
+  - `iar_authorname`: Single Line of Text (nvarchar(150)) — Full display name of the commenter.
+  - `iar_authoremail`: Single Line of Text (nvarchar(150)) — Email address of the commenter.
+  - `iar_authorrole`: Single Line of Text (nvarchar(100)) — Persona/role title (e.g. `Primary Business Owner`, `Audit Manager`, `Audit Staff`).
+  - `iar_submittedat`: Date and Time — Timestamp when the message was posted.
+  - `iar_isreadbyauditor`: Two Options (boolean) — Read tracking for the audit team (`false` triggers unread badge/dot in Code App).
+  - `iar_isreadbybusiness`: Two Options (boolean) — Read tracking for the business contact in Canvas App.
+  - `iar_isresolved`: Two Options (boolean) — Indicates if this dialogue thread has been addressed/closed.
+  - `iar_resolvedby`: Single Line of Text (nvarchar(150)) — User who marked the dialogue thread as resolved.
+  - `iar_resolvedat`: Date and Time — Timestamp of resolution.
+  - `iar_sharepointitemid`: Single Line of Text (nvarchar(100)) — SharePoint item ID reference from `IAR_Issues_List` for synchronization correlation.
 - **Governance Role**:
-  - Captures informal/clarifying feedback from the Business Owner during the window between assignment and formal Director dispatch to `Pending Business`. Synced from `IAR_Issues_List` via Power Automate flow `FLW-IAR-SyncBusinessComment`.
+  - When provisioned, provides a two-way interactive dialogue channel between the Business Contact (Canvas App) and Audit Team (Code App), separate from internal audit team field-level comments (`iar_issuecommentses`).
 
-#### 10. `iar_issuesbusinessresponses` (Management Responses & Corrective Action Plans)
-- **Primary Key**: `iar_issuesbusinessresponseid` (GUID)
-- **Lookups / Foreign Keys**:
-  - `iar_IssueID@odata.bind` $\rightarrow$ `iar_issueses`
-  - `iar_EngagementID@odata.bind` $\rightarrow$ `iar_engagementses`
-  - `iar_BusinessContactID@odata.bind` $\rightarrow$ `systemusers` (business unit responder)
-  - `iar_ReviewedByID@odata.bind` $\rightarrow$ `systemusers` (auditor verifying the response)
-- **Key Columns**:
-  - `iar_managementresponse`: Multiple Lines of Text (formal statement from auditee leadership).
-  - `iar_actionplan`: Multiple Lines of Text (detailed corrective action plan / CAP steps).
-  - `iar_targetdate`: Date Only (target implementation deadline).
-  - `iar_rootcauseaccepted`: Two Options (boolean: auditee accepts finding root cause).
-  - `iar_responsestatus`: Single Line of Text / OptionSet (`Draft`, `Submitted`, `Auditor Accepted`, `Revision Requested`).
-  - `iar_submittedat`: Date and Time.
-  - `iar_reviewercomments`: Multiple Lines of Text (auditor critique on proposed remediation sufficiency).
-  - `iar_reviewedat`: Date and Time.
+#### 10. `iar_issuesbusinessresponses` (Consolidated into `iar_issueses` & `iar_issuelogses`)
+- **Architectural Decision**: Standalone table `iar_issuesbusinessresponses` is **discontinued and consolidated**:
+  - **Single Official Active Response on `iar_issueses`**:
+    - `iar_businessmanagementresponse`: Multiple Lines of Text — Formal narrative response from auditee leadership (incorporating corrective action steps).
+    - `iar_businessmanagementreason`: Multiple Lines of Text — Business background reasoning / root cause context.
+    - `iar_businessmanagementattachment`: File Column & `iar_businessmanagementattachment_name`: Single Line of Text — Attached evidence document.
+    - `iar_agreedremediationdate`: Date Only — Target implementation deadline.
+    - **4 New Columns Added to `iar_issueses`**:
+      1. **`iar_businessresponsestatus`**: Choice (`1`: `Not Started`, `2`: `Pending with Business`, `3`: `Completed`).
+      2. **`iar_businessresponseby`**: Choice (`1`: `Business Owner`, `2`: `Audit Team`).
+      3. **`iar_businessresponseprovidedby`**: Single Line of Text (150) — Name or email of submitter/recorder.
+      4. **`iar_businessresponseprovidedat`**: Date and Time — Submission timestamp.
+  - **Comprehensive Version History & Revision Audit Trail**: Every formal submission, revision, on-behalf entry, and reviewer evaluation is automatically recorded as an immutable row in **`iar_issuelogses`**:
+    - `iar_fieldreference`: `"Business Management Response"`
+    - `iar_logtype`: `3` (`Field Edits`) or `2` (`Workflow`)
+    - `iar_logsubtype`: `10` (`Business Response`)
+    - `iar_fromdata`: JSON/Text snapshot of previous response and agreed date
+    - `iar_todata`: JSON/Text snapshot of new response and agreed date
+    - `iar_workflowremarks`: Auditor acceptance, revision notes, or on-behalf rationale
+    - `iar_loggeddatetime`: Timestamp of the event
+    - `iar_LoggedBy@odata.bind`: Lookup to `systemusers`
 - **Canvas App & SharePoint Dual-List Integration Bridge**:
   - To optimize enterprise licensing costs, business owners access and submit their management responses via a companion **Power Apps Canvas App** connected to the formal response list **`IAR_BusinessOwnerResponses_List`**.
-  - Upon submission of the response by the business owner in the Canvas App, data is synchronized by flow `FLW-IAR-IngestBusinessResponse` into `iar_issuesbusinessresponses`, and the parent finding's status automatically transitions back to **`Pending Manager`** (`822500002`) for supervisory review.
+  - Upon submission of the response by the business owner in the Canvas App, data is synchronized by flow `FLW-IAR-IngestBusinessResponse` directly into the finding row in **`iar_issueses`**, creates a version snapshot row in **`iar_issuelogses`** (`iar_logsubtype: 10`), and automatically transitions the finding's status in `iar_issueses` back to **`Pending Manager`** (`822500002`) for supervisory review.
 
 
 #### 11. `iar_administratorses` (Application Administrators Directory)
@@ -757,8 +796,8 @@ pa app add data-source --connector dataverse --table iar_executivesummaryreports
 pa app add data-source --connector dataverse --table iar_summaryreportlogs
 pa app add data-source --connector dataverse --table iar_summaryreportcomments
 pa app add data-source --connector dataverse --table iar_businesscomments
-pa app add data-source --connector dataverse --table iar_issuesbusinessresponses
 pa app add data-source --connector dataverse --table iar_administratorses
+# Note: iar_issuesbusinessresponses is consolidated into iar_issueses and iar_issuelogses (no separate table needed)
 ```
 
 Each command automatically:

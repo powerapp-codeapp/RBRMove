@@ -109,8 +109,8 @@ The enterprise AI engine is engineered using **FastAPI** microservices deployed 
 | **`FLW-IAR-AdvanceWorkflowStage`**| Submit / Approve buttons | `{ issueId, targetStatus, reviewerRemarks }` | Updates issue status in Dataverse; creates immutable audit log; sends notification. |
 | **`FLW-IAR-RouteToBusiness`** | "Send to Business" (Director Only) | `{ issueId, primaryBusinessOwnerId, directorNotes }` | Triggered exclusively by Audit Director upon completing `Pending Director` review; updates status to `Pending Business`; inserts record into SharePoint List `IAR_BusinessOwnerResponses_List`; notifies Business Owner with Canvas App link. |
 | **`FLW-IAR-SyncIssueToSharePoint`**| On Create / Edit in Code App | `{ issueId, changedFields, currentStatus }` | Synchronizes finding details to SharePoint List (`IAR_Issues_List`) to power the Business Canvas App. |
-| **`FLW-IAR-SyncBusinessComment`** | On Business Comment in Canvas App | `{ issueId, commentText, businessOwnerEmail }` | Ingests in-between business comments (submitted prior to formal Director response request) into Dataverse table **`iar_businesscomments`** for real-time auditor visibility. |
-| **`FLW-IAR-IngestBusinessResponse`**| On Submit in Canvas App / SharePoint | `{ issueId, managementResponse, actionPlan, targetDate, rootCauseAccepted }` | Triggered when Business Owner submits CAP in `IAR_BusinessOwnerResponses_List`; writes to Dataverse table **`iar_issuesbusinessresponses`**; automatically advances issue status back to **`Pending Manager`**. |
+| **`FLW-IAR-SyncBusinessComment`** | On Business / Auditor Comment | `{ issueId, commentText, senderPersona, authorEmail }` | *(On Hold)* Synchronizes two-way conversational dialogue between Business Contacts (Canvas App) and Audit Team (Code App) via Dataverse table **`iar_businesscomments`**. |
+| **`FLW-IAR-IngestBusinessResponse`**| On Submit in Canvas App / SharePoint | `{ issueId, managementResponse, targetDate }` | Triggered when Business Owner submits in `IAR_BusinessOwnerResponses_List`; writes active response directly to **`iar_issueses`** (`iar_businessmanagementresponse`, `iar_agreedremediationdate`, `iar_businessresponsestatus`, `iar_businessresponseby`, `iar_businessresponseprovidedby`, `iar_businessresponseprovidedat`); logs an immutable historical version snapshot in **`iar_issuelogses`** (`iar_logsubtype: 10 Business Response`); automatically advances issue status back to **`Pending Manager`**. |
 | **`FLW-IAR-CompileAndExportReport`**| "Complete & Sign-Off" / "Export Report" | `{ engagementId, reportType: 'audit' \| 'exec' }`| Compiles findings, summaries, and audit trail; generates official **PDF Format** document; archives in SharePoint `FinalReports/`; returns download link. |
 
 
@@ -173,28 +173,26 @@ To eliminate enterprise Dataverse Premium licensing for thousands of auditee bus
   - `CurrentStatus`: Status display (e.g. `Pending Staff`, `Pending TC`, `Pending Manager`, `Pending Director`, `Pending Business`)
   - `AssignedBusinessContactEmail`: Primary Business Owner Entra ID email
   - `AccountableFunction`: Operational accountable function
-- **In-Between Business Comments Bridge**:
-  - In the phase between when a Primary Business Owner is assigned to an issue and when the Audit Director formally advances it to `Pending Business`, the Business Owner can view the finding in the Canvas App and post **issue-level comments**.
-  - A Power Automate flow (`FLW-IAR-SyncBusinessComment`) immediately synchronizes these comments into the Dataverse table **`iar_businesscomments`**, rendering them inside the finding workpaper in the Code App.
+- **Two-Way Business & Audit Dialogue Bridge (On Hold)**:
+  - Dialogue channel between the Business Contact (Canvas App) and the Audit Team (Code App) is currently on hold pending finalized requirements.
 
 #### List 2: `IAR_BusinessOwnerResponses_List` (SharePoint Business Owner Response List)
-- **Purpose**: Formal governance queue for auditee Management Responses, Corrective Action Plans (CAP), and remediation milestones.
+- **Purpose**: Formal governance queue for auditee Management Responses and agreed remediation deadlines.
 - **Creation Trigger**: When the Audit Director clicks **"Send to Business"** (`Pending Business`), a record is provisioned in this list and the Business Owner is alerted.
 - **Key Columns**:
   - `Title`: Response Reference ID (`RESP-{issueId}`)
   - `IssueCode`: Parent issue code
   - `EngagementCode`: Parent engagement code
   - `AssignedBusinessContactEmail`: Business responder email
-  - `ManagementResponse`: Formal statement from auditee leadership
-  - `RootCauseAccepted`: Boolean flag (indicates whether auditee agrees with finding root cause)
-  - `CorrectiveActionPlan`: Granular CAP implementation steps
+  - `ManagementResponse`: Formal statement from auditee leadership (including corrective action plan steps)
   - `TargetImplementationDate`: Agreed remediation deadline (Date)
   - `IsResponseSubmitted`: Boolean flag (`true` on submit)
   - `SubmittedDateTime`: Submission timestamp
 - **Dataverse Ingestion & Re-Routing Flow**:
   - When the Business Owner clicks "Submit Response" in the Canvas App, flow `FLW-IAR-IngestBusinessResponse` triggers:
-    1. Ingests all response columns into Dataverse table **`iar_issuesbusinessresponses`**.
-    2. Updates finding status `iar_issueses.iar_issuestatus` back to **`Pending Manager`** (`822500002`) for supervisory review of CAP adequacy.
+    1. Updates the single official active response directly on **`iar_issueses`** (`iar_businessmanagementresponse`, `iar_agreedremediationdate`, `iar_businessresponsestatus: 3 Completed`, `iar_businessresponseby: 1 Business Owner`, `iar_businessresponseprovidedby`, `iar_businessresponseprovidedat`).
+    2. Logs an immutable historical version snapshot in Dataverse table **`iar_issuelogses`** (`iar_logsubtype: 10 Business Response`) with full prior and new data snapshots.
+    3. Updates finding status `iar_issueses.iar_issuestatus` back to **`Pending Manager`** (`822500002`) for supervisory review of response adequacy.
 
 
 ---

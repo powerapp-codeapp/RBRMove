@@ -17,11 +17,12 @@ import {
   PanelRightClose,
   PanelRightOpen,
   MessageSquare,
+  Eye,
 } from 'lucide-react';
 import { useEngagement } from '../../../context/EngagementContext';
 import { useUserSession } from '../../../context/UserSessionContext';
 import { generateExecutiveSummaryData, type ExecutiveSummaryData } from '../utils/execReportData';
-import { getUserRoleOnEngagement } from '../utils/reportingWorkflowEngine';
+import { getUserRoleOnEngagement, isUserAssignedToEngagement } from '../utils/reportingWorkflowEngine';
 import {
   PageHeader,
   SharedSelectButton,
@@ -38,7 +39,15 @@ import type { IssueComment, AuditTrailLog } from '../../../types/dataverse.types
 
 export const ExecutiveStudioView: React.FC = () => {
   const { selectedEngagementId, setActiveReportingView, activeEngagement } = useEngagement();
-  const { activeRole, currentUser } = useUserSession();
+  const { currentUser, isAdmin, isImpersonating } = useUserSession();
+  const effectiveIsAdmin = !isImpersonating && Boolean(currentUser?.isAdmin || isAdmin);
+
+  const isAssignedToThisEngagement = useMemo(() => {
+    if (!activeEngagement) return true;
+    return isUserAssignedToEngagement(activeEngagement, currentUser.email, currentUser.userId);
+  }, [activeEngagement, currentUser.email, currentUser.userId]);
+
+  const isUnassignedAdmin = effectiveIsAdmin && !isAssignedToThisEngagement;
 
   // Dynamically resolve user's role on this active engagement (FRD Section 2.3)
   const userRole = useMemo(() => {
@@ -46,8 +55,8 @@ export const ExecutiveStudioView: React.FC = () => {
       const assignedRole = getUserRoleOnEngagement(activeEngagement, currentUser.email, currentUser.userId);
       if (assignedRole) return assignedRole;
     }
-    return activeRole?.id || 'it-manager';
-  }, [activeEngagement, currentUser.email, currentUser.userId, activeRole?.id]);
+    return currentUser?.role || 'it-manager';
+  }, [activeEngagement, currentUser.email, currentUser.userId, currentUser?.role]);
 
   const [execData, setExecData] = useState<ExecutiveSummaryData>(() =>
     generateExecutiveSummaryData(activeEngagement || { id: selectedEngagementId || 'REP-2026-881' })
@@ -151,22 +160,22 @@ export const ExecutiveStudioView: React.FC = () => {
       }
     }
     return [
-      { userId: 'USR-001', name: currentUser?.name || 'Current Auditor', role: activeRole?.label || 'Auditor', avatar: 'CA', avatarBg: '#000099' },
+      { userId: 'USR-001', name: currentUser?.name || 'Current Auditor', role: currentUser?.role || 'Auditor', avatar: 'CA', avatarBg: '#000099' },
       { userId: 'USR-002', name: 'Sarah Jenkins', role: 'IT Audit Manager', avatar: 'SJ', avatarBg: '#eb1700' },
       { userId: 'USR-003', name: 'Brian Cox', role: 'IT Audit Director', avatar: 'BC', avatarBg: '#059669' },
       { userId: 'USR-004', name: 'Elena Rostova', role: 'VP Global Audit', avatar: 'ER', avatarBg: '#0D9488' },
     ];
-  }, [activeEngagement, currentUser, activeRole]);
+  }, [activeEngagement, currentUser]);
 
   const currentCommentUser: CommentUser = useMemo(
     () => ({
       userId: currentUser?.userId || 'USR-001',
       name: currentUser?.name || 'Current Auditor',
-      role: activeRole?.label || 'Internal Audit',
+      role: currentUser?.role || 'Internal Audit',
       avatar: (currentUser?.name || 'CA').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase(),
       avatarBg: '#000099',
     }),
-    [currentUser, activeRole]
+    [currentUser]
   );
 
   // Role Detection: Director & VP
@@ -213,6 +222,9 @@ export const ExecutiveStudioView: React.FC = () => {
 
   // Submission Role Config
   const roleConfig = useMemo(() => {
+    if (isUnassignedAdmin) {
+      return { hasReportSubmission: false, reportSubmitLabel: '' };
+    }
     const r = roleLower;
     if (r.includes('auditor') || r.includes('coordinator') || r.includes('business')) {
       return { hasReportSubmission: false, reportSubmitLabel: '' };
@@ -224,7 +236,7 @@ export const ExecutiveStudioView: React.FC = () => {
       return { hasReportSubmission: true, reportSubmitLabel: 'Submit to VP' };
     }
     return { hasReportSubmission: true, reportSubmitLabel: 'Submit to Director' };
-  }, [roleLower]);
+  }, [roleLower, isUnassignedAdmin]);
 
   // Splitter mouse move & mouse up listeners
   useEffect(() => {
@@ -277,7 +289,7 @@ export const ExecutiveStudioView: React.FC = () => {
       newState: String(newVal ?? '-'),
       performedByUserId: currentUser?.userId || 'USR-001',
       performedByUserName: currentUser?.name || 'Current Auditor',
-      userRole: activeRole?.label || 'Internal Auditor',
+      userRole: currentUser?.role || 'Internal Auditor',
       timestamp: new Date().toISOString(),
       remarks: `Modified ${fieldName}`,
     };
@@ -707,11 +719,32 @@ export const ExecutiveStudioView: React.FC = () => {
         backTitle="Back to Reporting Queue"
         title={`Executive Summary — ${(activeEngagement as any)?.fileName || (activeEngagement as any)?.engagement || execData.fileName}`}
         actions={
-          <SharedSelectButton
-            label="Report Actions"
-            size="small"
-            menuWidth={230}
-            title="Executive Report Actions"
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {isUnassignedAdmin && (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  backgroundColor: '#FEF3C7',
+                  border: '1px solid #FCD34D',
+                  color: '#92400E',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                }}
+                title="Administrator Oversight Mode (Read-Only): You are viewing this engagement across the portfolio. To advance review tiers or edit, use Impersonate User to act on behalf of an assigned auditor."
+              >
+                <Eye size={14} color="#B45309" />
+                <span>Administrator Oversight (Read-Only)</span>
+              </div>
+            )}
+            <SharedSelectButton
+              label="Report Actions"
+              size="small"
+              menuWidth={230}
+              title="Executive Report Actions"
             items={[
               ...(roleConfig.hasReportSubmission
                 ? [
@@ -789,6 +822,7 @@ export const ExecutiveStudioView: React.FC = () => {
               },
             ]}
           />
+          </div>
         }
       />
 

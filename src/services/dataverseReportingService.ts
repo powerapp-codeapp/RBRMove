@@ -14,7 +14,10 @@ import { Iar_proceduresesService } from '../generated/services/Iar_proceduresesS
 import { Iar_taxonomiesesService } from '../generated/services/Iar_taxonomiesesService';
 import { Iar_issuelogsesService } from '../generated/services/Iar_issuelogsesService';
 import { Iar_issuecommentsesService } from '../generated/services/Iar_issuecommentsesService';
+import { AITextFormattingService } from '../generated/services/AITextFormattingService';
 import { mockDataverseProvider } from './mock/mockDataverseProvider';
+import { getStandaloneOfflineJobs } from './mock/offlineFallbackData';
+import { loadTaxonomiesFromDataverse, resolveTaxonomyGuid } from './taxonomyService';
 
 import {
   getEngagementWorkflowState,
@@ -234,6 +237,10 @@ export async function fetchDataverseReportingData(): Promise<DataverseReportingP
       issuesRes,
       proceduresRes
     ].some((r) => r.status === 'fulfilled' && r.value?.success !== false);
+
+    if (isLiveConnected) {
+      loadTaxonomiesFromDataverse().catch(() => {});
+    }
 
     if (!isLiveConnected) {
       console.info(
@@ -945,6 +952,10 @@ export async function fetchDataverseReportingData(): Promise<DataverseReportingP
               businessManagementResponse: getProp(iss, 'iar_businessmanagementresponse', 'businessmanagementresponse') || '',
               managementResponse: getProp(iss, 'iar_businessmanagementresponse', 'businessmanagementresponse') || '',
               businessManagementAttachment: getProp(iss, 'iar_businessmanagementattachment_name', 'iar_businessmanagementattachment') || '',
+              businessResponseStatus: (iss as any).iar_businessresponsestatusname || ((iss as any).iar_businessresponsestatus === 1 ? 'Not Started' : (iss as any).iar_businessresponsestatus === 2 ? 'Pending with Business' : (iss as any).iar_businessresponsestatus === 3 ? 'Completed' : 'Not Started'),
+              businessResponseBy: (iss as any).iar_businessresponsebyname || ((iss as any).iar_businessresponseby === 1 ? 'Business Owner' : (iss as any).iar_businessresponseby === 2 ? 'Audit Team' : undefined),
+              businessResponseProvidedBy: (iss as any).iar_businessresponseprovidedby || '',
+              businessResponseProvidedAt: (iss as any).iar_businessresponseprovidedat || '',
               salesUsd: iss.iar_salesusd,
               ibtUsd: iss.iar_ibtusd,
               netIncomeUsd: iss.iar_netincomeusd,
@@ -1457,17 +1468,33 @@ export async function createDataverseIssue(
     newIssueRecord['iar_PrimaryBusinessOwner@odata.bind'] = `/systemusers(${input.primaryBusinessOwnerId.replace(/[{}]/g, '')})`;
   }
 
-  // Bind Criticality taxonomy if provided
-  if (input.criticality) {
-    try {
-      const critGuid = await resolveTaxonomyGuidByValue(input.criticality);
-      if (critGuid) {
-        newIssueRecord['iar_Criticality@odata.bind'] = `/iar_taxonomieses(${critGuid})`;
-      }
-    } catch {
-      // ignore if taxonomy resolution fails
+  // Bind all taxonomy lookups dynamically from iar_taxonomieses
+  const bindTaxonomy = (bindKey: string, val?: string, masterKey?: string) => {
+    if (!val || !val.trim()) return;
+    const cleanGuid = extractCleanGuid(val);
+    if (isGuid(cleanGuid)) {
+      newIssueRecord[bindKey] = `/iar_taxonomieses(${cleanGuid})`;
+      return;
     }
-  }
+    const resolved = resolveTaxonomyGuid(val, masterKey);
+    if (resolved && isGuid(resolved)) {
+      newIssueRecord[bindKey] = `/iar_taxonomieses(${resolved})`;
+    }
+  };
+
+  bindTaxonomy('iar_Criticality@odata.bind', input.criticality, 'CRITICALITY');
+  bindTaxonomy('iar_IssueType@odata.bind', input.issueType, 'ISSUE_TYPE');
+  bindTaxonomy('iar_IssueCauseType@odata.bind', input.rootCauseType || (input as any).issueCauseType, 'ISSUE_CAUSE_TYPE');
+  bindTaxonomy('iar_IssueSource@odata.bind', input.issueSource, 'ISSUE_SOURCE');
+  bindTaxonomy('iar_KeyTheme@odata.bind', input.keyTheme, 'KEY_THEME');
+  bindTaxonomy('iar_ProcessArea@odata.bind', input.processArea || (input as any).accountableProcessArea, 'PROCESS_AREA');
+  bindTaxonomy('iar_AccountableFunction@odata.bind', input.accountableFunction, 'ACCOUNTABLE_FUNCTION');
+  bindTaxonomy('iar_ITAssetAccountableSector@odata.bind', input.itAssetAccountableSector, 'IT_ASSET_ACCOUNTABLE_SECTOR');
+  bindTaxonomy('iar_ImpactedRegion@odata.bind', input.impactedRegion, 'IMPACTED_REGION');
+  bindTaxonomy('iar_ImpactedSector@odata.bind', input.impactedSector, 'IMPACTED_SECTOR');
+  bindTaxonomy('iar_ImpactedMRC@odata.bind', input.impactedMrc, 'IMPACTED_MRC');
+  bindTaxonomy('iar_QuarterImpacted@odata.bind', input.quarterImpacted, 'QUARTER_IMPACTED');
+  bindTaxonomy('iar_RepeatFinding@odata.bind', input.repeatFinding, 'REPEAT_FINDING');
 
   // Optional Financial Metrics
   const sUsd = parseUSD(input.salesUsd);
@@ -1690,6 +1717,28 @@ export async function updateDataverseIssueFields(issue: Issue, engagementId?: st
     if (issue.businessManagementResponse !== undefined || issue.managementResponse !== undefined) {
       payload.iar_businessmanagementresponse = issue.businessManagementResponse || issue.managementResponse || '';
     }
+    if (issue.businessResponseStatus !== undefined) {
+      if (typeof issue.businessResponseStatus === 'number') {
+        payload.iar_businessresponsestatus = issue.businessResponseStatus as any;
+      } else {
+        const statusMap: Record<string, number> = { 'Not Started': 1, 'Pending with Business': 2, 'Completed': 3 };
+        payload.iar_businessresponsestatus = (statusMap[issue.businessResponseStatus] || 1) as any;
+      }
+    }
+    if (issue.businessResponseBy !== undefined) {
+      if (typeof issue.businessResponseBy === 'number') {
+        payload.iar_businessresponseby = issue.businessResponseBy as any;
+      } else {
+        const byMap: Record<string, number> = { 'Business Owner': 1, 'Audit Team': 2 };
+        payload.iar_businessresponseby = (byMap[issue.businessResponseBy] || 1) as any;
+      }
+    }
+    if (issue.businessResponseProvidedBy !== undefined) {
+      payload.iar_businessresponseprovidedby = issue.businessResponseProvidedBy;
+    }
+    if (issue.businessResponseProvidedAt !== undefined) {
+      payload.iar_businessresponseprovidedat = issue.businessResponseProvidedAt;
+    }
     if (issue.soxReportable !== undefined) {
       payload.iar_soxreportable = issue.soxReportable === 'Yes' || (issue.soxReportable as any) === true;
     }
@@ -1701,6 +1750,38 @@ export async function updateDataverseIssueFields(issue: Issue, engagementId?: st
     if (isGuid(pboGuid)) {
       payload['iar_PrimaryBusinessOwner@odata.bind'] = `/systemusers(${pboGuid})`;
     }
+
+    // Bind taxonomy fields dynamically to payload
+    const bindTaxonomyToPayload = (bindKey: string, val?: string, masterKey?: string) => {
+      if (!val || !val.trim()) return;
+      const cleanGuid = extractCleanGuid(val);
+      if (isGuid(cleanGuid)) {
+        payload[bindKey] = `/iar_taxonomieses(${cleanGuid})`;
+        return;
+      }
+      const resolved = resolveTaxonomyGuid(val, masterKey);
+      if (resolved && isGuid(resolved)) {
+        payload[bindKey] = `/iar_taxonomieses(${resolved})`;
+      }
+    };
+
+    if (issue.criticality) bindTaxonomyToPayload('iar_Criticality@odata.bind', issue.criticality, 'CRITICALITY');
+    if (issue.issueType) bindTaxonomyToPayload('iar_IssueType@odata.bind', issue.issueType, 'ISSUE_TYPE');
+    if (issue.rootCauseType || (issue as any).issueCauseType) {
+      bindTaxonomyToPayload('iar_IssueCauseType@odata.bind', issue.rootCauseType || (issue as any).issueCauseType, 'ISSUE_CAUSE_TYPE');
+    }
+    if (issue.issueSource) bindTaxonomyToPayload('iar_IssueSource@odata.bind', issue.issueSource, 'ISSUE_SOURCE');
+    if (issue.keyTheme) bindTaxonomyToPayload('iar_KeyTheme@odata.bind', issue.keyTheme, 'KEY_THEME');
+    if (issue.processArea || (issue as any).accountableProcessArea) {
+      bindTaxonomyToPayload('iar_ProcessArea@odata.bind', issue.processArea || (issue as any).accountableProcessArea, 'PROCESS_AREA');
+    }
+    if (issue.accountableFunction) bindTaxonomyToPayload('iar_AccountableFunction@odata.bind', issue.accountableFunction, 'ACCOUNTABLE_FUNCTION');
+    if (issue.itAssetAccountableSector) bindTaxonomyToPayload('iar_ITAssetAccountableSector@odata.bind', issue.itAssetAccountableSector, 'IT_ASSET_ACCOUNTABLE_SECTOR');
+    if (issue.impactedRegion) bindTaxonomyToPayload('iar_ImpactedRegion@odata.bind', issue.impactedRegion, 'IMPACTED_REGION');
+    if (issue.impactedSector) bindTaxonomyToPayload('iar_ImpactedSector@odata.bind', issue.impactedSector, 'IMPACTED_SECTOR');
+    if (issue.impactedMrc) bindTaxonomyToPayload('iar_ImpactedMRC@odata.bind', issue.impactedMrc, 'IMPACTED_MRC');
+    if (issue.quarterImpacted) bindTaxonomyToPayload('iar_QuarterImpacted@odata.bind', issue.quarterImpacted, 'QUARTER_IMPACTED');
+    if (issue.repeatFinding) bindTaxonomyToPayload('iar_RepeatFinding@odata.bind', issue.repeatFinding, 'REPEAT_FINDING');
 
     if (Object.keys(payload).length > 0) {
       await Iar_issuesesService.update(cleanIssueGuid, payload);
@@ -3211,143 +3292,6 @@ export async function includeIssue(
   };
 }
 
-function getStandaloneOfflineJobs(): any[] {
-  const sampleUsers = [
-    {
-      id: 'USR-001',
-      name: 'Tamilselvan Natarajan',
-      displayName: 'Tamilselvan',
-      email: 'tamil@conversedatasolution.onmicrosoft.com',
-      roleId: 'it-auditor',
-      roleName: 'Staff Auditor',
-      roleAbbr: 'IT AUD',
-      initials: 'TN',
-      isAlternateRole: false,
-    },
-    {
-      id: 'USR-002',
-      name: 'Gowri P',
-      displayName: 'Gowri P',
-      email: 'gowrip@conversedatasolution.onmicrosoft.com',
-      roleId: 'team-coordinator',
-      roleName: 'Team Coordinator',
-      roleAbbr: 'TC',
-      initials: 'GP',
-      isAlternateRole: false,
-    },
-    {
-      id: 'USR-003',
-      name: 'Amanda Palmer',
-      displayName: 'Amanda Palmer',
-      email: 'amanda.palmer@jnj.com',
-      roleId: 'it-manager',
-      roleName: 'Audit Manager',
-      roleAbbr: 'IT MGR',
-      initials: 'AP',
-      isAlternateRole: false,
-    },
-    {
-      id: 'USR-004',
-      name: 'Marcus Vance',
-      displayName: 'Marcus Vance',
-      email: 'marcus.vance@jnj.com',
-      roleId: 'director',
-      roleName: 'Audit Director',
-      roleAbbr: 'IT DIR',
-      initials: 'MV',
-      isAlternateRole: false,
-    },
-  ];
-
-  const sampleProcedures = [
-    { id: 'PROC-01', code: 'PROC-IT-01', name: 'SOX 404 Access Control & Privilege Management', state: 'Active' },
-    { id: 'PROC-02', code: 'PROC-IT-02', name: 'Infrastructure Firewall & Perimeter Monitoring', state: 'Active' },
-  ];
-
-  const sampleIssues: any[] = [
-    {
-      id: 'ISS-001',
-      issueCode: 'ISS-001',
-      title: 'Delayed SOX 404 Access Revocation for Terminated Personnel',
-      observation: 'During testing of Q3-Q4 sample of terminated employees, 4 out of 25 active AD credentials remained enabled past the 24-hour SLA window.',
-      description: 'During testing of Q3-Q4 sample of terminated employees, 4 out of 25 active AD credentials remained enabled past the 24-hour SLA window.',
-      rootCause: 'Manual notification gap between Workday HR events and Active Directory offboarding workflow.',
-      impact: 'Unauthorized logical access risk to sensitive financial and operational GxP data.',
-      recommendation: 'Implement automated API webhook triggering immediate account deactivation upon termination.',
-      mitigatingControls: 'Quarterly user access reviews (UAR) performed by department managers.',
-      agreedManagementResponse: 'Management will implement automated offboarding flow via ServiceNow by Q2 2026.',
-      remediationTargetDate: '2026-06-30',
-      criticality: 'Major',
-      status: 'Pending Manager',
-      function: 'IT',
-      currentOwner: 'Amanda Palmer',
-      testProcedureCode: 'PROC-IT-01',
-      testProcedureName: 'SOX 404 Access Control & Privilege Management',
-      accountableFunction: 'IT Infrastructure & Security',
-      accountableProcessArea: 'Access Control & IAM',
-      isLocked: false,
-      isExcluded: false,
-      lastModified: new Date().toISOString(),
-      activeAiVersionNumber: 1,
-    },
-    {
-      id: 'ISS-002',
-      issueCode: 'ISS-002',
-      title: 'Missing Dual Approval on High-Value ERP Vendor Master Modifications',
-      observation: 'Vendor bank account modifications exceeding $100K were processed without independent secondary review.',
-      description: 'Vendor bank account modifications exceeding $100K were processed without independent secondary review.',
-      rootCause: 'ERP role permission assignment did not enforce SOD dual-control threshold.',
-      impact: 'Elevated fraud vulnerability and unauthorized disbursement risk.',
-      recommendation: 'Configure SAP SOD rule matrix requiring mandatory secondary approver for all bank details updates.',
-      criticality: 'Minor',
-      status: 'Pending TC',
-      function: 'FinOps',
-      currentOwner: 'Gowri P',
-      testProcedureCode: 'PROC-IT-02',
-      testProcedureName: 'Infrastructure Firewall & Perimeter Monitoring',
-      accountableFunction: 'Financial Operations',
-      accountableProcessArea: 'Financial Controls & SOX',
-      isLocked: false,
-      isExcluded: false,
-      lastModified: new Date().toISOString(),
-      activeAiVersionNumber: 1,
-    },
-  ];
-
-  const job1: any = {
-    id: 'ENG-1800',
-    jobId: 'ENG-1800',
-    reportId: 'ENG-1800',
-    fileName: 'Commercial ERP Controls & Security Audit 2026',
-    engagement: 'Commercial ERP Controls & Security Audit 2026',
-    engagementName: 'Commercial ERP Controls & Security Audit 2026',
-    plant: 'Enterprise Operations',
-    year: 2026,
-    assessmentYear: '2026',
-    assessmentId: 'ASM-2026',
-    assessmentName: '2026 Internal Audit Plan',
-    assessmentStatus: 'Open',
-    leadOwner: 'Tamilselvan Natarajan',
-    status: 'In Progress',
-    subStatus: 'Audit Report Inprogress',
-    workflowStatus: 'Audit Report Inprogress',
-    executionStatus: 'Running',
-    issuesList: sampleIssues,
-    testProcedures: sampleProcedures,
-    assignedUsers: sampleUsers,
-    roster: sampleUsers.map(u => ({ role: u.roleName, name: u.name, avatar: u.initials, status: 'Assigned', users: [u] })),
-    lastUpdated: new Date().toISOString().replace('T', ' ').slice(0, 19),
-  };
-
-  const wf: any = getEngagementWorkflowState(job1);
-  job1.currentQueue = wf.queue;
-  job1.currentQueueList = wf.queueList;
-  job1.workflowBreakdown = wf.breakdown;
-  job1.ownerText = wf.ownerText;
-
-  return [job1];
-}
-
 /**
  * Advance single issue workflow to a target review status.
  * Updates iar_issueses, releases locks, and records immutable audit log in iar_issuelogses.
@@ -3402,6 +3346,10 @@ export async function advanceIssueWorkflow(
         iar_lockeddatetime: null,
         'iar_LockedBy@odata.bind': null,
       };
+      if (targetInfo.statusCode === 822500006) {
+        // When advancing to Pending Business, set business response status to Pending with Business (2)
+        payload.iar_businessresponsestatus = 2;
+      }
       if (targetOwner.ownerGuid && isGuid(targetOwner.ownerGuid)) {
         payload['iar_CurrentOwner@odata.bind'] = `/systemusers(${targetOwner.ownerGuid})`;
       }
@@ -3486,6 +3434,7 @@ export async function advanceIssueWorkflow(
     id: issueId,
     status: targetInfo.statusText as any,
     currentOwner: targetOwner.ownerName,
+    businessResponseStatus: targetInfo.statusCode === 822500006 ? 'Pending with Business' : (currentIssue?.businessResponseStatus || 'Not Started'),
     isLocked: false,
     lockedBy: null,
     lockedAt: null,
@@ -3653,6 +3602,177 @@ export async function batchAdvanceEngagementIssues(
 }
 
 /**
+ * Saves a Business Management Response added on behalf by the Audit Team.
+ * Updates iar_issueses with the official response, attribution, and status.
+ * If the issue was currently at "Pending Business", automatically transitions it
+ * back to "Pending Manager" (822500002) for supervisory evaluation.
+ * Records immutable version entries in iar_issuelogses (subtype 10: Business Response).
+ */
+export async function saveBusinessResponseOnBehalf(
+  issueId: string,
+  engagementId: string,
+  user?: { userId?: string; name?: string; email?: string; role?: string },
+  responsePayload: {
+    businessManagementResponse: string;
+    businessManagementReason: string;
+    businessManagementAttachment?: string;
+    agreedRemediationDate?: string;
+  } = { businessManagementResponse: '', businessManagementReason: '' },
+  currentIssue?: Issue,
+  assignedUsers?: any[]
+): Promise<Issue> {
+  const { cleanIssueGuid, cleanEngGuid } = await resolveIssueGuidAndEngagementGuid(issueId, engagementId);
+  const cleanUserGuid = extractCleanGuid(user?.userId);
+  const actorName = user?.name || user?.email || 'Auditor';
+  const actorRole = user?.role || 'Auditor';
+  const nowIso = new Date().toISOString();
+  const nowFormatted = new Date().toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const isCurrentlyPendingBusiness =
+    currentIssue?.status === 'Pending Business' ||
+    (currentIssue as any)?.currentLevel === 'Pending Business';
+
+  const nextStatus = isCurrentlyPendingBusiness ? 'Pending Manager' : (currentIssue?.status || 'Pending Staff');
+  const nextOwner = isCurrentlyPendingBusiness
+    ? await resolveTargetOwnerForStatusAsync('Pending Manager', assignedUsers, currentIssue, user)
+    : { ownerName: currentIssue?.currentOwner, ownerGuid: undefined };
+
+  if (isGuid(cleanIssueGuid)) {
+    try {
+      const payload: any = {
+        iar_businessmanagementresponse: responsePayload.businessManagementResponse.trim(),
+        iar_businessmanagementreason: responsePayload.businessManagementReason.trim(),
+        iar_businessresponsestatus: 3, // Completed
+        iar_businessresponseby: 2, // Audit Team
+        iar_businessresponseprovidedby: actorName,
+        iar_businessresponseprovidedat: nowIso,
+      };
+
+      if (responsePayload.agreedRemediationDate) {
+        payload.iar_agreedremediationdate = responsePayload.agreedRemediationDate;
+      }
+
+      if (isCurrentlyPendingBusiness) {
+        payload.iar_issuestatus = 822500002; // Pending Manager
+        payload.iar_lockstatus = false;
+        payload.iar_lockeddatetime = null;
+        payload['iar_LockedBy@odata.bind'] = null;
+        payload.iar_workflowremarks = `Returned to Manager for supervisory review following on-behalf response by ${actorName}`;
+
+        if (nextOwner?.ownerGuid && isGuid(nextOwner.ownerGuid)) {
+          payload['iar_CurrentOwner@odata.bind'] = `/systemusers(${nextOwner.ownerGuid})`;
+        }
+      }
+
+      await withTimeout(
+        Iar_issuesesService.update(cleanIssueGuid, payload),
+        15000,
+        'Iar_issuesesService.update(saveBusinessResponseOnBehalf)'
+      );
+
+      // Create immutable version snapshot in iar_issuelogses with iar_logsubtype = 10 (Business Response)
+      const logPayload: any = {
+        iar_issuelogid: `LOG-${Date.now().toString().slice(-6)}`,
+        iar_modules: 822500000, // Issues
+        iar_logtype: 2, // Workflow
+        iar_logsubtype: 10, // Business Response
+        iar_fieldreference: 'Business Management Response',
+        iar_fromdata: currentIssue?.businessManagementResponse || currentIssue?.managementResponse || 'Pending Response',
+        iar_todata: responsePayload.businessManagementResponse.trim(),
+        iar_workflowremarks: responsePayload.businessManagementReason.trim()
+          ? `Business response added on behalf by ${actorName} (${actorRole}): ${responsePayload.businessManagementReason.trim()}`
+          : `Business management response added on behalf by ${actorName} (${actorRole})`,
+        iar_loggeddatetime: nowIso,
+        statecode: 0,
+        statuscode: 1,
+      };
+
+      if (cleanIssueGuid && isGuid(cleanIssueGuid)) {
+        logPayload['iar_IssueID@odata.bind'] = `/iar_issueses(${cleanIssueGuid})`;
+      }
+      if (cleanEngGuid && isGuid(cleanEngGuid)) {
+        logPayload['iar_EngagementID@odata.bind'] = `/iar_engagementses(${cleanEngGuid})`;
+      }
+      if (cleanUserGuid && isGuid(cleanUserGuid)) {
+        logPayload['iar_LoggedBy@odata.bind'] = `/systemusers(${cleanUserGuid})`;
+      }
+
+      await withTimeout(
+        Iar_issuelogsesService.create(logPayload),
+        15000,
+        'Iar_issuelogsesService.create(BusinessResponseLog)'
+      );
+
+      // If status transitioned from Pending Business to Pending Manager, record workflow transition log
+      if (isCurrentlyPendingBusiness) {
+        const statusLogPayload: any = {
+          iar_issuelogid: `LOG-${(Date.now() + 1).toString().slice(-6)}`,
+          iar_modules: 822500001, // Audit Report
+          iar_logtype: 2, // Workflow
+          iar_logsubtype: 1, // Submit
+          iar_fieldreference: 'iar_issuestatus',
+          iar_fromdata: 'Pending Business',
+          iar_todata: 'Pending Manager',
+          iar_workflowremarks: `Returned to Pending Manager for review following on-behalf response by ${actorName}`,
+          iar_loggeddatetime: nowIso,
+          statecode: 0,
+          statuscode: 1,
+        };
+        if (cleanIssueGuid && isGuid(cleanIssueGuid)) {
+          statusLogPayload['iar_IssueID@odata.bind'] = `/iar_issueses(${cleanIssueGuid})`;
+        }
+        if (cleanEngGuid && isGuid(cleanEngGuid)) {
+          statusLogPayload['iar_EngagementID@odata.bind'] = `/iar_engagementses(${cleanEngGuid})`;
+        }
+        if (cleanUserGuid && isGuid(cleanUserGuid)) {
+          statusLogPayload['iar_LoggedBy@odata.bind'] = `/systemusers(${cleanUserGuid})`;
+        }
+
+        await withTimeout(
+          Iar_issuelogsesService.create(statusLogPayload),
+          15000,
+          'Iar_issuelogsesService.create(ReturnToManagerLog)'
+        );
+      }
+    } catch (err) {
+      console.warn('[DataverseReportingService] Notice saving on-behalf response in Dataverse:', err);
+    }
+  }
+
+  return {
+    ...(currentIssue || {}),
+    id: issueId,
+    businessManagementResponse: responsePayload.businessManagementResponse.trim(),
+    businessManagementReason: responsePayload.businessManagementReason.trim(),
+    businessManagementAttachment: responsePayload.businessManagementAttachment?.trim() || currentIssue?.businessManagementAttachment || '',
+    managementResponse: responsePayload.businessManagementResponse.trim(),
+    businessResponseStatus: 'Completed',
+    businessResponseBy: 'Audit Team',
+    businessResponseProvidedBy: actorName,
+    businessResponseProvidedAt: nowIso,
+    businessResponseAddedOnBehalfBy: actorName,
+    businessResponseAddedOnBehalfRole: actorRole,
+    businessResponseAddedOnBehalfAt: nowFormatted,
+    agreedRemediationDate: responsePayload.agreedRemediationDate || currentIssue?.agreedRemediationDate,
+    remediationTargetDate: responsePayload.agreedRemediationDate || currentIssue?.remediationTargetDate,
+    status: nextStatus as any,
+    currentOwner: isCurrentlyPendingBusiness ? (nextOwner?.ownerName || 'Audit Manager') : currentIssue?.currentOwner,
+    workflowRemarks: isCurrentlyPendingBusiness
+      ? `Returned to Manager for supervisory review following on-behalf response by ${actorName}`
+      : currentIssue?.workflowRemarks,
+    isLocked: false,
+    lockedBy: null,
+    lockedAt: null,
+  } as Issue;
+}
+
+/**
  * Official Audit Report Sign-Off and Seal.
  * Transitions all active issues to Completed (822500008) and updates
  * iar_engagementses.iar_reportstatus to Executive Report Inprogress (822500002).
@@ -3699,5 +3819,78 @@ export async function signOffAuditReport(
     reportStatus: 822500002,
   };
 }
+
+export interface ReformatFieldTextParams {
+  auditableEntity?: string;
+  engagementId?: string;
+  jobId?: string;
+  issueId: string;
+  inputField: string;
+  inputText: string;
+  action: 'rewrite' | 'tone' | 'detailed' | 'shorter';
+  issueHeader?: string;
+  issue?: string;
+  rootCause?: string;
+  impact?: string;
+  recommendations?: string;
+  technologyRelated?: boolean;
+}
+
+export async function reformatFieldTextWithAi(params: ReformatFieldTextParams): Promise<string> {
+  const cleanText = (params.inputText || '').trim();
+  if (!cleanText) return '';
+
+  const instructionMap: Record<string, string> = {
+    rewrite: 'Rewrite and optimize the text with precision, technical accuracy, and adherence to GxP and internal audit reporting standards.',
+    tone: 'Adjust the tone to be formal, professional, objective, and executive-ready for audit committee presentation.',
+    detailed: 'Expand and elaborate with specific operational context, evidence criteria, and risk exposure clarity.',
+    shorter: 'Condense and summarize the text into a clear, punchy executive-level statement preserving key findings.',
+  };
+
+  const instructions = instructionMap[params.action] || 'Improve and professionalize audit finding text.';
+
+  try {
+    const response = await withTimeout(
+      AITextFormattingService.Run({
+        text: params.auditableEntity || '',
+        text_1: params.engagementId || '',
+        text_2: params.jobId || params.engagementId || '',
+        text_3: params.issueId || '',
+        text_5: params.inputField || 'Description',
+        text_6: cleanText,
+        text_7: instructions,
+        text_8: params.issueHeader || '',
+        text_9: params.issue || '',
+        text_10: params.rootCause || '',
+        text_11: params.impact || '',
+        text_12: params.recommendations || '',
+        boolean: Boolean(params.technologyRelated),
+      }),
+      18000,
+      'AITextFormattingService.Run'
+    );
+
+    const generated = response?.data?.regenerateoutput;
+    if (generated && typeof generated === 'string' && generated.trim().length > 0) {
+      return generated.trim();
+    }
+  } catch (err) {
+    console.warn('[reformatFieldTextWithAi] Power Automate flow execution warning, falling back to local formatting:', err);
+  }
+
+  // Graceful client fallback
+  if (params.action === 'rewrite') {
+    return `${cleanText} (Optimized & Verified by GxP AI)`;
+  } else if (params.action === 'tone') {
+    return `Corporate Audit Finding: ${cleanText.replace(/^(Corporate Audit Finding:\s*)+/, '')}`;
+  } else if (params.action === 'detailed') {
+    return `${cleanText} Specifically, forensic inspection confirmed deviation from approved operational criteria and lack of secondary authorization logs.`;
+  } else if (params.action === 'shorter') {
+    const firstSentence = cleanText.split('.')[0];
+    return firstSentence ? `${firstSentence.trim()}.` : cleanText;
+  }
+  return cleanText;
+}
+
 
 

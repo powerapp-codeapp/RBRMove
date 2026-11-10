@@ -22,7 +22,7 @@ export interface AIInputProps {
   rows?: number;
   remark?: string;
   onRemarkChange?: (remark: string) => void;
-  onAiRewrite?: (action: 'rewrite' | 'tone' | 'detailed' | 'shorter', selectedText?: string) => void | Promise<void>;
+  onAiRewrite?: (action: 'rewrite' | 'tone' | 'detailed' | 'shorter', selectedText?: string) => void | string | Promise<void | string>;
   isAiLoading?: boolean;
   helperText?: string;
   disabled?: boolean;
@@ -176,7 +176,21 @@ export const AIInput: React.FC<AIInputProps> = ({
   const handleTriggerAction = async (action: 'rewrite' | 'tone' | 'detailed' | 'shorter') => {
     setWandAnchorEl(null);
     if (onAiRewrite) {
-      await onAiRewrite(action);
+      setIsFieldLoading(true);
+      try {
+        const rewritten = await onAiRewrite(action);
+        if (rewritten && typeof rewritten === 'string') {
+          setPendingProposal({
+            start: 0,
+            end: value.length,
+            originalText: value,
+            newText: rewritten,
+            isSelection: false,
+          });
+        }
+      } finally {
+        setIsFieldLoading(false);
+      }
       return;
     }
 
@@ -228,8 +242,20 @@ export const AIInput: React.FC<AIInputProps> = ({
     });
 
     if (onAiRewrite) {
-      await onAiRewrite(action, targetRange.text);
-      setSelectionLoading(null);
+      try {
+        const rewritten = await onAiRewrite(action, targetRange.text);
+        if (rewritten && typeof rewritten === 'string') {
+          setPendingProposal({
+            start: targetRange.start,
+            end: targetRange.end,
+            originalText: targetRange.text,
+            newText: rewritten,
+            isSelection: true,
+          });
+        }
+      } finally {
+        setSelectionLoading(null);
+      }
       return;
     }
 

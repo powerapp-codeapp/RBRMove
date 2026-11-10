@@ -7,8 +7,10 @@ import {
   Sparkles,
   Filter,
   AlertCircle,
+  Database,
 } from 'lucide-react';
 import type { AuditTrailLog, Issue } from '../../../types/dataverse.types';
+import { fetchAuditTrailLogsForIssue } from '../../../services/dataverseReportingService';
 
 export type TrackChangesScope = 'issue' | 'report';
 
@@ -80,9 +82,12 @@ export const IssueLogsDialog: React.FC<IssueLogsDialogProps> = ({
   engagementId,
   engagementTitle,
   initialScope = 'issue',
+  logs,
 }) => {
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [activeScope, setActiveScope] = useState<TrackChangesScope>(initialScope);
+  const [internalLogs, setInternalLogs] = useState<AuditTrailLog[]>([]);
+  const [isLoadingLiveLogs, setIsLoadingLiveLogs] = useState<boolean>(false);
 
   useEffect(() => {
     if (open) {
@@ -90,6 +95,35 @@ export const IssueLogsDialog: React.FC<IssueLogsDialogProps> = ({
       setActiveFilter('ALL');
     }
   }, [open, initialScope]);
+
+  // If logs prop is empty or not provided, fetch live logs from Dataverse
+  useEffect(() => {
+    if (!open) {
+      setInternalLogs([]);
+      return;
+    }
+
+    if (logs && logs.length > 0) {
+      setInternalLogs([]);
+      return;
+    }
+
+    const targetId = issue?.id || issueId;
+    if (targetId && activeScope === 'issue') {
+      setIsLoadingLiveLogs(true);
+      fetchAuditTrailLogsForIssue(targetId, engagementId)
+        .then((res) => {
+          setInternalLogs(res || []);
+        })
+        .catch((err) => {
+          console.warn('[IssueLogsDialog] Live audit logs fetch notice:', err);
+          setInternalLogs([]);
+        })
+        .finally(() => {
+          setIsLoadingLiveLogs(false);
+        });
+    }
+  }, [open, logs, issue?.id, issueId, engagementId, activeScope]);
 
   const resolvedIssueId = useMemo(() => {
     if (issue?.reportRef) return `ISSUE-${issue.reportRef}`;
@@ -488,9 +522,85 @@ export const IssueLogsDialog: React.FC<IssueLogsDialogProps> = ({
     [engagementId]
   );
 
+  const activeSourceLogs = useMemo(() => {
+    return logs && logs.length > 0 ? logs : internalLogs;
+  }, [logs, internalLogs]);
+
+  const isLiveFromDataverse = activeSourceLogs.length > 0;
+
+  const mappedLiveLogs: BackupStyleLogEntry[] = useMemo(() => {
+    if (!activeSourceLogs || activeSourceLogs.length === 0) return [];
+    return activeSourceLogs.map((l, idx) => {
+      const timeDate = new Date(l.timestamp);
+      const isValid = !isNaN(timeDate.getTime());
+      const displayTime = isValid
+        ? timeDate.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : l.timestamp;
+
+      let badgeType: BackupStyleLogEntry['badgeType'] = 'workflow';
+      let category = 'WORKFLOW_TRANSITION';
+
+      const act = (l.action || '').toUpperCase();
+      const rem = (l.remarks || '').toLowerCase();
+
+      if (act === 'LOCK_CHANGE' || rem.includes('lock')) {
+        badgeType = 'update';
+        category = 'GOVERNANCE';
+      } else if (act === 'CALL_BACK' || rem.includes('call back')) {
+        badgeType = 'callback';
+        category = 'CALL_BACK';
+      } else if (act === 'SEND_TO' || rem.includes('peer') || rem.includes('send to')) {
+        badgeType = 'reroute';
+        category = 'SEND_TO';
+      } else if (act === 'EXCLUSION' || rem.includes('exclude')) {
+        badgeType = 'exclude';
+        category = 'EXCLUSION_TOGGLE';
+      } else if (act.includes('RESPONSE') || rem.includes('business response') || rem.includes('management response')) {
+        badgeType = 'response';
+        category = 'MANAGEMENT_RESPONSE';
+      } else if (act === 'CREATION' || rem.includes('created')) {
+        badgeType = 'create';
+        category = 'CREATION';
+      } else if (act.includes('AI') || rem.includes('ai')) {
+        badgeType = 'ai';
+        category = 'AI_TRANSFORMATION';
+      } else if (act === 'FIELD_EDIT' || rem.includes('field')) {
+        badgeType = 'update';
+        category = 'FIELD_EDIT';
+      }
+
+      return {
+        id: l.logId || `LOG-${idx + 1}`,
+        issueId: l.recordId || resolvedIssueId,
+        engagementId: engagementId || '',
+        timestamp: l.timestamp,
+        displayTime,
+        actor: {
+          userId: l.performedByUserId || 'USR-001',
+          name: l.performedByUserName || 'Auditor',
+          role: l.userRole || 'Auditor',
+          domain: 'Cross-Domain',
+        },
+        category,
+        badgeType,
+        action: l.remarks || `${l.action} on ${l.entityName || 'Finding'}`,
+        fieldChanged: l.action === 'FIELD_EDIT' ? 'Finding Attributes' : 'Status / Review Tier',
+        oldValue: l.previousState || null,
+        newValue: l.newState || null,
+        details: {
+          notes: l.remarks,
+          reason: l.remarks,
+        },
+      };
+    });
+  }, [activeSourceLogs, resolvedIssueId, engagementId]);
+
   const effectiveLogs = useMemo(() => {
-    return activeScope === 'issue' ? mockIssueLogs : mockReportLogs;
-  }, [activeScope, mockIssueLogs, mockReportLogs]);
+    if (activeScope === 'issue') {
+      return mappedLiveLogs.length > 0 ? mappedLiveLogs : mockIssueLogs;
+    }
+    return mockReportLogs;
+  }, [activeScope, mappedLiveLogs, mockIssueLogs, mockReportLogs]);
 
   // Dynamic modal title and category matching Backup_JNJ_IAR/src/components/issues/IssueLogsModal.jsx
   const modalCategory =
@@ -719,6 +829,33 @@ export const IssueLogsDialog: React.FC<IssueLogsDialogProps> = ({
               <span style={{ fontSize: '11px', color: '#E2E8F0', fontWeight: 600 }}>
                 {effectiveLogs.length} logged event{effectiveLogs.length === 1 ? '' : 's'}
               </span>
+              {isLiveFromDataverse && (
+                <>
+                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>•</span>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '10.5px',
+                      fontWeight: 700,
+                      color: '#86EFAC',
+                      backgroundColor: 'rgba(22, 101, 52, 0.4)',
+                      padding: '1px 6px',
+                      borderRadius: '4px',
+                      border: '1px solid rgba(134, 239, 172, 0.4)',
+                    }}
+                  >
+                    <Database size={10} />
+                    Live Dataverse
+                  </span>
+                </>
+              )}
+              {isLoadingLiveLogs && (
+                <span style={{ fontSize: '10.5px', color: '#CBD5E1', fontStyle: 'italic' }}>
+                  (Querying Dataverse...)
+                </span>
+              )}
             </div>
             <h2
               style={{

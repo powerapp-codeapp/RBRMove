@@ -28,7 +28,7 @@ The **Reporting Module** is the core operational studio of the IAR platform. It 
   - The flow monitors upstream source systems for new or modified records and upserts them into Dataverse.
   - In the Reporting Module UI, these entities are consumed as **read-only master references** (queue displays, workprogram lookups, and auditor assignment resolution).
 - **Application-Managed Governance & Execution**:
-  - The IAR Code App is the exclusive system of record for finding creation, workpaper narratives, AI synthesis (`iar_aiissuegenerations`), 5-tier review progressions, field-level comments (`iar_issuecomments`), executive summary reports (`iar_executivesummaryreports`), and auditee management responses (`iar_issuesbusinessresponses`).
+  - The IAR Code App is the exclusive system of record for finding creation, workpaper narratives, AI synthesis (`iar_aiissuegeneratedlogses`), 5-tier review progressions, field-level comments (`iar_issuecommentses`), executive summary reports (`iar_executivesummaryreports`), official auditee management responses (consolidated directly onto `iar_issueses`), response revision audit trails (`iar_issuelogses`), and two-way business dialogue (`iar_businesscomments`).
 
 ---
 
@@ -91,17 +91,18 @@ graph TD
 2. **Dedicated Canvas App on SharePoint Dual-List Architecture**:
    - A companion **Power Apps Canvas App** built with standard Microsoft 365 SharePoint licensing serves as the business auditee portal.
    - Operates on two SharePoint Lists:
-     - **`IAR_Issues_List`**: System-synchronized mirror of findings from `iar_issueses`, allowing auditees to view issues and post in-between comments prior to formal response request (synced to Dataverse `iar_businesscomments`).
-     - **`IAR_BusinessOwnerResponses_List`**: Actionable response queue provisioned upon Director submission to business (`Pending Business`), capturing formal Management Response, CAP, root cause acceptance, and target date.
+     - **`IAR_Issues_List`**: System-synchronized mirror of findings from `iar_issueses`, allowing auditees to view issues and participate in a true two-way dialogue channel with the audit team (synced to Dataverse `iar_businesscomments`).
+     - **`IAR_BusinessOwnerResponses_List`**: Actionable response queue provisioned upon Director submission to business (`Pending Business`), capturing formal Management Response, CAP, root cause acceptance, supporting attachment, and target date.
    - Business Contacts are assigned at the **individual Issue Level** (`iar_issueses`), not through TeamMate engagement assignments.
    - Through the Canvas App, business contacts can:
      - Review assigned findings and workpaper context at any time.
-     - Post in-between comments and questions at any time (synced to Dataverse `iar_businesscomments`).
+     - Post inquiries, feedback, and clarifications in a **two-way conversational dialogue** with the audit team at any time (synced to Dataverse `iar_businesscomments`, supporting both business and auditor replies).
      - Formally author and submit the **Management Response and Corrective Action Plan (CAP)** once the issue is advanced to `Pending Business` by the **Audit Director**.
-3. **Bi-Directional Comment & Response Visibility**:
-   - In-between comments entered by business contacts sync to Dataverse table `iar_businesscomments`.
-   - Formal responses entered in `IAR_BusinessOwnerResponses_List` sync via Power Automate flow `FLW-IAR-IngestBusinessResponse` to Dataverse table `iar_issuesbusinessresponses`.
-   - Upon submission of the Management Response, the workflow automatically transitions the finding back to **`Pending Manager`** so the supervisory team can evaluate response adequacy before presenting it to the Director.
+3. **Bi-Directional Comment & Response Ingestion**:
+   - **Two-Way Business Dialogue (`iar_businesscomments`)**: Feedback, inquiries, and audit team replies synchronize bi-directionally between Canvas App and Code App via `FLW-IAR-SyncBusinessComment`, tracking read states (`iar_isreadbyauditor`, `iar_isreadbybusiness`) and resolution (`iar_isresolved`).
+   - **Single Official Management Response (`iar_issueses`)**: Formal responses entered in `IAR_BusinessOwnerResponses_List` sync via Power Automate flow `FLW-IAR-IngestBusinessResponse` directly into the finding row in Dataverse table **`iar_issueses`** (`iar_businessmanagementresponse`, `iar_agreedremediationdate`, `iar_businessresponsestatus`, `iar_businessresponseby`, `iar_businessresponseprovidedby`, `iar_businessresponseprovidedat`).
+   - **Immutable Version Audit Trail (`iar_issuelogses`)**: Simultaneously, `FLW-IAR-IngestBusinessResponse` logs an immutable historical version snapshot in Dataverse table **`iar_issuelogses`** (`iar_logsubtype: 10 Business Response`), recording previous data, new data, responder identity, and timestamp.
+   - Upon submission of the Management Response, the workflow automatically transitions the finding back to **`Pending Manager`** (`822500002`) so the supervisory team can evaluate response adequacy before presenting it to the Director.
 
 ### 2.3 Role Resolution & LogicKey Governance Engine
 The application enforces dynamic, engagement-scoped role resolution rather than static user roles:
@@ -151,7 +152,9 @@ The Reporting Module consists of four primary integrated views:
   - Filter by Criticality (`Critical`, `Major`, `Moderate`, `Minor`).
 - **User Profile Menu & Administrator Capabilities**:
   - Persona switcher & identity indicator in top header.
-  - **Impersonate User Option**: For users authenticated as Global Administrators (`iar_administratorses`), the profile menu exposes an **"Impersonate User"** modal/selector. Admins can select any user in the organization to experience the Audit Queue, engagement access, and workflow action buttons precisely as that user sees them.
+  - **Impersonate User Option & Segregation of Duties (SoD)**: For users authenticated as Global Administrators (`iar_administratorses`), the profile menu exposes an **"Impersonate User"** modal/selector.
+    - **Read-Only Oversight Rule**: When an Administrator accesses an engagement where they are NOT staffed in `iar_securityassignmentses`, the studio operates strictly in **Read-Only Oversight Mode** (`Administrator Oversight (Read-Only)` badge displayed). The Admin can view the full portfolio for monitoring, but cannot advance review stages, submit review gates, sign off, or edit workpapers directly.
+    - **Action via Impersonation**: To legitimately take action, advance workflow gates, or assist with an engagement on behalf of an assigned team member, the Administrator must use **"Impersonate User"** from the user menu. This switches the security context to that specific auditor, logs all actions and audit trail remarks under that auditor's role, and strictly preserves the integrity of the 5-tier review hierarchy.
   - **Active Impersonation Banner**: When impersonating, a high-visibility persistent banner is displayed at the top of the interface: *"You are viewing as [User Name] (Role: [LogicKey]) — [Exit Impersonation]"*.
 
 - **Engagement Card / Table Structure**:
@@ -230,9 +233,10 @@ The Reporting Module consists of four primary integrated views:
       6. *Applicable Compliance Standards & Policy Citations*.
       7. *Agreed Management Response & Target Remediation Date* (Editable when in `Pending with Business`).
       8. *Intuitive Business Auditee Dialogue & Comments Panel* (Dedicated Section):
-         - Seamlessly surfaces all in-between comments submitted by the Primary Business Owner from the companion Canvas App (`iar_businesscomments`).
-         - Displays auditee author name, submission timestamp, and comment narrative.
-         - Includes an intuitive "Mark as Reviewed" action that clears the unread badge (`iar_isreadbyauditor = true`).
+         - Seamlessly surfaces a **two-way dialogue thread** between the Business Contact (Canvas App) and the Audit Team (Code App) from `iar_businesscomments`.
+         - Displays message author name, persona role (Business vs. Audit), timestamp, and message narrative.
+         - Allows the audit team to reply directly from the workpaper drawer, sending responses back to the Canvas App.
+         - Supports read indicators for both parties (`iar_isreadbyauditor`, `iar_isreadbybusiness`) and resolution tracking (`iar_isresolved`).
     - **In-Situ Collaboration Trigger**: Every field includes a comment bubble showing unresolved comment counts across all 31 finding fields.
     - **AI Assistance Bar**: Quick action button: `"AI Refine / Regenerate Finding"` to trigger LLM synthesis.
     - **Report Export Format**: Downloadable / printable official audit report is produced exclusively in **PDF Format**.
@@ -698,7 +702,8 @@ sequenceDiagram
     Note over BizOwner,Auditor: 4. Formal Management Response & CAP Submission
     BizOwner->>SP_Responses: Submits Management Response, CAP, Root Cause acceptance, & Target Date in Canvas App
     SP_Responses->>PA: Triggers response ingestion flow (FLW-IAR-IngestBusinessResponse)
-    PA->>DV: Writes record to iar_issuesbusinessresponses
+    PA->>DV: Patches official response to iar_issueses (iar_businessmanagementresponse, iar_actionplan, etc.)
+    PA->>DV: Inserts immutable historical version snapshot into iar_issuelogses (iar_logsubtype: 10)
     PA->>DV: Transitions iar_issueses.iar_issuestatus back to Pending Manager [822500002]
     DV-->>Auditor: Notifies Audit Manager to evaluate CAP adequacy
 ```
@@ -712,7 +717,7 @@ sequenceDiagram
    - **Role**: Actionable formal response queue for Business Auditees.
    - **Creation Trigger**: When the Audit Director clicks **"Send to Business"**, a record is inserted into `IAR_BusinessOwnerResponses_List` assigned to the Primary Business Owner.
    - **Response Submission**: The Business Owner opens the Canvas App, enters their formal **Management Response**, **Root Cause acceptance**, **Corrective Action Plan (CAP)**, and **Target Implementation Date**, and clicks Submit.
-   - **Dataverse Ingestion & Return Loop**: An automated event flow (`FLW-IAR-IngestBusinessResponse`) captures the submission, inserts a row into Dataverse table **`iar_issuesbusinessresponses`**, and automatically updates the issue status in `iar_issueses` back to **`Pending Manager`** (`822500002`) for supervisory validation.
+   - **Dataverse Ingestion & Return Loop**: An automated event flow (`FLW-IAR-IngestBusinessResponse`) captures the submission, updates the single official response directly on **`iar_issueses`** (`iar_businessmanagementresponse`, `iar_agreedremediationdate`, `iar_businessresponsestatus`, `iar_businessresponseby`, `iar_businessresponseprovidedby`, `iar_businessresponseprovidedat`), appends an immutable revision row to **`iar_issuelogses`** (`iar_logsubtype: 10 Business Response`), and automatically updates the issue status in `iar_issueses` back to **`Pending Manager`** (`822500002`) for supervisory validation.
 
 ---
 

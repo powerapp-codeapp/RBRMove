@@ -11,7 +11,7 @@
   "localAppUrl": "http://localhost:5173",
   "logoPath": "Default",
   "connectionReferences": {
-    "326934ad-e1f6-452e-892d-b3f7a5c7cfad": {
+    "f7b4bafd-4304-4fb7-b39b-af20bdffdde8": {
       "id": "/providers/Microsoft.PowerApps/apis/shared_logicflows",
       "displayName": "Logic flows",
       "dataSources": [
@@ -23,7 +23,7 @@
         "workflowName": "846f04ab-66c1-f111-b377-7c1e520e2b9b"
       }
     },
-    "3c3d225c-97bc-4953-989f-4f1a5f75ea8b": {
+    "fc0a5385-ca28-4167-98e6-e8f240b3e83f": {
       "id": "/providers/Microsoft.PowerApps/apis/shared_logicflows",
       "displayName": "Logic flows",
       "dataSources": [

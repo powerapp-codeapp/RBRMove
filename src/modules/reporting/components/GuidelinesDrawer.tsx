@@ -119,11 +119,12 @@ export const GuidelinesDrawer: React.FC<GuidelinesDrawerProps> = ({
           style: { backgroundColor: 'rgba(15, 23, 42, 0.45)' }
         },
         paper: {
+          className: 'slim-light-scrollbar pdf-preview-drawer-paper',
           style: {
             width: 'clamp(560px, 50vw, 820px)',
             maxWidth: '95vw',
             height: '100%',
-            backgroundColor: '#FAFAFA',
+            backgroundColor: '#F8FAFC',
             boxShadow: '6px 0 28px rgba(0, 0, 0, 0.16)',
             display: 'flex',
             flexDirection: 'column',
@@ -134,12 +135,12 @@ export const GuidelinesDrawer: React.FC<GuidelinesDrawerProps> = ({
         }
       }}
     >
-      {/* Header */}
+      {/* Drawer Header (Light Grey Background matching PDF Preview Drawer) */}
       <div
         style={{
-          backgroundColor: '#000099',
-          color: '#FFFFFF',
-          padding: '16px 22px',
+          backgroundColor: '#F4F4F4',
+          borderBottom: '1px solid #E2E8F0',
+          padding: '14px 20px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -147,12 +148,27 @@ export const GuidelinesDrawer: React.FC<GuidelinesDrawerProps> = ({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <BookOpen size={18} color="#FFFFFF" />
+          <div
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '6px',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#000099',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)'
+            }}
+          >
+            <BookOpen size={17} />
+          </div>
           <div>
-            <div style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: '#1E293B' }}>
               AI POV
             </div>
-            <div style={{ fontSize: '11.5px', color: 'rgba(255, 255, 255, 0.85)' }}>
+            <div style={{ fontSize: '11.5px', color: '#64748B' }}>
               Field-level guidelines, PEF standards, and review suggestions
             </div>
           </div>
@@ -164,15 +180,24 @@ export const GuidelinesDrawer: React.FC<GuidelinesDrawerProps> = ({
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#FFFFFF',
+            color: '#64748B',
             cursor: 'pointer',
-            padding: '4px',
+            padding: '5px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            borderRadius: '4px'
+            borderRadius: '4px',
+            transition: 'all 0.15s ease'
           }}
-          title="Close AI POV"
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#E2E8F0';
+            e.currentTarget.style.color = '#0F172A';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.color = '#64748B';
+          }}
+          title="Close AI POV drawer"
         >
           <X size={18} />
         </button>
@@ -182,33 +207,57 @@ export const GuidelinesDrawer: React.FC<GuidelinesDrawerProps> = ({
       <div
         style={{
           backgroundColor: '#FFFFFF',
-          borderBottom: '1px solid #E5E7EB',
-          padding: '10px 22px',
+          borderBottom: '1px solid #E2E8F0',
+          padding: '10px 20px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           flexShrink: 0
         }}
       >
-        <span style={{ fontSize: '12px', fontWeight: 600, color: '#4B5563' }}>
-          Applicable Guidelines ({totalItems} items across {activeFields.length} fields)
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>
+            Applicable Guidelines
+          </span>
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 600,
+              color: '#475569',
+              backgroundColor: '#F1F5F9',
+              padding: '1px 8px',
+              borderRadius: '12px',
+              border: '1px solid #E2E8F0'
+            }}
+          >
+            {totalItems} items across {activeFields.length} fields
+          </span>
+        </div>
 
         <button
           type="button"
           onClick={allExpanded ? handleCollapseAll : handleExpandAll}
           style={{
-            background: '#F3F4F6',
-            border: '1px solid #D1D5DB',
+            background: '#FFFFFF',
+            border: '1px solid #CBD5E1',
             borderRadius: '4px',
             padding: '4px 10px',
             fontSize: '11.5px',
             fontWeight: 600,
-            color: '#374151',
+            color: '#334155',
             cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '5px'
+            gap: '5px',
+            transition: 'all 0.15s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#F8FAFC';
+            e.currentTarget.style.borderColor = '#94A3B8';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#CBD5E1';
           }}
         >
           <ChevronsUpDown size={12} />
@@ -216,9 +265,9 @@ export const GuidelinesDrawer: React.FC<GuidelinesDrawerProps> = ({
         </button>
       </div>
 
-      {/* Drawer Body: Field-Wise Accordions */}
+      {/* Drawer Body: Field-Wise Accordions (Slim Scrollbar) */}
       <div
-        className="slim-light-scrollbar"
+        className="slim-light-scrollbar pdf-preview-drawer-body"
         style={{
           flex: '1 1 auto',
           minHeight: 0,
@@ -226,11 +275,13 @@ export const GuidelinesDrawer: React.FC<GuidelinesDrawerProps> = ({
           padding: '16px 20px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '12px'
+          gap: '14px',
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#CBD5E1 transparent'
         }}
       >
         {activeFields.length === 0 ? (
-          <div style={{ padding: '30px', textAlign: 'center', color: '#6B7280', fontSize: '13px' }}>
+          <div style={{ padding: '30px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
             No guidelines applicable for this issue.
           </div>
         ) : (
@@ -261,22 +312,24 @@ export const GuidelinesDrawer: React.FC<GuidelinesDrawerProps> = ({
                   backgroundColor: '#FFFFFF',
                   borderRadius: '6px',
                   border: '1px solid #D1D5DB',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
                   overflow: 'hidden',
                   flexShrink: 0
                 }}
               >
-                {/* Accordion Header (Simple & Clean) */}
+                {/* 1. Field Section Header (Deep Black & Bold Headline) */}
                 <div
                   onClick={() => toggleField(fieldKey)}
                   style={{
                     padding: '12px 16px',
-                    backgroundColor: isExpanded ? '#F9FAFB' : '#FFFFFF',
-                    borderBottom: isExpanded ? '1px solid #E5E7EB' : 'none',
+                    backgroundColor: isExpanded ? '#F8FAFC' : '#FFFFFF',
+                    borderBottom: isExpanded ? '1px solid #E2E8F0' : 'none',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    userSelect: 'none'
+                    userSelect: 'none',
+                    transition: 'background-color 0.15s ease'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -286,23 +339,33 @@ export const GuidelinesDrawer: React.FC<GuidelinesDrawerProps> = ({
                         transition: 'transform 0.15s ease',
                         display: 'flex',
                         alignItems: 'center',
-                        color: '#000099'
+                        color: '#0F172A'
                       }}
                     >
                       <ChevronDown size={16} />
                     </div>
 
-                    <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#111827' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.1px' }}>
                       {displayName}
                     </span>
                   </div>
 
-                  <span style={{ fontSize: '11.5px', color: '#6B7280' }}>
-                    ({fieldTotal} {fieldTotal === 1 ? 'item' : 'items'})
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: '#475569',
+                      backgroundColor: '#F1F5F9',
+                      border: '1px solid #E2E8F0',
+                      padding: '2px 8px',
+                      borderRadius: '12px'
+                    }}
+                  >
+                    {fieldTotal} {fieldTotal === 1 ? 'item' : 'items'}
                   </span>
                 </div>
 
-                {/* Accordion Content: Category information (Label & text one beneath the other) */}
+                {/* Field Section Content: Category Groups & Bullet Lists */}
                 {isExpanded && (
                   <div
                     style={{
@@ -312,118 +375,345 @@ export const GuidelinesDrawer: React.FC<GuidelinesDrawerProps> = ({
                       gap: '18px'
                     }}
                   >
-                    {/* 1. PEF Violations */}
+                    {/* Category Group 1: PEF Violations (Unboxed Bullet List with Multi-Row Fields) */}
                     {violations.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#212121', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                          PEF Violations ({violations.length})
-                        </div>
-
-                        {violations.map((v, idx) => (
-                          <div
-                            key={idx}
-                            style={{
-                              padding: '10px 14px',
-                              border: '1px solid #D8D8D8',
-                              borderRadius: '4px',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '6px',
-                              fontSize: '12.5px',
-                              color: '#212121',
-                              lineHeight: 1.5
-                            }}
-                          >
-                            <div>
-                              <strong style={{ fontWeight: 700 }}>Guideline: </strong>
-                              <span style={{ fontWeight: 400 }}>{v.guideline}</span>
-                            </div>
-
-                            {v.evidence_quote && (
-                              <div>
-                                <strong style={{ fontWeight: 700 }}>Evidence Quote: </strong>
-                                <span style={{ fontWeight: 400 }}>"{v.evidence_quote}"</span>
-                              </div>
-                            )}
-
-                            <div>
-                              <strong style={{ fontWeight: 700 }}>Reason: </strong>
-                              <span style={{ fontWeight: 400 }}>{v.reason}</span>
-                            </div>
-
-                            {v.suggestion && (
-                              <div>
-                                <strong style={{ fontWeight: 700 }}>Suggestion: </strong>
-                                <span style={{ fontWeight: 400 }}>{v.suggestion}</span>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* 2. Undefined Acronyms */}
-                    {acronyms.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#212121', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                          Undefined Acronyms ({acronyms.length})
-                        </div>
-
-                        {acronyms.map((ac, idx) => (
-                          <div
-                            key={idx}
-                            style={{
-                              padding: '10px 14px',
-                              border: '1px solid #D8D8D8',
-                              borderRadius: '4px',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '6px',
-                              fontSize: '12.5px',
-                              color: '#212121',
-                              lineHeight: 1.5
-                            }}
-                          >
-                            <div>
-                              <strong style={{ fontWeight: 700 }}>Acronym: </strong>
-                              <span style={{ fontWeight: 400 }}>{ac.acronym}</span>
-                            </div>
-
-                            {ac.suggested_definition && (
-                              <div>
-                                <strong style={{ fontWeight: 700 }}>Suggested Definition: </strong>
-                                <span style={{ fontWeight: 400 }}>{ac.suggested_definition}</span>
-                              </div>
-                            )}
-
-                            {ac.evidence_quote && (
-                              <div>
-                                <strong style={{ fontWeight: 700 }}>Evidence Quote: </strong>
-                                <span style={{ fontWeight: 400 }}>"{ac.evidence_quote}"</span>
-                              </div>
-                            )}
-
-                            {ac.comment && (
-                              <div>
-                                <strong style={{ fontWeight: 700 }}>Comment: </strong>
-                                <span style={{ fontWeight: 400 }}>{ac.comment}</span>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* 3. Clarifying Questions */}
-                    {questions.length > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#212121', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                          Clarifying Questions ({questions.length})
+                        {/* Group Title: Matching Engagement Name Properties */}
+                        <div
+                          className="type-studio-title"
+                          style={{
+                            fontSize: 'var(--type-studio-title-size, 15px)',
+                            fontWeight: 500,
+                            color: 'var(--type-studio-title-color, #334155)',
+                            lineHeight: 'var(--type-studio-title-leading, 1.3)' as any,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <span>PEF Violations</span>
+                          <span style={{ fontSize: '11px', fontWeight: 500, color: '#64748B' }}>
+                            ({violations.length})
+                          </span>
                         </div>
 
-                        <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {/* Unboxed Bullet List for Violations */}
+                        <ul
+                          style={{
+                            margin: 0,
+                            paddingLeft: '18px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '12px',
+                            listStyleType: 'disc'
+                          }}
+                        >
+                          {violations.map((v, idx) => (
+                            <li key={idx} style={{ color: '#334155' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                {/* Guideline */}
+                                <div>
+                                  <span
+                                    style={{
+                                      fontSize: '11px',
+                                      fontWeight: 600,
+                                      color: '#64748B',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.4px'
+                                    }}
+                                  >
+                                    Guideline:{' '}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: 'var(--type-table-row-size, 12.5px)',
+                                      fontWeight: 400,
+                                      color: '#334155',
+                                      lineHeight: 1.5
+                                    }}
+                                  >
+                                    {v.guideline}
+                                  </span>
+                                </div>
+
+                                {/* Evidence Quote (no inner boxes) */}
+                                {v.evidence_quote && (
+                                  <div>
+                                    <span
+                                      style={{
+                                        fontSize: '11px',
+                                        fontWeight: 600,
+                                        color: '#64748B',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.4px'
+                                      }}
+                                    >
+                                      Evidence Quote:{' '}
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: 'var(--type-table-row-size, 12.5px)',
+                                        fontWeight: 400,
+                                        color: '#334155',
+                                        lineHeight: 1.5,
+                                        fontStyle: 'italic'
+                                      }}
+                                    >
+                                      "{v.evidence_quote}"
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Reason */}
+                                <div>
+                                  <span
+                                    style={{
+                                      fontSize: '11px',
+                                      fontWeight: 600,
+                                      color: '#64748B',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.4px'
+                                    }}
+                                  >
+                                    Reason:{' '}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: 'var(--type-table-row-size, 12.5px)',
+                                      fontWeight: 400,
+                                      color: '#334155',
+                                      lineHeight: 1.5
+                                    }}
+                                  >
+                                    {v.reason}
+                                  </span>
+                                </div>
+
+                                {/* Suggestion */}
+                                {v.suggestion && (
+                                  <div>
+                                    <span
+                                      style={{
+                                        fontSize: '11px',
+                                        fontWeight: 600,
+                                        color: '#64748B',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.4px'
+                                      }}
+                                    >
+                                      Suggestion:{' '}
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: 'var(--type-table-row-size, 12.5px)',
+                                        fontWeight: 400,
+                                        color: '#334155',
+                                        lineHeight: 1.5
+                                      }}
+                                    >
+                                      {v.suggestion}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Category Group 2: Undefined Acronyms (Unboxed Bullet List with Multi-Row Fields) */}
+                    {acronyms.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {/* Group Title: Matching Engagement Name Properties */}
+                        <div
+                          className="type-studio-title"
+                          style={{
+                            fontSize: 'var(--type-studio-title-size, 15px)',
+                            fontWeight: 500,
+                            color: 'var(--type-studio-title-color, #334155)',
+                            lineHeight: 'var(--type-studio-title-leading, 1.3)' as any,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <span>Undefined Acronyms</span>
+                          <span style={{ fontSize: '11px', fontWeight: 500, color: '#64748B' }}>
+                            ({acronyms.length})
+                          </span>
+                        </div>
+
+                        {/* Unboxed Bullet List for Acronyms */}
+                        <ul
+                          style={{
+                            margin: 0,
+                            paddingLeft: '18px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '12px',
+                            listStyleType: 'disc'
+                          }}
+                        >
+                          {acronyms.map((ac, idx) => (
+                            <li key={idx} style={{ color: '#334155' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                {/* Acronym */}
+                                <div>
+                                  <span
+                                    style={{
+                                      fontSize: '11px',
+                                      fontWeight: 600,
+                                      color: '#64748B',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.4px'
+                                    }}
+                                  >
+                                    Acronym:{' '}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: 'var(--type-table-row-size, 12.5px)',
+                                      fontWeight: 600,
+                                      color: '#334155',
+                                      letterSpacing: '0.5px'
+                                    }}
+                                  >
+                                    {ac.acronym}
+                                  </span>
+                                </div>
+
+                                {/* Suggested Definition */}
+                                {ac.suggested_definition && (
+                                  <div>
+                                    <span
+                                      style={{
+                                        fontSize: '11px',
+                                        fontWeight: 600,
+                                        color: '#64748B',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.4px'
+                                      }}
+                                    >
+                                      Suggested Definition:{' '}
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: 'var(--type-table-row-size, 12.5px)',
+                                        fontWeight: 400,
+                                        color: '#334155',
+                                        lineHeight: 1.5
+                                      }}
+                                    >
+                                      {ac.suggested_definition}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Evidence Quote (no inner boxes) */}
+                                {ac.evidence_quote && (
+                                  <div>
+                                    <span
+                                      style={{
+                                        fontSize: '11px',
+                                        fontWeight: 600,
+                                        color: '#64748B',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.4px'
+                                      }}
+                                    >
+                                      Evidence Quote:{' '}
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: 'var(--type-table-row-size, 12.5px)',
+                                        fontWeight: 400,
+                                        color: '#334155',
+                                        lineHeight: 1.5,
+                                        fontStyle: 'italic'
+                                      }}
+                                    >
+                                      "{ac.evidence_quote}"
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Comment */}
+                                {ac.comment && (
+                                  <div>
+                                    <span
+                                      style={{
+                                        fontSize: '11px',
+                                        fontWeight: 600,
+                                        color: '#64748B',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.4px'
+                                      }}
+                                    >
+                                      Comment:{' '}
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: 'var(--type-table-row-size, 12.5px)',
+                                        fontWeight: 400,
+                                        color: '#334155',
+                                        lineHeight: 1.5
+                                      }}
+                                    >
+                                      {ac.comment}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Category Group 3: Clarifying Questions (Clean Unboxed Bullet List) */}
+                    {questions.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {/* Group Title: Matching Engagement Name Properties */}
+                        <div
+                          className="type-studio-title"
+                          style={{
+                            fontSize: 'var(--type-studio-title-size, 15px)',
+                            fontWeight: 500,
+                            color: 'var(--type-studio-title-color, #334155)',
+                            lineHeight: 'var(--type-studio-title-leading, 1.3)' as any,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <span>Clarifying Questions</span>
+                          <span style={{ fontSize: '11px', fontWeight: 500, color: '#64748B' }}>
+                            ({questions.length})
+                          </span>
+                        </div>
+
+                        {/* Bulleted List: Single or Multi-bullet */}
+                        <ul
+                          style={{
+                            margin: 0,
+                            paddingLeft: '18px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px',
+                            listStyleType: 'disc'
+                          }}
+                        >
                           {questions.map((q, idx) => (
-                            <li key={idx} style={{ fontSize: '12.5px', color: '#212121', lineHeight: 1.5, fontWeight: 400 }}>
+                            <li
+                              key={idx}
+                              style={{
+                                fontSize: 'var(--type-table-row-size, 12.5px)',
+                                fontWeight: 400,
+                                color: '#334155',
+                                lineHeight: 1.55
+                              }}
+                            >
                               {q.text}
                             </li>
                           ))}
@@ -431,16 +721,49 @@ export const GuidelinesDrawer: React.FC<GuidelinesDrawerProps> = ({
                       </div>
                     )}
 
-                    {/* 4. Review Comments */}
+                    {/* Category Group 4: Review Comments (Clean Unboxed Bullet List) */}
                     {comments.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#212121', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                          Review Comments ({comments.length})
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {/* Group Title: Matching Engagement Name Properties */}
+                        <div
+                          className="type-studio-title"
+                          style={{
+                            fontSize: 'var(--type-studio-title-size, 15px)',
+                            fontWeight: 500,
+                            color: 'var(--type-studio-title-color, #334155)',
+                            lineHeight: 'var(--type-studio-title-leading, 1.3)' as any,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <span>Review Comments</span>
+                          <span style={{ fontSize: '11px', fontWeight: 500, color: '#64748B' }}>
+                            ({comments.length})
+                          </span>
                         </div>
 
-                        <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {/* Bulleted List: Single or Multi-bullet */}
+                        <ul
+                          style={{
+                            margin: 0,
+                            paddingLeft: '18px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px',
+                            listStyleType: 'disc'
+                          }}
+                        >
                           {comments.map((c, idx) => (
-                            <li key={idx} style={{ fontSize: '12.5px', color: '#212121', lineHeight: 1.5, fontWeight: 400 }}>
+                            <li
+                              key={idx}
+                              style={{
+                                fontSize: 'var(--type-table-row-size, 12.5px)',
+                                fontWeight: 400,
+                                color: '#334155',
+                                lineHeight: 1.55
+                              }}
+                            >
                               {c.text}
                             </li>
                           ))}
@@ -448,16 +771,49 @@ export const GuidelinesDrawer: React.FC<GuidelinesDrawerProps> = ({
                       </div>
                     )}
 
-                    {/* 5. Improvement Recommendations */}
+                    {/* Category Group 5: Improvement Recommendations (Clean Unboxed Bullet List) */}
                     {improvements.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#212121', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                          Improvement Recommendations ({improvements.length})
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {/* Group Title: Matching Engagement Name Properties */}
+                        <div
+                          className="type-studio-title"
+                          style={{
+                            fontSize: 'var(--type-studio-title-size, 15px)',
+                            fontWeight: 500,
+                            color: 'var(--type-studio-title-color, #334155)',
+                            lineHeight: 'var(--type-studio-title-leading, 1.3)' as any,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <span>Improvement Recommendations</span>
+                          <span style={{ fontSize: '11px', fontWeight: 500, color: '#64748B' }}>
+                            ({improvements.length})
+                          </span>
                         </div>
 
-                        <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {/* Bulleted List: Single or Multi-bullet */}
+                        <ul
+                          style={{
+                            margin: 0,
+                            paddingLeft: '18px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px',
+                            listStyleType: 'disc'
+                          }}
+                        >
                           {improvements.map((r, idx) => (
-                            <li key={idx} style={{ fontSize: '12.5px', color: '#212121', lineHeight: 1.5, fontWeight: 400 }}>
+                            <li
+                              key={idx}
+                              style={{
+                                fontSize: 'var(--type-table-row-size, 12.5px)',
+                                fontWeight: 400,
+                                color: '#334155',
+                                lineHeight: 1.55
+                              }}
+                            >
                               {r.text}
                             </li>
                           ))}
@@ -465,16 +821,49 @@ export const GuidelinesDrawer: React.FC<GuidelinesDrawerProps> = ({
                       </div>
                     )}
 
-                    {/* 6. Strengths */}
+                    {/* Category Group 6: Strengths (Clean Unboxed Bullet List) */}
                     {strengths.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#212121', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                          Strengths ({strengths.length})
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {/* Group Title: Matching Engagement Name Properties */}
+                        <div
+                          className="type-studio-title"
+                          style={{
+                            fontSize: 'var(--type-studio-title-size, 15px)',
+                            fontWeight: 500,
+                            color: 'var(--type-studio-title-color, #334155)',
+                            lineHeight: 'var(--type-studio-title-leading, 1.3)' as any,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <span>Strengths</span>
+                          <span style={{ fontSize: '11px', fontWeight: 500, color: '#64748B' }}>
+                            ({strengths.length})
+                          </span>
                         </div>
 
-                        <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {/* Bulleted List: Single or Multi-bullet */}
+                        <ul
+                          style={{
+                            margin: 0,
+                            paddingLeft: '18px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px',
+                            listStyleType: 'disc'
+                          }}
+                        >
                           {strengths.map((s, idx) => (
-                            <li key={idx} style={{ fontSize: '12.5px', color: '#212121', lineHeight: 1.5, fontWeight: 400 }}>
+                            <li
+                              key={idx}
+                              style={{
+                                fontSize: 'var(--type-table-row-size, 12.5px)',
+                                fontWeight: 400,
+                                color: '#334155',
+                                lineHeight: 1.55
+                              }}
+                            >
                               {s.text}
                             </li>
                           ))}

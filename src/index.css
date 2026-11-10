@@ -903,30 +903,50 @@ hr,
 
 /* Slim, very light grey scrollbar for dialogs and modal content */
 .slim-light-scrollbar,
-.MuiDialogContent-root {
+.MuiDialogContent-root,
+.MuiDrawer-paper,
+.pdf-preview-drawer-paper,
+.pdf-preview-drawer-body,
+iframe.slim-light-scrollbar {
   scrollbar-width: thin !important;
   scrollbar-color: #CBD5E1 transparent !important;
 }
 
 .slim-light-scrollbar::-webkit-scrollbar,
-.MuiDialogContent-root::-webkit-scrollbar {
+.MuiDialogContent-root::-webkit-scrollbar,
+.MuiDrawer-paper::-webkit-scrollbar,
+.pdf-preview-drawer-paper::-webkit-scrollbar,
+.pdf-preview-drawer-body::-webkit-scrollbar,
+iframe.slim-light-scrollbar::-webkit-scrollbar {
   width: 6px !important;
   height: 6px !important;
 }
 
 .slim-light-scrollbar::-webkit-scrollbar-track,
-.MuiDialogContent-root::-webkit-scrollbar-track {
+.MuiDialogContent-root::-webkit-scrollbar-track,
+.MuiDrawer-paper::-webkit-scrollbar-track,
+.pdf-preview-drawer-paper::-webkit-scrollbar-track,
+.pdf-preview-drawer-body::-webkit-scrollbar-track,
+iframe.slim-light-scrollbar::-webkit-scrollbar-track {
   background: transparent !important;
 }
 
 .slim-light-scrollbar::-webkit-scrollbar-thumb,
-.MuiDialogContent-root::-webkit-scrollbar-thumb {
+.MuiDialogContent-root::-webkit-scrollbar-thumb,
+.MuiDrawer-paper::-webkit-scrollbar-thumb,
+.pdf-preview-drawer-paper::-webkit-scrollbar-thumb,
+.pdf-preview-drawer-body::-webkit-scrollbar-thumb,
+iframe.slim-light-scrollbar::-webkit-scrollbar-thumb {
   background-color: #CBD5E1 !important;
   border-radius: 4px !important;
 }
 
 .slim-light-scrollbar::-webkit-scrollbar-thumb:hover,
-.MuiDialogContent-root::-webkit-scrollbar-thumb:hover {
+.MuiDialogContent-root::-webkit-scrollbar-thumb:hover,
+.MuiDrawer-paper::-webkit-scrollbar-thumb:hover,
+.pdf-preview-drawer-paper::-webkit-scrollbar-thumb:hover,
+.pdf-preview-drawer-body::-webkit-scrollbar-thumb:hover,
+iframe.slim-light-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: #94A3B8 !important;
 }
 

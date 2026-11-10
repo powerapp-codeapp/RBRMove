@@ -249,7 +249,8 @@
             "Report Download",
             "AI Field",
             "Normal Field",
-            "Created"
+            "Created",
+            "Business Response"
           ],
           "x-ms-enum-values": [
             1,
@@ -260,9 +261,11 @@
             6,
             7,
             8,
-            9
+            9,
+            10
           ],
           "Color": [
+            null,
             null,
             null,
             null,

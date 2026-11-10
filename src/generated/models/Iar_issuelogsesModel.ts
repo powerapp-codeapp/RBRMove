@@ -16,7 +16,8 @@ export const Iar_issuelogsesiar_logsubtype = {
   6: 'Report Download',
   7: 'AI Field',
   8: 'Normal Field',
-  9: 'Created'
+  9: 'Created',
+  10: 'Business Response'
 } as const;
 export type Iar_issuelogsesiar_logsubtype = keyof typeof Iar_issuelogsesiar_logsubtype;
 export const Iar_issuelogsesiar_logtype = {

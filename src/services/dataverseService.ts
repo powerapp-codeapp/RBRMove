@@ -16,7 +16,8 @@ import {
   advanceIssueWorkflow,
   managerSubmitIssueWorkflow,
   batchAdvanceEngagementIssues,
-  signOffAuditReport
+  signOffAuditReport,
+  saveBusinessResponseOnBehalf
 } from './dataverseReportingService';
 
 /**
@@ -111,6 +112,17 @@ class DataverseService implements IDataProvider {
 
   signOffAuditReport(engagementId: string, issues: any[], user?: any, remarks?: string, assignedUsers?: any[]) {
     return signOffAuditReport(engagementId, issues, user, remarks, assignedUsers);
+  }
+
+  saveBusinessResponseOnBehalf(
+    issueId: string,
+    engagementId: string,
+    user?: any,
+    responsePayload?: any,
+    currentIssue?: any,
+    assignedUsers?: any[]
+  ) {
+    return saveBusinessResponseOnBehalf(issueId, engagementId, user, responsePayload, currentIssue, assignedUsers);
   }
 
   getAiVersionsByIssueId(issueId: string) {

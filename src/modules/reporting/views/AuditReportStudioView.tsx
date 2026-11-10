@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useEngagement } from '../../../context/EngagementContext';
 import { useUserSession } from '../../../context/UserSessionContext';
-import { getUserRoleOnEngagement, getRoleDetails } from '../utils/reportingWorkflowEngine';
+import { getUserRoleOnEngagement, isUserAssignedToEngagement, getRoleDetails } from '../utils/reportingWorkflowEngine';
 import { dataverseService } from '../../../services/dataverseService';
 import {
   createDataverseIssue,
@@ -10,55 +10,58 @@ import {
   releaseIssueLock,
   updateIssueCriticalityInDataverse,
   updateDataverseIssueFields,
+  extractCleanGuid,
 } from '../../../services/dataverseReportingService';
-import type { Issue, IssueStatus, IssueComment, AuditTrailLog } from '../../../types/dataverse.types';
+import type { Issue, IssueComment, AuditTrailLog, IssueStatus } from '../../../types/dataverse.types';
+import type { CommentUser } from '../components/FieldCommentPopover';
 import { FindingNavigator } from '../components/FindingNavigator';
 import { FindingWorkpaperCard } from '../components/FindingWorkpaperCard';
 import { AuditReportPreviewPane } from '../components/AuditReportPreviewPane';
-import { AiVersionCompareDialog } from '../components/AiVersionCompareDialog';
-import { CreateIssueDialog } from '../components/CreateIssueDialog';
-import { IssueLogsDialog } from '../components/IssueLogsDialog';
-import type { CommentUser } from '../components/FieldCommentPopover';
-import { WorkflowModal } from '../components/WorkflowModal';
-import { CallbackModal } from '../components/CallbackModal';
-import { SendToModal } from '../components/SendToModal';
-import { ExcludeIssueModal } from '../components/ExcludeIssueModal';
-import { InactivityCountdownModal } from '../components/InactivityCountdownModal';
 import { useInactivityLockWatchdog } from '../hooks/useInactivityLockWatchdog';
-import { WorkflowSubmitButton } from '../components/WorkflowSubmitButton';
-import { WorkflowRemarksModal } from '../components/WorkflowRemarksModal';
-import { extractCleanGuid } from '../../../services/dataverseReportingService';
-import { PageHeader, SharedSelectButton, SharedToast } from '../../../components/shared';
-import {
-  FileText,
-  Download,
-  GitBranch,
-  History,
-  CheckCircle2,
-} from 'lucide-react';
+import { SharedToast } from '../../../components/shared';
+import { AuditReportHeaderToolbar } from '../components/AuditReportHeaderToolbar';
+import { StudioPaneSplitter } from '../components/StudioPaneSplitter';
+import { StudioDialogContainer } from '../components/StudioDialogContainer';
 
 export const AuditReportStudioView: React.FC = () => {
   const { selectedEngagementId, setActiveReportingView, activeEngagement, setActiveEngagement } = useEngagement();
-  const { currentUser, activeRole, isAdmin, isImpersonating } = useUserSession();
+  const { currentUser, isAdmin, isImpersonating } = useUserSession();
   const effectiveIsAdmin = !isImpersonating && Boolean(currentUser?.isAdmin || isAdmin);
+
+  // Check if current user is staffed on this specific active engagement
+  const isAssignedToThisEngagement = useMemo(() => {
+    if (!activeEngagement) return true;
+    return isUserAssignedToEngagement(activeEngagement, currentUser.email, currentUser.userId);
+  }, [activeEngagement, currentUser.email, currentUser.userId]);
+
+  // Enforce Option A: An Admin who is NOT staffed on this engagement operates strictly in Read-Only Oversight Mode
+  const isUnassignedAdmin = effectiveIsAdmin && !isAssignedToThisEngagement;
 
   // Dynamically resolve user's role on this active engagement (FRD Section 2.3)
   const currentRole = useMemo(() => {
-    // 1. If user explicitly selected a testing persona (other than 'assigned'), use it
-    if (activeRole?.id && activeRole.id !== 'assigned') {
-      return activeRole.id;
-    }
-    // 2. Resolve assigned role on active engagement for current / impersonated user
+    // 1. Resolve assigned role on active engagement for current / impersonated user
     if (activeEngagement) {
       const assignedRole = getUserRoleOnEngagement(activeEngagement, currentUser.email, currentUser.userId);
       if (assignedRole) return assignedRole;
     }
-    // 3. Fallback to user's primary role if not generic admin label
+    // 2. Fallback to user's primary role if not generic admin label
     if (currentUser?.role && currentUser.role !== 'Global Audit Administrator') {
       return currentUser.role;
     }
     return 'it-manager';
-  }, [activeEngagement, currentUser.email, currentUser.userId, currentUser.role, activeRole?.id]);
+  }, [activeEngagement, currentUser.email, currentUser.userId, currentUser.role]);
+
+  // Dynamic test procedures from active engagement
+  const testProcedureOptions = useMemo(() => {
+    const procs = (activeEngagement as any)?.testProcedures;
+    if (Array.isArray(procs) && procs.length > 0) {
+      return procs.map((tp: any) => ({
+        value: tp.iar_procedurecode || tp.code || tp.name || tp.id,
+        label: `${tp.iar_procedurecode || tp.code || ''}: ${tp.iar_procedurename || tp.title || tp.name || ''}`,
+      }));
+    }
+    return [];
+  }, [activeEngagement]);
 
   const [issues, setIssues] = useState<Issue[]>([]);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
@@ -77,7 +80,6 @@ export const AuditReportStudioView: React.FC = () => {
   const [isPane3Collapsed, setIsPane3Collapsed] = useState(false);
 
   const [isDraggingSplitter2, setIsDraggingSplitter2] = useState(false);
-  const [hoveredSplitter, setHoveredSplitter] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Dialog & Modal States
@@ -241,8 +243,16 @@ export const AuditReportStudioView: React.FC = () => {
   const checkIssueEditability = useCallback(
     (item: Issue | null) => {
       if (!item) return { canEdit: true, reason: null };
-      
-      // Global Administrators, VPs, and Heads have full cross-domain authority
+
+      // If Global Administrator is not staffed on this engagement, enforce Read-Only Oversight Mode
+      if (isUnassignedAdmin) {
+        return {
+          canEdit: false,
+          reason: 'Administrator Oversight Mode (Read-Only). You have full portfolio visibility, but to edit findings or advance review tiers, use "Impersonate User" to act on behalf of an assigned auditor.'
+        };
+      }
+
+      // Staffed Global Administrators, VPs, and Heads have full cross-domain authority
       if (effectiveIsAdmin) {
         return { canEdit: true, reason: null };
       }
@@ -308,7 +318,7 @@ export const AuditReportStudioView: React.FC = () => {
     if (activeEngagement) {
       (activeEngagement as any).issuesList = sequenced;
     }
-    dataverseService.syncIssueReportReferences(sequenced, engId).catch(() => {});
+    dataverseService.syncIssueReportReferences(sequenced, engId).catch(() => { });
   };
 
   const fieldSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -317,13 +327,13 @@ export const AuditReportStudioView: React.FC = () => {
     const prevIssue = issues.find((i) => i.id === updated.id);
     const engId = selectedEngagementId || (activeEngagement as any)?.id;
     if (prevIssue && updated.criticality !== prevIssue.criticality && updated.criticality) {
-      updateIssueCriticalityInDataverse(updated.id, updated.criticality, engId).catch(() => {});
+      updateIssueCriticalityInDataverse(updated.id, updated.criticality, engId).catch(() => { });
     }
     if (fieldSaveTimeoutRef.current) {
       clearTimeout(fieldSaveTimeoutRef.current);
     }
     fieldSaveTimeoutRef.current = setTimeout(() => {
-      updateDataverseIssueFields(updated, engId).catch(() => {});
+      updateDataverseIssueFields(updated, engId).catch(() => { });
     }, 600);
     setIssues((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
   };
@@ -360,7 +370,7 @@ export const AuditReportStudioView: React.FC = () => {
     const cleanId = extractCleanGuid(issueId).toLowerCase();
     const target = issues.find((i) => i.id === issueId || (cleanId && extractCleanGuid(i.id).toLowerCase() === cleanId));
     if (!target) return;
-    const engId = selectedEngagementId || (activeEngagement as any)?.id || 'REP-2026-001';
+    const engId = selectedEngagementId || (activeEngagement as any)?.id || '';
 
     try {
       if (target.isLocked) {
@@ -426,7 +436,7 @@ export const AuditReportStudioView: React.FC = () => {
     const cleanId = extractCleanGuid(issueId).toLowerCase();
     const target = issues.find((i) => i.id === issueId || (cleanId && extractCleanGuid(i.id).toLowerCase() === cleanId));
     if (!target) return;
-    const engId = selectedEngagementId || (activeEngagement as any)?.id || 'REP-2026-001';
+    const engId = selectedEngagementId || (activeEngagement as any)?.id || '';
     const assignedUsers = (activeEngagement as any)?.assignedUsers || [];
 
     try {
@@ -685,7 +695,7 @@ export const AuditReportStudioView: React.FC = () => {
     const cleanId = extractCleanGuid(issueId).toLowerCase();
     const target = issues.find((i) => i.id === issueId || (cleanId && extractCleanGuid(i.id).toLowerCase() === cleanId));
     if (!target) return;
-    const engId = selectedEngagementId || (activeEngagement as any)?.id || 'REP-2026-001';
+    const engId = selectedEngagementId || (activeEngagement as any)?.id || '';
 
     const currentFn = (target.function || (target.tech === 'FinOps' ? 'FinOps' : 'IT')) as 'IT' | 'FinOps';
     const nextFn: 'IT' | 'FinOps' = currentFn === 'IT' ? 'FinOps' : 'IT';
@@ -734,16 +744,16 @@ export const AuditReportStudioView: React.FC = () => {
         prev.map((item) =>
           item.id === issueId || extractCleanGuid(item.id) === extractCleanGuid(issueId)
             ? {
-                ...item,
-                status: updated.status,
-                currentOwner: currentUser?.name || 'Reviewer',
-                workflowRemarks: reason,
-                callbackReason: reason,
-                callbackTimestamp: new Date().toISOString(),
-                isLocked: false,
-                lockedBy: null,
-                lockedAt: null,
-              }
+              ...item,
+              status: updated.status,
+              currentOwner: currentUser?.name || 'Reviewer',
+              workflowRemarks: reason,
+              callbackReason: reason,
+              callbackTimestamp: new Date().toISOString(),
+              isLocked: false,
+              lockedBy: null,
+              lockedAt: null,
+            }
             : item
         )
       );
@@ -773,14 +783,14 @@ export const AuditReportStudioView: React.FC = () => {
         prev.map((item) =>
           item.id === issueId || extractCleanGuid(item.id) === extractCleanGuid(issueId)
             ? {
-                ...item,
-                status: updated.status,
-                currentOwner: recipient.displayName || recipient.name,
-                workflowRemarks: remarks,
-                isLocked: false,
-                lockedBy: null,
-                lockedAt: null,
-              }
+              ...item,
+              status: updated.status,
+              currentOwner: recipient.displayName || recipient.name,
+              workflowRemarks: remarks,
+              isLocked: false,
+              lockedBy: null,
+              lockedAt: null,
+            }
             : item
         )
       );
@@ -840,16 +850,16 @@ export const AuditReportStudioView: React.FC = () => {
             );
             return found
               ? {
-                  ...item,
-                  ...found,
-                  title: found.title || item.title,
-                  criticality: found.criticality || item.criticality,
-                  testProcedureCode: found.testProcedureCode || item.testProcedureCode,
-                  status: (found.status || result.nextStatus) as any,
-                  currentOwner: found.currentOwner || item.currentOwner,
-                  isLocked: false,
-                  lockedBy: null,
-                }
+                ...item,
+                ...found,
+                title: found.title || item.title,
+                criticality: found.criticality || item.criticality,
+                testProcedureCode: found.testProcedureCode || item.testProcedureCode,
+                status: (found.status || result.nextStatus) as any,
+                currentOwner: found.currentOwner || item.currentOwner,
+                isLocked: false,
+                lockedBy: null,
+              }
               : item;
           })
         );
@@ -881,30 +891,39 @@ export const AuditReportStudioView: React.FC = () => {
         prev.map((item) =>
           item.id === selectedIssue.id || extractCleanGuid(item.id) === extractCleanGuid(selectedIssue.id)
             ? {
-                ...item,
-                ...updated,
-                title: updated.title || item.title,
-                criticality: updated.criticality || item.criticality,
-                testProcedureCode: updated.testProcedureCode || item.testProcedureCode,
-                status: targetStatus,
-                currentOwner: updated.currentOwner || item.currentOwner,
-                isLocked: false,
-                lockedBy: null,
-                workflowRemarks: remarks
-              }
+              ...item,
+              ...updated,
+              title: updated.title || item.title,
+              criticality: updated.criticality || item.criticality,
+              testProcedureCode: updated.testProcedureCode || item.testProcedureCode,
+              status: targetStatus,
+              currentOwner: updated.currentOwner || item.currentOwner,
+              isLocked: false,
+              lockedBy: null,
+              workflowRemarks: remarks
+            }
             : item
         )
       );
       setToastMessage({ message: `Workflow status advanced to ${targetStatus}`, severity: 'success' });
     } catch (err: any) {
       console.warn('[AuditReportStudioView] Error advancing workflow:', err);
-      const fallbackOwner = targetStatus.includes('TC')
-        ? 'Gowri P'
-        : targetStatus.includes('Manager')
-        ? 'Amanda Palmer'
-        : targetStatus.includes('Director')
-        ? 'Marcus Vance'
-        : currentUser?.name || selectedIssue.currentOwner;
+      const assigned = (activeEngagement as any)?.assignedUsers || [];
+      const resolveRoleOwner = (roleType: string) => {
+        const match = assigned.find((u: any) => {
+          const { baseRole } = getRoleDetails(u.roleId || u.roleName);
+          return baseRole === roleType;
+        });
+        return match?.displayName || match?.name;
+      };
+      const fallbackOwner =
+        (targetStatus.includes('TC') && resolveRoleOwner('team-coordinator')) ||
+        (targetStatus.includes('Manager') && resolveRoleOwner('manager')) ||
+        (targetStatus.includes('Director') && resolveRoleOwner('director')) ||
+        (targetStatus.includes('VP') && resolveRoleOwner('vp')) ||
+        currentUser?.name ||
+        selectedIssue.currentOwner ||
+        '';
       const updatedLocal = {
         ...selectedIssue,
         status: targetStatus,
@@ -941,7 +960,7 @@ export const AuditReportStudioView: React.FC = () => {
 
   const handleCreateNewIssue = async (newIssueData: Partial<Issue>, statusAction?: 'draft' | 'submit') => {
     try {
-      const engId = selectedEngagementId || (activeEngagement as any)?.id || 'REP-2026-001';
+      const engId = selectedEngagementId || (activeEngagement as any)?.id || '';
       const assignedUsers = (activeEngagement as any)?.assignedUsers || [];
       const currentActiveIssues = issues.filter((i) => !i.isExcluded && i.status !== 'Excluded');
       const currentExcludedIssues = issues.filter((i) => i.isExcluded || i.status === 'Excluded');
@@ -959,13 +978,20 @@ export const AuditReportStudioView: React.FC = () => {
       );
 
       const targetStatus = (newIssueData.status as any) || (statusAction === 'submit' ? 'Pending TC' : 'Pending Staff');
-      const fallbackOwner = targetStatus.includes('TC')
-        ? 'Gowri P'
-        : targetStatus.includes('Manager')
-        ? 'Amanda Palmer'
-        : targetStatus.includes('Director')
-        ? 'Marcus Vance'
-        : currentUser?.name || 'Assigned Auditor';
+      const resolveRoleOwner = (roleType: string) => {
+        const match = assignedUsers.find((u: any) => {
+          const { baseRole } = getRoleDetails(u.roleId || u.roleName);
+          return baseRole === roleType;
+        });
+        return match?.displayName || match?.name;
+      };
+      const fallbackOwner =
+        (targetStatus.includes('TC') && resolveRoleOwner('team-coordinator')) ||
+        (targetStatus.includes('Manager') && resolveRoleOwner('manager')) ||
+        (targetStatus.includes('Director') && resolveRoleOwner('director')) ||
+        (targetStatus.includes('VP') && resolveRoleOwner('vp')) ||
+        currentUser?.name ||
+        'Assigned Auditor';
 
       const issueToAdd: Issue = created?.issue || {
         id: created?.iar_issuesid || `ISSUE-${Date.now().toString().slice(-4)}`,
@@ -1061,12 +1087,12 @@ export const AuditReportStudioView: React.FC = () => {
         prev.map((c) =>
           c.commentId === commentId
             ? {
-                ...c,
-                isResolved: true,
-                resolvedById: resolved.resolvedById || currentUser?.userId || 'USR-001',
-                resolvedByName: currentUser?.name || resolved.resolvedByName || 'Reviewer',
-                resolvedAt: resolved.resolvedAt || new Date().toISOString(),
-              }
+              ...c,
+              isResolved: true,
+              resolvedById: resolved.resolvedById || currentUser?.userId || 'USR-001',
+              resolvedByName: currentUser?.name || resolved.resolvedByName || 'Reviewer',
+              resolvedAt: resolved.resolvedAt || new Date().toISOString(),
+            }
             : c
         )
       );
@@ -1104,16 +1130,16 @@ export const AuditReportStudioView: React.FC = () => {
           const found = updatedList.find((u) => u.id === item.id || extractCleanGuid(u.id) === extractCleanGuid(item.id));
           return found
             ? {
-                ...item,
-                ...found,
-                title: found.title || item.title,
-                criticality: found.criticality || item.criticality,
-                testProcedureCode: found.testProcedureCode || item.testProcedureCode,
-                status: 'Pending Director',
-                currentOwner: found.currentOwner || 'Marcus Vance',
-                isLocked: false,
-                lockedBy: null
-              }
+              ...item,
+              ...found,
+              title: found.title || item.title,
+              criticality: found.criticality || item.criticality,
+              testProcedureCode: found.testProcedureCode || item.testProcedureCode,
+              status: 'Pending Director',
+              currentOwner: found.currentOwner || 'Marcus Vance',
+              isLocked: false,
+              lockedBy: null
+            }
             : item;
         })
       );
@@ -1146,18 +1172,19 @@ export const AuditReportStudioView: React.FC = () => {
           const found = updatedList.find((u) => u.id === item.id || extractCleanGuid(u.id) === extractCleanGuid(item.id));
           return found
             ? {
-                ...item,
-                ...found,
-                title: found.title || item.title,
-                criticality: found.criticality || item.criticality,
-                testProcedureCode: found.testProcedureCode || item.testProcedureCode,
-                status: 'Pending Business',
-                currentOwner: found.currentOwner || item.primaryBusinessOwnerName || item.accountableContact || 'Business Owner',
-                businessResponseRequested: true,
-                workflowRemarks: remarks || 'Submitted to Business Management',
-                isLocked: false,
-                lockedBy: null
-              } as any
+              ...item,
+              ...found,
+              title: found.title || item.title,
+              criticality: found.criticality || item.criticality,
+              testProcedureCode: found.testProcedureCode || item.testProcedureCode,
+              status: 'Pending Business',
+              currentOwner: found.currentOwner || item.primaryBusinessOwnerName || item.accountableContact || 'Business Owner',
+              businessResponseStatus: 'Pending with Business',
+              businessResponseRequested: true,
+              workflowRemarks: remarks || 'Submitted to Business Management',
+              isLocked: false,
+              lockedBy: null
+            } as any
             : item;
         })
       );
@@ -1172,6 +1199,81 @@ export const AuditReportStudioView: React.FC = () => {
       setToastMessage({
         message: `Failed to submit to Business: ${err?.message || 'Dataverse error'}`,
         severity: 'error',
+      });
+    }
+  };
+
+  // Business Management Response On-Behalf Submission Handler
+  const handleSaveBusinessResponseOnBehalf = async (
+    issueId: string,
+    responseData: { reason: string; response: string; attachment?: string; targetDate?: string }
+  ) => {
+    const cleanId = extractCleanGuid(issueId).toLowerCase();
+    const target = issues.find((i) => i.id === issueId || (cleanId && extractCleanGuid(i.id).toLowerCase() === cleanId));
+    if (!target) return;
+    const engId = selectedEngagementId || (activeEngagement as any)?.id || '';
+    const assignedUsers = (activeEngagement as any)?.assignedUsers || [];
+
+    try {
+      const updated = await dataverseService.saveBusinessResponseOnBehalf(
+        issueId,
+        engId,
+        currentUser,
+        {
+          businessManagementResponse: responseData.response,
+          businessManagementReason: responseData.reason,
+          businessManagementAttachment: responseData.attachment,
+          agreedRemediationDate: responseData.targetDate,
+        },
+        target,
+        assignedUsers
+      );
+
+      setIssues((prev) =>
+        prev.map((i) =>
+          i.id === issueId || (cleanId && extractCleanGuid(i.id).toLowerCase() === cleanId)
+            ? updated
+            : i
+        )
+      );
+
+      const isPendingBiz = target.status === 'Pending Business' || (target as any).currentLevel === 'Pending Business';
+      setToastMessage({
+        message: isPendingBiz
+          ? 'Business response saved on-behalf. Finding automatically returned to Pending Manager for supervisory validation.'
+          : 'Business response saved on-behalf successfully.',
+        severity: 'success',
+      });
+    } catch (err: any) {
+      console.warn('[AuditReportStudioView] Notice saving business response on behalf:', err);
+      const nowFormatted = new Date().toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const updated: Issue = {
+        ...target,
+        businessManagementReason: responseData.reason,
+        businessManagementResponse: responseData.response,
+        managementResponse: responseData.response,
+        businessManagementAttachment: responseData.attachment || '',
+        businessResponseStatus: 'Completed',
+        businessResponseBy: 'Audit Team',
+        businessResponseProvidedBy: currentUser?.name || 'Auditor',
+        businessResponseProvidedAt: new Date().toISOString(),
+        businessResponseAddedOnBehalfBy: currentUser?.name || 'Auditor',
+        businessResponseAddedOnBehalfRole: currentUser?.role || 'Auditor',
+        businessResponseAddedOnBehalfAt: nowFormatted,
+        agreedRemediationDate: responseData.targetDate || target.agreedRemediationDate,
+        remediationTargetDate: responseData.targetDate || target.remediationTargetDate,
+        status: target.status === 'Pending Business' ? 'Pending Manager' : target.status,
+      };
+      handleUpdateIssue(updated);
+      setToastMessage({
+        message: 'Business response saved locally.',
+        severity: 'info',
       });
     }
   };
@@ -1193,16 +1295,16 @@ export const AuditReportStudioView: React.FC = () => {
           const found = updatedList.find((u) => u.id === item.id || extractCleanGuid(u.id) === extractCleanGuid(item.id));
           return found
             ? {
-                ...item,
-                ...found,
-                title: found.title || item.title,
-                criticality: found.criticality || item.criticality,
-                testProcedureCode: found.testProcedureCode || item.testProcedureCode,
-                status: 'Pending VP',
-                currentOwner: found.currentOwner || 'Elena Rostova',
-                isLocked: false,
-                lockedBy: null
-              }
+              ...item,
+              ...found,
+              title: found.title || item.title,
+              criticality: found.criticality || item.criticality,
+              testProcedureCode: found.testProcedureCode || item.testProcedureCode,
+              status: 'Pending VP',
+              currentOwner: found.currentOwner || 'Elena Rostova',
+              isLocked: false,
+              lockedBy: null
+            }
             : item;
         })
       );
@@ -1234,16 +1336,16 @@ export const AuditReportStudioView: React.FC = () => {
           const found = updatedIssues.find((u) => u.id === item.id || extractCleanGuid(u.id) === extractCleanGuid(item.id));
           return found
             ? {
-                ...item,
-                ...found,
-                title: found.title || item.title,
-                criticality: found.criticality || item.criticality,
-                testProcedureCode: found.testProcedureCode || item.testProcedureCode,
-                status: 'Completed',
-                currentOwner: found.currentOwner || 'QA Archive',
-                isLocked: false,
-                lockedBy: null
-              }
+              ...item,
+              ...found,
+              title: found.title || item.title,
+              criticality: found.criticality || item.criticality,
+              testProcedureCode: found.testProcedureCode || item.testProcedureCode,
+              status: 'Completed',
+              currentOwner: found.currentOwner || 'QA Archive',
+              isLocked: false,
+              lockedBy: null
+            }
             : item;
         })
       );
@@ -1275,7 +1377,8 @@ export const AuditReportStudioView: React.FC = () => {
   const isDirector = roleDetails.baseRole === 'director';
   const isVP = roleDetails.baseRole === 'vp';
   const isManager = roleDetails.baseRole === 'manager';
-  const isUserAdmin = effectiveIsAdmin;
+  // Admin only acts as an operational reviewer if they are actually staffed on this engagement (Option A SoD rule)
+  const isUserAdmin = effectiveIsAdmin && !isUnassignedAdmin;
   void isDirector;
   void isVP;
   void isManager;
@@ -1286,10 +1389,17 @@ export const AuditReportStudioView: React.FC = () => {
   const allPendingVP = activeIssues.length > 0 && activeIssues.every((i) => i.status === 'Pending VP');
   const allCompleted = activeIssues.length > 0 && activeIssues.every((i) => i.status === 'Completed' || i.status === 'Signed Off');
 
-  // Driven strictly by the engagement-level Dataverse column iar_businessresponserequested (Yes / No)
+  // Driven by engagement-level Dataverse flag or by all active issues having received completed management responses
   const hasBusinessResponses = Boolean(
     issues.some((i) => (i as any).businessResponseRequested === true) ||
-    (activeEngagement as any)?.businessResponseRequested === true
+    (activeEngagement as any)?.businessResponseRequested === true ||
+    (activeIssues.length > 0 &&
+      activeIssues.every(
+        (i) =>
+          i.businessResponseStatus === 'Completed' ||
+          i.businessResponseStatus === 3 ||
+          Boolean((i.businessManagementResponse || i.managementResponse || '').trim())
+      ))
   );
 
   const readyIssuesCount = activeIssues.filter(
@@ -1312,201 +1422,98 @@ export const AuditReportStudioView: React.FC = () => {
       }}
     >
       {/* Studio Header Toolbar */}
-      <PageHeader
+      <AuditReportHeaderToolbar
         onBack={() => setActiveReportingView('queue')}
-        backTitle="Back to Reporting Queue"
-        title={`Audit Report — ${(activeEngagement as any)?.fileName || (activeEngagement as any)?.engagement || selectedEngagementId || 'Audit Report'}`}
-        actions={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* 1. Pre-Director Stage: Submit to Director (Held by Manager; Active when all issues ready; disabled with progress if waiting) */}
-            {(isManager || isUserAdmin) && isPreDirectorStage && (
-              <WorkflowSubmitButton
-                label="Submit to Director"
-                disabled={!allReadyForDirector}
-                title={
-                  allReadyForDirector
-                    ? 'Batch ready — Submit Audit Report to Audit Director for review'
-                    : `Complete Manager review on all active issues before submitting batch to Director (${readyIssuesCount} of ${activeIssues.length} ready).`
-                }
-                onClickDirect={() => {
-                  if (allReadyForDirector) {
-                    handleManagerSubmitToDirector();
-                  } else {
-                    setToastMessage({
-                      message: `Cannot submit batch yet: Complete review on all issues at issue level first (${readyIssuesCount} of ${activeIssues.length} ready).`,
-                      severity: 'info',
-                    });
-                  }
-                }}
-                onOpenRemarks={() => {
-                  if (allReadyForDirector) {
-                    setReportRemarksConfig({
-                      isOpen: true,
-                      title: 'Submit Audit Report to Audit Director',
-                      actionLabel: 'Submit to Director',
-                      currentStatus: 'Ready for Director Submission',
-                      targetStatus: 'Pending Director',
-                      actionType: 'submit-director',
-                    });
-                  } else {
-                    setToastMessage({
-                      message: `Cannot submit batch yet: Complete review on all issues at issue level first (${readyIssuesCount} of ${activeIssues.length} ready).`,
-                      severity: 'info',
-                    });
-                  }
-                }}
-              />
-            )}
-
-            {/* 2. Audit Director Report Submit (Round 1 only — when BusinessResponseRequested is No / false): Submit to Business */}
-            {(isDirector || isUserAdmin) && allPendingDirector && !hasBusinessResponses && (
-              <WorkflowSubmitButton
-                label="Submit to Business"
-                onClickDirect={() => handleDirectorSubmitToBusiness()}
-                onOpenRemarks={() =>
-                  setReportRemarksConfig({
-                    isOpen: true,
-                    title: 'Submit Findings to Business Management',
-                    actionLabel: 'Submit to Business',
-                    currentStatus: 'Pending Director',
-                    targetStatus: 'Pending Business',
-                    actionType: 'submit-business',
-                  })
-                }
-              />
-            )}
-
-            {/* 3. Director / VP Report Submit: Submit to VP (Post-Business Response) */}
-            {(isDirector || isUserAdmin) && allPendingDirector && hasBusinessResponses && (
-              <WorkflowSubmitButton
-                label="Submit to VP"
-                variant={hasCriticalFinding ? 'primary' : 'secondary'}
-                onClickDirect={() => handleDirectorSubmitToVP()}
-                onOpenRemarks={() =>
-                  setReportRemarksConfig({
-                    isOpen: true,
-                    title: 'Submit Audit Report to Vice President',
-                    actionLabel: 'Submit to VP',
-                    currentStatus: 'Pending Director',
-                    targetStatus: 'Pending VP',
-                    actionType: 'submit-vp',
-                  })
-                }
-                title={
-                  hasCriticalFinding
-                    ? 'Mandatory VP Sign-Off Rule (contains Critical finding)'
-                    : 'Escalate Audit Report to Vice President for executive review'
-                }
-              />
-            )}
-
-            {/* 4. Director Report Action: Sign Off (Post-Business Response) */}
-            {(isDirector || isUserAdmin) && allPendingDirector && hasBusinessResponses && (
-              <WorkflowSubmitButton
-                label="Sign Off"
-                variant="success"
-                disabled={hasCriticalFinding}
-                onClickDirect={() => handleSignOffAuditReport()}
-                onOpenRemarks={() =>
-                  setReportRemarksConfig({
-                    isOpen: true,
-                    title: 'Official Audit Report Sign-Off & Seal',
-                    actionLabel: 'Sign Off',
-                    currentStatus: 'Pending Director',
-                    targetStatus: 'Completed',
-                    actionType: 'sign-off',
-                  })
-                }
-                title={
-                  hasCriticalFinding
-                    ? 'Mandatory VP Sign-Off Rule: Contains Critical finding; sign-off must be performed by Vice President.'
-                    : 'Officially complete and sign off the Audit Report'
-                }
-              />
-            )}
-
-            {/* 5. VP Report Action: Sign Off */}
-            {(isVP || isUserAdmin) && allPendingVP && (
-              <WorkflowSubmitButton
-                label="Sign Off"
-                variant="success"
-                onClickDirect={() => handleSignOffAuditReport()}
-                onOpenRemarks={() =>
-                  setReportRemarksConfig({
-                    isOpen: true,
-                    title: 'Executive Sign-Off & Seal (VP)',
-                    actionLabel: 'Sign Off',
-                    currentStatus: 'Pending VP',
-                    targetStatus: 'Completed',
-                    actionType: 'sign-off',
-                  })
-                }
-                title="Officially complete and sign off the Audit Report"
-              />
-            )}
-
-            {/* 6. Completed status indicator if all issues are Completed */}
-            {allCompleted && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '4px 10px',
-                  borderRadius: '4px',
-                  backgroundColor: '#ECFDF5',
-                  border: '1px solid #A7F3D0',
-                  color: '#059669',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                }}
-              >
-                <CheckCircle2 size={14} />
-                <span>Report Completed</span>
-              </div>
-            )}
-
-            {/* Standard Report Actions Dropdown */}
-            <SharedSelectButton
-              label="Report Actions"
-              size="small"
-              menuWidth={230}
-              title="Audit Report Actions"
-              items={[
-                {
-                  key: 'download-report',
-                  label: 'Download Report',
-                  icon: <Download style={{ width: '14px', height: '14px', color: '#000099' }} />,
-                  onClick: () => window.print(),
-                },
-                {
-                  key: 'executive-report',
-                  label: 'Executive Report',
-                  icon: <FileText style={{ width: '14px', height: '14px', color: '#000099' }} />,
-                  onClick: () => setActiveReportingView('executive-studio'),
-                },
-                {
-                  key: 'workflow-stages',
-                  label: 'Workflow',
-                  icon: <GitBranch style={{ width: '14px', height: '14px', color: '#000099' }} />,
-                  onClick: () => {
-                    setWorkflowScope('report');
-                    setIsWorkflowModalOpen(true);
-                  },
-                },
-                {
-                  key: 'audit-trail-logs',
-                  label: 'Track Changes',
-                  icon: <History style={{ width: '14px', height: '14px', color: '#eb1700' }} />,
-                  onClick: () => {
-                    setLogsScope('report');
-                    setIsLogsOpen(true);
-                  },
-                },
-              ]}
-            />
-          </div>
+        engagementTitle={
+          (activeEngagement as any)?.fileName ||
+          (activeEngagement as any)?.engagement ||
+          selectedEngagementId ||
+          'Audit Report'
         }
+        isUnassignedAdmin={isUnassignedAdmin}
+        isManager={isManager}
+        isDirector={isDirector}
+        isVP={isVP}
+        isUserAdmin={isUserAdmin}
+        isPreDirectorStage={isPreDirectorStage}
+        allReadyForDirector={allReadyForDirector}
+        allPendingDirector={allPendingDirector}
+        allPendingVP={allPendingVP}
+        allCompleted={allCompleted}
+        hasBusinessResponses={hasBusinessResponses}
+        hasCriticalFinding={hasCriticalFinding}
+        readyIssuesCount={readyIssuesCount}
+        totalActiveIssuesCount={activeIssues.length}
+        onManagerSubmitToDirector={() => {
+          if (allReadyForDirector) {
+            handleManagerSubmitToDirector();
+          } else {
+            setToastMessage({
+              message: `Cannot submit batch yet: Complete review on all issues at issue level first (${readyIssuesCount} of ${activeIssues.length} ready).`,
+              severity: 'info',
+            });
+          }
+        }}
+        onOpenSubmitToDirectorRemarks={() => {
+          if (allReadyForDirector) {
+            setReportRemarksConfig({
+              isOpen: true,
+              title: 'Submit Audit Report to Audit Director',
+              actionLabel: 'Submit to Director',
+              currentStatus: 'Ready for Director Submission',
+              targetStatus: 'Pending Director',
+              actionType: 'submit-director',
+            });
+          } else {
+            setToastMessage({
+              message: `Cannot submit batch yet: Complete review on all issues at issue level first (${readyIssuesCount} of ${activeIssues.length} ready).`,
+              severity: 'info',
+            });
+          }
+        }}
+        onDirectorSubmitToBusiness={() => handleDirectorSubmitToBusiness()}
+        onOpenSubmitToBusinessRemarks={() =>
+          setReportRemarksConfig({
+            isOpen: true,
+            title: 'Submit Findings to Business Management',
+            actionLabel: 'Submit to Business',
+            currentStatus: 'Pending Director',
+            targetStatus: 'Pending Business',
+            actionType: 'submit-business',
+          })
+        }
+        onDirectorSubmitToVP={() => handleDirectorSubmitToVP()}
+        onOpenSubmitToVPRemarks={() =>
+          setReportRemarksConfig({
+            isOpen: true,
+            title: 'Submit Audit Report to Vice President',
+            actionLabel: 'Submit to VP',
+            currentStatus: 'Pending Director',
+            targetStatus: 'Pending VP',
+            actionType: 'submit-vp',
+          })
+        }
+        onSignOffAuditReport={() => handleSignOffAuditReport()}
+        onOpenSignOffRemarks={() =>
+          setReportRemarksConfig({
+            isOpen: true,
+            title: isVP ? 'Executive Sign-Off & Seal (VP)' : 'Official Audit Report Sign-Off & Seal',
+            actionLabel: 'Sign Off',
+            currentStatus: isVP ? 'Pending VP' : 'Pending Director',
+            targetStatus: 'Completed',
+            actionType: 'sign-off',
+          })
+        }
+        onDownloadReport={() => window.print()}
+        onOpenExecutiveReport={() => setActiveReportingView('executive-studio')}
+        onOpenWorkflowModal={() => {
+          setWorkflowScope('report');
+          setIsWorkflowModalOpen(true);
+        }}
+        onOpenAuditTrailLogs={() => {
+          setLogsScope('report');
+          setIsLogsOpen(true);
+        }}
       />
 
       {/* Main Studio Body: 3-Pane Layout */}
@@ -1554,7 +1561,16 @@ export const AuditReportStudioView: React.FC = () => {
             selectedIssueId={selectedIssueId}
             onSelectIssue={setSelectedIssueId}
             onReorderIssues={handleReorderIssues}
-            onOpenCreateDialog={() => setIsCreateOpen(true)}
+            onOpenCreateDialog={() => {
+              if (isUnassignedAdmin) {
+                setToastMessage({
+                  message: 'Administrator Oversight Mode (Read-Only): To add a finding, use "Impersonate User" to act on behalf of an assigned auditor.',
+                  severity: 'info'
+                });
+                return;
+              }
+              setIsCreateOpen(true);
+            }}
             onIncludeIssue={handleIncludeIssue}
             userRole={currentRole}
             isCollapsed={isPane1Collapsed}
@@ -1629,6 +1645,8 @@ export const AuditReportStudioView: React.FC = () => {
                 onAdvanceWorkflow={handleAdvanceWorkflow}
                 userRole={currentRole}
                 hasCriticalFinding={hasCriticalFinding}
+                testProcedureOptions={testProcedureOptions}
+                onSaveBusinessResponseOnBehalf={handleSaveBusinessResponseOnBehalf}
               />
             </div>
           ) : (
@@ -1640,54 +1658,13 @@ export const AuditReportStudioView: React.FC = () => {
 
         {/* SPLITTER 2 (between Pane 2 and Pane 3) */}
         {!isPane2Collapsed && !isPane3Collapsed && (
-          <div
+          <StudioPaneSplitter
+            isDragging={isDraggingSplitter2}
             onMouseDown={(e) => {
               e.preventDefault();
               setIsDraggingSplitter2(true);
             }}
-            onMouseEnter={() => setHoveredSplitter(2)}
-            onMouseLeave={() => setHoveredSplitter(null)}
-            title="Click and drag to adjust width"
-            style={{
-              width: '6px',
-              marginLeft: '-3px',
-              marginRight: '-3px',
-              backgroundColor: 'transparent',
-              position: 'relative',
-              cursor: 'col-resize',
-              zIndex: 20,
-              flexShrink: 0,
-              height: '100%',
-            }}
-          >
-            {/* Interactive Adjust-Width Separator (visible on hover or drag) */}
-            <div
-              style={{
-                position: 'absolute',
-                top: 0,
-                bottom: 0,
-                left: '2px',
-                width: '2px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor:
-                  isDraggingSplitter2 || hoveredSplitter === 2 ? '#000099' : 'transparent',
-                transition: 'background-color 0.15s ease',
-              }}
-            >
-              <div
-                style={{
-                  width: '2px',
-                  height: '24px',
-                  borderRadius: '1px',
-                  backgroundColor: '#ffffff',
-                  opacity: isDraggingSplitter2 || hoveredSplitter === 2 ? 1 : 0,
-                  transition: 'opacity 0.15s ease',
-                }}
-              />
-            </div>
-          </div>
+          />
         )}
 
         {/* ============================================================== */}
@@ -1715,132 +1692,60 @@ export const AuditReportStudioView: React.FC = () => {
             engagementFileName={
               (activeEngagement as any)?.fileName ||
               (activeEngagement as any)?.engagement ||
-              'MedTech Suzhou - Orthopedics Plant_AuditReport'
+              'Audit Report'
             }
             auditableEntityName={
               (activeEngagement as any)?.auditableEntity ||
               (activeEngagement as any)?.plantLocation ||
-              'MRC-004341-GFS SSC Philippines'
+              'GA&A Internal Audit'
             }
           />
         </div>
       </div>
 
-      {/* Workflow Modal */}
-      <WorkflowModal
-        isOpen={isWorkflowModalOpen}
-        onClose={() => setIsWorkflowModalOpen(false)}
-        job={activeEngagement}
-        issue={workflowScope === 'issue' ? selectedIssue : undefined}
+      {/* Studio Dialogs & Modals Container */}
+      <StudioDialogContainer
+        isWorkflowModalOpen={isWorkflowModalOpen}
+        onCloseWorkflowModal={() => setIsWorkflowModalOpen(false)}
+        workflowScope={workflowScope}
+        activeEngagement={activeEngagement}
+        selectedIssue={selectedIssue}
         issues={issues}
-        title={workflowScope === 'issue' ? 'Issue Workflow Pipeline' : 'Audit Report Workflow Pipeline'}
-        type="audit"
-      />
-
-      {/* AI Version Comparison & Merge Dialog */}
-      {selectedIssue && (
-        <AiVersionCompareDialog
-          open={isAiCompareOpen}
-          onClose={() => setIsAiCompareOpen(false)}
-          currentIssue={selectedIssue}
-          onApplyMerge={handleApplyAiMerge}
-        />
-      )}
-
-      {/* Add New Finding Dialog */}
-      <CreateIssueDialog
-        open={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        engagementId={selectedEngagementId || 'REP-2026-001'}
-        engagementName={
-          (activeEngagement as any)?.engagementName ||
-          (activeEngagement as any)?.title ||
-          (activeEngagement as any)?.engagement ||
-          (activeEngagement as any)?.fileName
-        }
-        job={activeEngagement}
-        userRole={currentRole}
+        isAiCompareOpen={isAiCompareOpen}
+        onCloseAiCompare={() => setIsAiCompareOpen(false)}
+        onApplyAiMerge={handleApplyAiMerge}
+        isCreateOpen={isCreateOpen}
+        onCloseCreate={() => setIsCreateOpen(false)}
+        selectedEngagementId={selectedEngagementId}
+        currentRole={currentRole}
         currentUser={currentUser}
-        onSave={handleCreateNewIssue}
-      />
-
-      {/* Event History & Track Changes Dialog (Issue Level & Report Level) */}
-      <IssueLogsDialog
-        open={isLogsOpen}
-        onClose={() => setIsLogsOpen(false)}
-        issueId={selectedIssue?.id || 'ISS-2026-001'}
-        issueTitle={selectedIssue?.title || 'Audit Finding'}
-        issue={selectedIssue}
-        engagementId={selectedEngagementId || 'REP-2026-001'}
-        engagementTitle={
-          (activeEngagement as any)?.engagementName ||
-          (activeEngagement as any)?.title ||
-          (activeEngagement as any)?.engagement ||
-          (activeEngagement as any)?.fileName ||
-          'Commercial ERP Controls & Security Audit 2026'
-        }
-        initialScope={logsScope}
-        logs={auditLogs}
-      />
-
-      {/* Call Back Modal */}
-      <CallbackModal
-        isOpen={isCallbackModalOpen}
-        onClose={() => setIsCallbackModalOpen(false)}
-        issue={callbackTargetIssue}
-        currentUser={currentUser}
-        userRole={currentRole}
+        onCreateNewIssue={handleCreateNewIssue}
+        isLogsOpen={isLogsOpen}
+        onCloseLogs={() => setIsLogsOpen(false)}
+        logsScope={logsScope}
+        auditLogs={auditLogs}
+        isCallbackModalOpen={isCallbackModalOpen}
+        onCloseCallback={() => setIsCallbackModalOpen(false)}
+        callbackTargetIssue={callbackTargetIssue}
         onConfirmCallback={handleConfirmCallback}
-      />
-
-      {/* Send To Peer Handover Modal */}
-      <SendToModal
-        isOpen={isSendToModalOpen}
-        onClose={() => setIsSendToModalOpen(false)}
-        issue={sendToTargetIssue}
-        assignedUsers={(activeEngagement as any)?.assignedUsers || []}
-        currentUser={currentUser}
+        isSendToModalOpen={isSendToModalOpen}
+        onCloseSendTo={() => setIsSendToModalOpen(false)}
+        sendToTargetIssue={sendToTargetIssue}
         onConfirmSendTo={handleConfirmSendTo}
-      />
-
-      {/* Exclude Finding Modal */}
-      <ExcludeIssueModal
-        isOpen={isExcludeModalOpen}
-        onClose={() => {
+        isExcludeModalOpen={isExcludeModalOpen}
+        onCloseExclude={() => {
           setIsExcludeModalOpen(false);
           setIssueToExclude(null);
         }}
-        issue={issueToExclude}
-        currentUser={currentUser}
+        issueToExclude={issueToExclude}
         onConfirmExclude={handleConfirmExclude}
-      />
-
-      {/* 59-Minute Inactivity Warning & 60-Second Auto-Unlock Countdown Modal */}
-      <InactivityCountdownModal
-        isOpen={isWarningOpen}
+        isWarningOpen={isWarningOpen}
         secondsRemaining={secondsRemaining}
         onKeepWorking={handleKeepWorking}
-        onUnlockNow={handleManualUnlock}
-        issueTitle={selectedIssue?.title}
-      />
-
-      {/* Report-Level Workflow Transition with Remarks Modal */}
-      <WorkflowRemarksModal
-        isOpen={Boolean(reportRemarksConfig?.isOpen)}
-        onClose={() => setReportRemarksConfig(null)}
-        title={reportRemarksConfig?.title || 'Report Workflow Transition'}
-        actionLabel={reportRemarksConfig?.actionLabel || 'Submit'}
-        itemTitle={
-          (activeEngagement as any)?.engagementName ||
-          (activeEngagement as any)?.title ||
-          (activeEngagement as any)?.fileName ||
-          (activeEngagement as any)?.engagement ||
-          selectedEngagementId ||
-          'Audit Report'
-        }
-        currentStatusText={reportRemarksConfig?.currentStatus}
-        targetStatusText={reportRemarksConfig?.targetStatus}
-        onConfirm={async (remarks) => {
+        onManualUnlock={handleManualUnlock}
+        reportRemarksConfig={reportRemarksConfig}
+        onCloseReportRemarks={() => setReportRemarksConfig(null)}
+        onConfirmReportRemarks={async (remarks) => {
           if (!reportRemarksConfig) return;
           if (reportRemarksConfig.actionType === 'submit-director') {
             await handleManagerSubmitToDirector(remarks);

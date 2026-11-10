@@ -69,24 +69,24 @@ export const IssueNavCard: React.FC<IssueNavCardProps> = ({
 }) => {
   const [isHovered, setIsHovered] = useState(false);
 
-  const { activeRole } = useUserSession();
+  const { currentUser } = useUserSession();
 
   const isLocked = !!issue.isLocked;
   const isExcluded = !!issue.isExcluded;
 
-  // Determine function (IT vs FinOps)
+  // Determine function (IT vs FinOps) from Dataverse function
   const isIT = (() => {
     const fn = (issue.function || (issue as any).functionType || '').toUpperCase();
     if (fn.includes('FINOPS') || fn.includes('FIN')) return false;
     if (fn.includes('IT')) return true;
-    const testProc = (issue.testProcedureCode || (issue as any).testProcedure || '').toUpperCase();
     const acct = (issue.accountableFunction || '').toUpperCase();
     if (acct.includes('FINOPS') || acct.includes('FINANCE')) return false;
     if (acct.includes('IT')) return true;
-    return testProc.includes('TP-101') || testProc.includes('TP-102') || testProc.includes('TP-110');
+    const testProc = (issue.testProcedureCode || (issue as any).testProcedure || '').toUpperCase();
+    return testProc.includes('IT');
   })();
 
-  const roleStr = (activeRole?.id || '').toLowerCase();
+  const roleStr = (currentUser?.role || '').toLowerCase();
   const isITUser = roleStr.includes('it');
   const isFinOpsUser = roleStr.includes('finops') || roleStr.includes('fin');
   const isVP = roleStr.includes('vp') || roleStr.includes('head');

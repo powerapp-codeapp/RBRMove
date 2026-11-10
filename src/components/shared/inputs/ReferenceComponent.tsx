@@ -1,10 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import Drawer from '@mui/material/Drawer';
 import {
-  FileText,
-  X,
-  ExternalLink,
-  BookOpen,
   Pencil,
   Trash2,
   Plus,
@@ -12,6 +7,7 @@ import {
 } from 'lucide-react';
 import { SharedFieldLabel } from '../common/SharedFieldLabel';
 import { SharedButton } from '../buttons/SharedButton';
+import { PdfPreviewDrawer } from '../feedback/PdfPreviewDrawer';
 
 export interface FrameworkReferenceItem {
   no?: number;
@@ -635,153 +631,22 @@ export const ReferenceComponent: React.FC<ReferenceComponentProps> = ({
       )}
 
       {/* Slide-Over Drawer on Left for PDF Policy Preview */}
-      <Drawer
-        anchor="left"
+      <PdfPreviewDrawer
         open={isDrawerOpen}
         onClose={handleCloseDrawer}
-        slotProps={{
-          backdrop: {
-            style: { backgroundColor: 'rgba(15, 23, 42, 0.45)' },
-          },
-          paper: {
-            style: {
-              width: 'clamp(540px, 50vw, 840px)',
-              maxWidth: '94vw',
-              height: '100%',
-              backgroundColor: '#FFFFFF',
-              boxShadow: '6px 0 24px rgba(0, 0, 0, 0.15)',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              fontFamily: '"jj-circular", Arial, Helvetica, sans-serif',
-              zIndex: 1500,
-            },
-          },
-        }}
-      >
-        {/* Drawer Header */}
-        <div
-          style={{
-            backgroundColor: '#000099',
-            color: '#FFFFFF',
-            padding: '14px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexShrink: 0,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '6px',
-                backgroundColor: 'rgba(255, 255, 255, 0.12)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#FFFFFF',
-              }}
-            >
-              <BookOpen size={17} />
-            </div>
-            <div>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: '#FFFFFF' }}>
-                {activeItem?.framework_name || 'Standard Reference'}
-              </div>
-              <div style={{ fontSize: '11.5px', color: 'rgba(255, 255, 255, 0.85)' }}>
-                {activeItem?.violated_section_clause ? `Section / Clause: ${activeItem.violated_section_clause}` : 'Regulatory Framework Citation'}
-                {activeItem?.references?.page_number ? ` • ${activeItem.references.page_number}` : ''}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* Open in new tab button */}
-            <a
-              href={externalLinkUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '4px 10px',
-                backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                color: '#FFFFFF',
-                borderRadius: '4px',
-                fontSize: '11.5px',
-                fontWeight: 600,
-                textDecoration: 'none',
-                transition: 'background-color 0.15s ease',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.25)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'; }}
-            >
-              <ExternalLink size={13} />
-              <span>Open Tab</span>
-            </a>
-
-            <button
-              type="button"
-              onClick={handleCloseDrawer}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#FFFFFF',
-                cursor: 'pointer',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '4px',
-              }}
-              title="Close drawer"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        </div>
-
-        {/* Drawer Meta Sub-bar */}
-        <div
-          style={{
-            backgroundColor: '#F8FAFC',
-            borderBottom: '1px solid #E2E8F0',
-            padding: '10px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            fontSize: '12px',
-            color: '#475569',
-            flexShrink: 0,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <FileText size={14} style={{ color: '#000099' }} />
-            <span>Document: <strong>{activeItem?.references?.filename || 'sample_explain.pdf'}</strong></span>
-          </div>
-          {activeItem?.reason && (
-            <div style={{ fontSize: '11.5px', color: '#64748B', maxWidth: '50%', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={activeItem.reason}>
-              Finding: {activeItem.reason}
-            </div>
-          )}
-        </div>
-
-        {/* Drawer Body: Embedded PDF Viewer */}
-        <div style={{ flex: 1, minHeight: 0, position: 'relative', backgroundColor: '#525659' }}>
-          <iframe
-            src={`${LOCAL_PDF_URL}#toolbar=1`}
-            title={activeItem?.framework_name || 'Standard Reference PDF'}
-            style={{
-              width: '100%',
-              height: '100%',
-              border: 'none',
-            }}
-          />
-        </div>
-      </Drawer>
+        title={activeItem?.framework_name || 'Standard Reference'}
+        subtitle={
+          activeItem?.violated_section_clause
+            ? `Section / Clause: ${activeItem.violated_section_clause}${
+                activeItem?.references?.page_number ? ` • ${activeItem.references.page_number}` : ''
+              }`
+            : 'Regulatory Framework Citation'
+        }
+        filename={activeItem?.references?.filename || 'sample_explain.pdf'}
+        pdfUrl={LOCAL_PDF_URL}
+        externalLinkUrl={externalLinkUrl}
+        reason={activeItem?.reason}
+      />
     </div>
   );
 };

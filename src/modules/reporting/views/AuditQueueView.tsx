@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   RotateCcw,
   Filter,
-  ArrowUpDown,
   Calendar,
   RefreshCw
 } from 'lucide-react';
@@ -18,7 +17,9 @@ import {
 import { fetchDataverseReportingData, createDataverseIssue } from '../../../services/dataverseReportingService';
 import { CreateIssueDialog } from '../components/CreateIssueDialog';
 import { AuditQueueCardRow } from '../components/AuditQueueCardRow';
+import { AuditQueueHeader } from '../components/AuditQueueHeader';
 import { CreateSummaryConfirmModal } from '../components/CreateSummaryConfirmModal';
+import { ENGAGEMENT_STATUS_OPTIONS } from '../constants/reportingConstants';
 import {
   SharedTabs,
   type SharedTabItem,
@@ -30,26 +31,18 @@ import {
   PageHeader,
   SharedToast,
   SharedAuditQueueSkeleton,
+  SharedEmptyState,
   type ToastSeverity
 } from '../../../components/shared';
-
-const STATUS_OPTIONS = [
-  { id: 'Not Started', label: 'Not Started', color: '#64748B', bg: '#F8FAFC', border: '#E2E8F0' },
-  { id: 'Audit Report Inprogress', label: 'Audit Report Inprogress', color: '#000099', bg: '#EFF6FF', border: '#BFDBFE' },
-  { id: 'Executive Report Inprogress', label: 'Executive Report Inprogress', color: '#B45309', bg: '#FEF3C7', border: '#FDE68A' },
-  { id: 'Completed', label: 'Completed', color: '#087D0D', bg: '#F0FDF4', border: '#BBF2D0' }
-];
 
 export const AuditQueueView: React.FC = () => {
   const { setSelectedEngagementId, setActiveReportingView, setActiveEngagement } = useEngagement();
   const { currentUser, activeRole, isAdmin, isImpersonating } = useUserSession();
   const userRole =
-    activeRole?.id && activeRole.id !== 'assigned'
-      ? activeRole.id
-      : currentUser?.role && currentUser.role !== 'Global Audit Administrator'
+    currentUser?.role && currentUser.role !== 'Global Audit Administrator'
       ? currentUser.role
-      : 'it-manager';
-  const userRoleDetails = useMemo(() => getRoleDetails(userRole), [userRole]);
+      : (isImpersonating ? currentUser?.role || 'staff' : '');
+  const userRoleDetails = useMemo(() => getRoleDetails(userRole || 'it-auditor'), [userRole]);
   const isBusinessRole = userRoleDetails.baseRole === 'primary-business-contact';
 
   const [jobs, setJobs] = useState<any[]>([]);
@@ -109,18 +102,23 @@ export const AuditQueueView: React.FC = () => {
   // 2. Engagements requiring action for this user / persona
   const userActionJobs = useMemo(() => {
     return userAssociatedJobs.filter((job) => {
-      if (isBusinessRole) {
+      // Check user's assigned role on this specific engagement; if unassigned admin, do not masquerade
+      const roleOnEng =
+        getUserRoleOnEngagement(job, currentUser.email, currentUser.userId) ||
+        (isAdmin && !isImpersonating ? null : userRole);
+      if (!roleOnEng) return false;
+
+      const { baseRole } = getRoleDetails(roleOnEng);
+      if (baseRole === 'primary-business-contact') {
         return (
           (job.issuesList || []).some((iss: any) => (iss.status || '').toLowerCase().includes('business')) ||
           (job.status || '').toLowerCase().includes('business') ||
           (job.subStatus || '').toLowerCase().includes('business')
         );
       }
-      // Check user's assigned role on this specific engagement, or use active role
-      const roleOnEng = getUserRoleOnEngagement(job, currentUser.email, currentUser.userId) || userRole;
       return isAuditNeedingAction(job, roleOnEng);
     });
-  }, [userAssociatedJobs, isBusinessRole, currentUser.email, currentUser.userId, userRole]);
+  }, [userAssociatedJobs, currentUser.email, currentUser.userId, userRole, isAdmin, isImpersonating]);
 
   // Memoized filter options for SharedFilterSelect (Loads portfolio assessment years)
   const assessmentOptions: FilterOption[] = useMemo(() => {
@@ -151,7 +149,7 @@ export const AuditQueueView: React.FC = () => {
   }, [userAssociatedJobs, assessmentsList]);
 
   const statusOptions: FilterOption[] = useMemo(() => {
-    return STATUS_OPTIONS.map((opt) => {
+    return ENGAGEMENT_STATUS_OPTIONS.map((opt) => {
       const optCount = userAssociatedJobs.filter((j) => getEngagementWorkflowState(j).status === opt.id).length;
       return {
         value: opt.id,
@@ -174,21 +172,11 @@ export const AuditQueueView: React.FC = () => {
   const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
   const [selectedJobForIssue, setSelectedJobForIssue] = useState<any | null>(null);
   const [confirmSummaryJob, setConfirmSummaryJob] = useState<any | null>(null);
-  const [sendToDropdownIssueId, setSendToDropdownIssueId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<{
     title: string;
     description: string;
     severity?: ToastSeverity;
   } | null>(null);
-
-  // Close custom issue action dropdown on click outside
-  useEffect(() => {
-    function handleClickOutside() {
-      setSendToDropdownIssueId(null);
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   // Navigation handlers
   const handleWorkOnReport = (job: any, type: 'audit' | 'executive') => {
@@ -278,7 +266,7 @@ export const AuditQueueView: React.FC = () => {
         });
 
         // Background sync to ensure exact state alignment
-        loadLiveReportingData(false).catch(() => {});
+        loadLiveReportingData(false).catch(() => { });
       } catch (err: any) {
         console.error('[AuditQueueView] Error saving issue to Dataverse:', err);
         setToastMessage({
@@ -290,35 +278,6 @@ export const AuditQueueView: React.FC = () => {
     }
     setIsCreateDrawerOpen(false);
     setSelectedJobForIssue(null);
-  };
-
-  const handleSendToRole = (jobId: string, issueId: string, targetStageObj: any, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setJobs(prev =>
-      prev.map(j => {
-        if (j.id === jobId) {
-          return {
-            ...j,
-            status: 'In Progress',
-            issuesList: (j.issuesList || []).map((iss: any) =>
-              iss.id === issueId
-                ? {
-                    ...iss,
-                    currentLevel: targetStageObj.id,
-                    status: targetStageObj.id === 'VP Sign-Off' ? 'Completed' : 'In Review'
-                  }
-                : iss
-            )
-          };
-        }
-        return j;
-      })
-    );
-    setToastMessage({
-      title: `Issue Sent to ${targetStageObj.role}`,
-      description: `Issue current stage updated to ${targetStageObj.label}.`
-    });
-    setSendToDropdownIssueId(null);
   };
 
   // Dynamic Badges counts for Primary Tabs
@@ -500,19 +459,19 @@ export const AuditQueueView: React.FC = () => {
         }}
       >
 
-      {/* Single-Row Filter Toolbar (Using Shared Components - Spanning Full Width) */}
-      <div
-        className="single-row-filter-panel"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          width: '100%',
-          marginBottom: '22px',
-          minHeight: 'var(--control-min-height-sm, 2.25rem)',
-          flexWrap: 'wrap',
-        }}
-      >
+        {/* Single-Row Filter Toolbar (Using Shared Components - Spanning Full Width) */}
+        <div
+          className="single-row-filter-panel"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            width: '100%',
+            marginBottom: '22px',
+            minHeight: 'var(--control-min-height-sm, 2.25rem)',
+            flexWrap: 'wrap',
+          }}
+        >
           {/* 1. Search Engagements Input (Expands to occupy remaining width) */}
           <div style={{ flex: '1 1 auto', minWidth: '280px' }}>
             <SharedSearchInput
@@ -625,178 +584,106 @@ export const AuditQueueView: React.FC = () => {
           </SharedTooltip>
         </div>
 
-      {/* Queue Table Layout with Header Grid & Expandable Cards */}
-      <div className="audit-queue-scroll-container">
-        <div className="audit-queue-table-layout">
-          {/* Header Grid (Aligned with Card Summaries - Transparent background, no heavy borders) */}
-          <div className={`audit-queue-header-grid ${auditTab === 'my-actions' ? 'my-actions-layout' : 'all-associated-layout'}`}>
-            {/* Column 1: Expand Spacer */}
-            <div style={{ width: '44px', textAlign: 'center' }}></div>
+        {/* Queue Table Layout with Header Grid & Expandable Cards */}
+        <div className="audit-queue-scroll-container">
+          <div className="audit-queue-table-layout">
+            {/* Header Grid (Aligned with Card Summaries - Transparent background, no heavy borders) */}
+            <AuditQueueHeader auditTab={auditTab} onSort={handleSort} />
 
-            {/* Column 2: Engagement */}
-            <div
-              className="audit-queue-header-col sortable"
-              onClick={() => handleSort('engagement')}
-            >
-              <span>Engagement</span>
-              <ArrowUpDown size={12} className="th-sort-icon" />
-            </div>
-
-            {/* Column 3: Engagement Status */}
-            <div
-              className="audit-queue-header-col sortable"
-              onClick={() => handleSort('status')}
-            >
-              <span>Status</span>
-              <ArrowUpDown size={12} className="th-sort-icon" />
-            </div>
-
-            {/* When My Action Audits: Action Issues is placed right next to Status (clean text, no tooltip) */}
-            {auditTab === 'my-actions' && (
-              <div className="audit-queue-header-col center">
-                <span>Action Issues</span>
-              </div>
-            )}
-
-            {/* Current Queue */}
-            <div
-              className="audit-queue-header-col sortable"
-              onClick={() => handleSort('currentQueue')}
-            >
-              <span>Current Queue</span>
-              <ArrowUpDown size={12} className="th-sort-icon" />
-            </div>
-
-            {/* Current Owner */}
-            <div
-              className="audit-queue-header-col sortable"
-              onClick={() => handleSort('currentOwner')}
-            >
-              <span>Current Owner</span>
-              <ArrowUpDown size={12} className="th-sort-icon" />
-            </div>
-
-            {/* When All Associated Audits: Keep only In-Progress column in primary row (Center Aligned) */}
-            {auditTab === 'all-associated' && (
-              <div className="audit-queue-header-col center">
-                <span>In-Progress</span>
-              </div>
-            )}
-
-            {/* Column: Actions */}
-            <div className="audit-queue-header-col right">
-              <span>Actions</span>
-            </div>
-          </div>
-
-          {/* Cards List, Loading Skeleton, or Empty State */}
-          {isInitialLoading || (isRefreshing && jobs.length === 0) ? (
-            <SharedAuditQueueSkeleton rows={6} auditTab={auditTab} />
-          ) : filteredJobs.length === 0 ? (
-            <div
-              style={{
-                padding: '48px',
-                textAlign: 'center',
-                backgroundColor: '#ffffff',
-                borderRadius: '8px',
-                border: '1px solid #edf0f5',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
-                color: '#64748B'
-              }}
-            >
-              <Filter size={36} color="#CBD5E1" style={{ margin: '0 auto 8px' }} />
-              <p style={{ fontWeight: 700, color: '#334155', margin: 0 }}>
-                {jobs.length === 0 && isLiveConnected
-                  ? 'No audit engagements found in Microsoft Dataverse'
-                  : auditTab === 'my-actions'
-                  ? 'No audits currently requiring your action'
-                  : 'No reporting jobs matched your filters'}
-              </p>
-              {auditTab !== 'my-actions' && (
-                <p style={{ fontSize: '11px', color: '#94A3B8', marginTop: '6px' }}>
-                  {jobs.length === 0 && isLiveConnected
-                    ? 'The app is successfully connected to your Dataverse environment, but table iar_engagementses currently has 0 records. Synchronize from TeamMate or create an engagement to see records here.'
-                    : isImpersonating
-                    ? `${currentUser.name} (${currentUser.email}) has no assigned audits in this portfolio matching your filters.`
-                    : 'Try clearing your search query or status filters.'}
-                </p>
-              )}
-              {auditTab === 'my-actions' && allAssociatedAuditsCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setAuditTab('all-associated')}
-                  style={{
-                    marginTop: '14px',
-                    padding: '6px 14px',
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #CBD5E1',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    color: '#000099',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Switch to All Associated Audits ({allAssociatedAuditsCount})
-                </button>
-              )}
-            </div>
-          ) : (
-            filteredJobs.map((job) => (
-              <AuditQueueCardRow
-                key={job.id}
-                job={job}
-                userRole={getUserRoleOnEngagement(job, currentUser.email, currentUser.userId) || userRole}
-                isBusinessRole={isBusinessRole}
-                auditTab={auditTab}
-                isExpanded={expandedRowId === job.id}
-                onToggleExpand={() => setExpandedRowId((prev) => (prev === job.id ? null : job.id))}
-                expandedInnerTab={expandedInnerTabs[job.id] || 'all'}
-                onChangeInnerTab={(tabId) => setExpandedInnerTabs((prev) => ({ ...prev, [job.id]: tabId }))}
-                sendToDropdownIssueId={sendToDropdownIssueId}
-                setSendToDropdownIssueId={setSendToDropdownIssueId}
-                onWorkOnReport={handleWorkOnReport}
-                onOpenCreateForJob={handleOpenCreateForJob}
-                onSendToRole={handleSendToRole}
+            {/* Cards List, Loading Skeleton, or Empty State */}
+            {isInitialLoading || (isRefreshing && jobs.length === 0) ? (
+              <SharedAuditQueueSkeleton rows={6} auditTab={auditTab} />
+            ) : filteredJobs.length === 0 ? (
+              <SharedEmptyState
+                icon={<Filter size={36} color="#CBD5E1" />}
+                title={
+                  jobs.length === 0 && isLiveConnected
+                    ? 'No audit engagements found in Microsoft Dataverse'
+                    : auditTab === 'my-actions'
+                      ? 'No audits currently requiring your action'
+                      : 'No reporting jobs matched your filters'
+                }
+                description={
+                  auditTab !== 'my-actions'
+                    ? (jobs.length === 0 && isLiveConnected
+                        ? 'The app is successfully connected to your Dataverse environment, but table iar_engagementses currently has 0 records. Synchronize from TeamMate or create an engagement to see records here.'
+                        : isImpersonating
+                          ? `${currentUser.name} (${currentUser.email}) has no assigned audits in this portfolio matching your filters.`
+                          : 'Try clearing your search query or status filters.')
+                    : undefined
+                }
+                action={
+                  auditTab === 'my-actions' && allAssociatedAuditsCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setAuditTab('all-associated')}
+                      style={{
+                        padding: '6px 14px',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #CBD5E1',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        color: '#000099',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Switch to All Associated Audits ({allAssociatedAuditsCount})
+                    </button>
+                  ) : undefined
+                }
               />
-            ))
-          )}
+            ) : (
+              filteredJobs.map((job) => (
+                <AuditQueueCardRow
+                  key={job.id}
+                  job={job}
+                  userRole={getUserRoleOnEngagement(job, currentUser.email, currentUser.userId) || userRole}
+                  isBusinessRole={isBusinessRole}
+                  auditTab={auditTab}
+                  isExpanded={expandedRowId === job.id}
+                  onToggleExpand={() => setExpandedRowId((prev) => (prev === job.id ? null : job.id))}
+                  expandedInnerTab={expandedInnerTabs[job.id] || 'all'}
+                  onChangeInnerTab={(tabId) => setExpandedInnerTabs((prev) => ({ ...prev, [job.id]: tabId }))}
+                  onWorkOnReport={handleWorkOnReport}
+                  onOpenCreateForJob={handleOpenCreateForJob}
+                />
+              ))
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Create Issue Dialog */}
-      {isCreateDrawerOpen && selectedJobForIssue && (
-        <CreateIssueDialog
-          open={isCreateDrawerOpen}
-          onClose={() => setIsCreateDrawerOpen(false)}
-          engagementId={selectedJobForIssue.id}
-          job={selectedJobForIssue}
-          engagementName={selectedJobForIssue.title || selectedJobForIssue.engagementName || selectedJobForIssue.name}
-          userRole={
-            activeRole?.id && activeRole.id !== 'assigned'
-              ? activeRole.id
-              : getUserRoleOnEngagement(selectedJobForIssue, currentUser.email, currentUser.userId) ||
-                userRole
+        {/* Create Issue Dialog */}
+        {isCreateDrawerOpen && selectedJobForIssue && (
+          <CreateIssueDialog
+            open={isCreateDrawerOpen}
+            onClose={() => setIsCreateDrawerOpen(false)}
+            engagementId={selectedJobForIssue.id}
+            job={selectedJobForIssue}
+            engagementName={selectedJobForIssue.title || selectedJobForIssue.engagementName || selectedJobForIssue.name}
+            userRole={
+              getUserRoleOnEngagement(selectedJobForIssue, currentUser.email, currentUser.userId) ||
+              userRole
+            }
+            currentUser={currentUser}
+            onSave={handleSaveNewIssue}
+          />
+        )}
+
+        {/* Confirmation Modal for Starting Summary Report Without Issues */}
+        <CreateSummaryConfirmModal
+          isOpen={Boolean(confirmSummaryJob)}
+          onClose={() => setConfirmSummaryJob(null)}
+          onConfirm={handleConfirmCreateSummary}
+          engagementName={
+            confirmSummaryJob?.fileName ||
+            confirmSummaryJob?.engagementName ||
+            confirmSummaryJob?.engagement ||
+            confirmSummaryJob?.title ||
+            confirmSummaryJob?.id ||
+            'Audit Engagement'
           }
-          currentUser={currentUser}
-          onSave={handleSaveNewIssue}
         />
-      )}
-
-      {/* Confirmation Modal for Starting Summary Report Without Issues */}
-      <CreateSummaryConfirmModal
-        isOpen={Boolean(confirmSummaryJob)}
-        onClose={() => setConfirmSummaryJob(null)}
-        onConfirm={handleConfirmCreateSummary}
-        engagementName={
-          confirmSummaryJob?.fileName ||
-          confirmSummaryJob?.engagementName ||
-          confirmSummaryJob?.engagement ||
-          confirmSummaryJob?.title ||
-          confirmSummaryJob?.id ||
-          'Audit Engagement'
-        }
-      />
       </div>
     </div>
   );

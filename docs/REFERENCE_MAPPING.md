@@ -104,8 +104,8 @@ This document serves as the master architectural directory mapping between the r
 | `execReportData.js` (Report record) | `iar_executivesummaryreports` (Upcoming) | Executive report record per engagement (`iar_executivesummaryreportid`, `iar_EngagementID`, `iar_executivenarrative`, `iar_auditrating`, `iar_scopematrix`). |
 | `executiveReportLogs.json` | `iar_summaryreportlogs` (Upcoming) | Executive summary report review progression and sign-offs (`iar_summaryreportlogid`, `iar_ExecutiveSummaryReportID`, `iar_action`). |
 | `execReportComments` | `iar_summaryreportcomments` (Upcoming) | Executive report section comments and feedback (`iar_summaryreportcommentid`, `iar_ExecutiveSummaryReportID`, `iar_sectionkey`). |
-| N/A (Auditee Comments) | `iar_businesscomments` (Upcoming) | Canvas App auditee comments submitted via SharePoint list (`iar_businesscommentid`, `iar_IssueID`, `iar_comment`). |
-| `managementResponses` | `iar_issuesbusinessresponses` (Upcoming) | Formal business auditee CAP responses & action plans (`iar_issuesbusinessresponseid`, `iar_IssueID`, `iar_managementresponse`, `iar_actionplan`, `iar_targetdate`). |
+| N/A (Auditee Comments) | `iar_businesscomments` (On Hold) | On hold pending finalized requirements. |
+| `managementResponses` | Consolidated into `iar_issueses` & `iar_issuelogses` | Single official active Management Response, agreed remediation date, and response attribution on `iar_issueses`; all revision iterations and version history logged to `iar_issuelogses` (`iar_logsubtype: 10 Business Response`). |
 | N/A (Audit Trail) | `iar_userlogs` (Upcoming) | Enterprise user activity, navigation, and session compliance audit trail (`iar_userlogid`, `systemusers`). |
 
 
@@ -154,8 +154,8 @@ sequenceDiagram
 | **`FLW-IAR-AdvanceWorkflowStage`** | "Submit to TC", "Submit to Manager", "Submit to Director", "Sign Off" buttons | Validates role permissions; advances issue status in Dataverse; writes immutable entry in `iar_issuelogs`. |
 | **`FLW-IAR-RouteToBusiness`** | "Send to Business" button (Director Only) in `AuditReportView` | Triggered by Director; advances issue status to `Pending Business`; provisions entry in SharePoint List `IAR_BusinessOwnerResponses_List`; dispatches notification to Business Owner with Canvas App deep-link. |
 | **`FLW-IAR-SyncIssueToSharePoint`** | Issue Create/Edit trigger in Code App | Synchronizes issue details, descriptions, and statuses from Dataverse to the SharePoint List (`IAR_Issues_List`) powering the Business Canvas App. |
-| **`FLW-IAR-SyncBusinessComment`** | Submit In-Between Comment in Canvas App | Ingests in-between business comments from `IAR_Issues_List` into Dataverse table `iar_businesscomments` for real-time auditor visibility. |
-| **`FLW-IAR-IngestBusinessResponse`**| Submit Response in Business Canvas App | Ingests formal Management Response and CAP from SharePoint List `IAR_BusinessOwnerResponses_List` into Dataverse table `iar_issuesbusinessresponses`; automatically transitions issue status back to `Pending Manager`. |
+| **`FLW-IAR-SyncBusinessComment`** | Submit In-Between Comment / Reply | *(On Hold)* Synchronizes two-way conversational feedback between `IAR_Issues_List` (Canvas App) and Dataverse table `iar_businesscomments` (Code App). |
+| **`FLW-IAR-IngestBusinessResponse`**| Submit Response in Business Canvas App | Ingests formal Management Response from SharePoint List `IAR_BusinessOwnerResponses_List` directly into `iar_issueses` (`iar_businessmanagementresponse`, `iar_agreedremediationdate`, `iar_businessresponsestatus`, `iar_businessresponseby`, `iar_businessresponseprovidedby`, `iar_businessresponseprovidedat`) and logs an immutable version row in `iar_issuelogses` (`iar_logsubtype: 10`); automatically transitions issue status back to `Pending Manager`. |
 | **`FLW-IAR-CompileAndExportReport`** | "Complete and Sign-Off" / "Export Report" buttons | Compiles all active issues and executive narrative; converts to branded **PDF Format**; stores in SharePoint `FinalReports/`; returns download URL. |
 
 
